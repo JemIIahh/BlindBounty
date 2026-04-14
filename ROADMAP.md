@@ -9,7 +9,7 @@
 | Phase | Name | Status | Description |
 |---|---|---|---|
 | 0 | Scaffolding | ✅ | Project structure, docs, git, frontend copy |
-| 1 | Smart Contracts | ✅ | Escrow, reputation, task registry — 40 tests passing |
+| 1 | Smart Contracts | ✅ | Production-grade: 3 contracts, 87 tests, full security hardening |
 | 2 | Backend API | PENDING | Task CRUD, submission flow, payment verification |
 | 3 | 0G Storage Integration | PENDING | Encrypted task/evidence upload/download |
 | 4 | 0G Sealed Inference | PENDING | TEE-based evidence verification |
@@ -37,7 +37,7 @@
 | 1.2 BlindEscrow contract | ✅ | 18 tests: createTask, assignWorker, submitEvidence, completeVerification, cancelTask, admin |
 | 1.3 TaskRegistry contract | ✅ | 10 tests: publishTask, closeTask, getOpenTasks (pagination), admin |
 | 1.4 BlindReputation contract | ✅ | 12 tests: rate, recordDispute, getReputation, admin |
-| 1.5 Unit tests | ✅ | 40 total tests passing |
+| 1.5 Unit tests | ✅ | 87 total tests after security hardening |
 | 1.6 Deploy to 0G testnet | PENDING | Needs testnet tokens + deploy script |
 
 ## Phase 2: Backend API

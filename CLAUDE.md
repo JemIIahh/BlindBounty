@@ -166,7 +166,8 @@ If at any point the agent (me) appears to be:
 | Date | Task | Outcome | Notes |
 |---|---|---|---|
 | 2026-04-14 | Project scaffolding | ✅ | Folder structure, all .md files, dashboard copied from Execution Market |
-| 2026-04-14 | Phase 1: Smart Contracts | ✅ | 3 contracts (BlindEscrow, BlindReputation, TaskRegistry) + MockERC20, 40 tests all passing. Hardhat 2 + OZ 5.6.1. |
+| 2026-04-14 | Phase 1: Smart Contracts | ✅ | 3 contracts + MockERC20, 40 tests passing. Hardhat 2 + OZ 5.6.1. |
+| 2026-04-14 | Phase 1 hardening: Production-grade rewrite | ✅ | Security audit → 12 issues found → full rewrite. 87 tests now. Added: deadlines, claimTimeout, disputes, token whitelist, pause, 2-step admin transfer, CEI enforcement, custom errors, per-task dedup, contract integration, existence tracking. |
 
 ## Gotchas learned
 

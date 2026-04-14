@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
 /**
  * @title TaskRegistry
+ * @author BlindBounty Team
  * @notice On-chain index for task discovery. Stores only metadata — never content.
  *         Workers browse by category, location zone, and reward.
  *         Task instructions remain encrypted on 0G Storage.
+ *
+ * @dev Security measures:
+ *      - Existence tracking via separate mapping to prevent default-value bugs
+ *      - O(1) open task counter (no unbounded loops for counting)
+ *      - 2-step admin transfer
+ *      - Pausable for emergency stops
  */
-contract TaskRegistry {
+contract TaskRegistry is Pausable {
 
     struct TaskMeta {
         uint256 taskId;
@@ -22,24 +31,42 @@ contract TaskRegistry {
     // ── State ──
 
     TaskMeta[] public taskList;
-    mapping(uint256 => uint256) public taskIdToIndex; // taskId → index in taskList
-    mapping(address => bool) public authorizedPublishers; // escrow contracts
+    mapping(uint256 => uint256) public taskIdToIndex;  // taskId → index in taskList
+    mapping(uint256 => bool) public taskExists;        // prevents default-value bugs
+    mapping(address => bool) public authorizedPublishers;
+    uint256 public openTaskCount;                      // O(1) counter
+
     address public admin;
+    address public pendingAdmin;
 
     // ── Events ──
 
-    event TaskPublished(uint256 indexed taskId, string category, string locationZone, uint256 reward);
+    event TaskPublished(uint256 indexed taskId, address indexed agent, string category, string locationZone, uint256 reward);
     event TaskClosed(uint256 indexed taskId);
+    event PublisherAuthorized(address indexed publisher);
+    event PublisherRevoked(address indexed publisher);
+    event AdminTransferProposed(address indexed currentAdmin, address indexed pendingAdmin);
+    event AdminTransferCompleted(address indexed oldAdmin, address indexed newAdmin);
+
+    // ── Errors ──
+
+    error NotAdmin();
+    error NotPendingAdmin();
+    error NotAuthorized();
+    error ZeroAddress();
+    error TaskNotFound();
+    error TaskAlreadyExists();
+    error TaskAlreadyClosed();
 
     // ── Modifiers ──
 
     modifier onlyAdmin() {
-        require(msg.sender == admin, "not admin");
+        if (msg.sender != admin) revert NotAdmin();
         _;
     }
 
     modifier onlyAuthorized() {
-        require(authorizedPublishers[msg.sender], "not authorized");
+        if (!authorizedPublishers[msg.sender]) revert NotAuthorized();
         _;
     }
 
@@ -60,9 +87,12 @@ contract TaskRegistry {
         string calldata category,
         string calldata locationZone,
         uint256 reward
-    ) external onlyAuthorized {
+    ) external onlyAuthorized whenNotPaused {
+        if (taskExists[taskId]) revert TaskAlreadyExists();
+
         uint256 index = taskList.length;
         taskIdToIndex[taskId] = index;
+        taskExists[taskId] = true;
 
         taskList.push(TaskMeta({
             taskId: taskId,
@@ -74,16 +104,25 @@ contract TaskRegistry {
             isOpen: true
         }));
 
-        emit TaskPublished(taskId, category, locationZone, reward);
+        openTaskCount += 1;
+
+        emit TaskPublished(taskId, agent, category, locationZone, reward);
     }
 
     /**
      * @notice Close a task listing. Called when task is assigned, completed, or cancelled.
      */
-    function closeTask(uint256 taskId) external onlyAuthorized {
+    function closeTask(uint256 taskId) external onlyAuthorized whenNotPaused {
+        if (!taskExists[taskId]) revert TaskNotFound();
+
         uint256 index = taskIdToIndex[taskId];
-        require(index < taskList.length, "task not found");
-        taskList[index].isOpen = false;
+        TaskMeta storage meta = taskList[index];
+
+        if (!meta.isOpen) revert TaskAlreadyClosed();
+
+        meta.isOpen = false;
+        openTaskCount -= 1;
+
         emit TaskClosed(taskId);
     }
 
@@ -98,21 +137,17 @@ contract TaskRegistry {
 
     /**
      * @notice Get a page of open tasks. Returns up to `limit` tasks starting from `offset`.
+     * @dev Uses two-pass approach: first count (via openTaskCount O(1)), then collect.
+     *      The collection loop is still O(n) worst-case but bounded by `limit`.
      */
     function getOpenTasks(uint256 offset, uint256 limit) external view returns (TaskMeta[] memory) {
-        // Count open tasks first
-        uint256 openCount = 0;
-        for (uint256 i = 0; i < taskList.length; i++) {
-            if (taskList[i].isOpen) openCount++;
-        }
-
-        if (offset >= openCount) {
+        if (offset >= openTaskCount) {
             return new TaskMeta[](0);
         }
 
         uint256 resultSize = limit;
-        if (offset + limit > openCount) {
-            resultSize = openCount - offset;
+        if (offset + limit > openTaskCount) {
+            resultSize = openTaskCount - offset;
         }
 
         TaskMeta[] memory result = new TaskMeta[](resultSize);
@@ -133,13 +168,45 @@ contract TaskRegistry {
         return result;
     }
 
+    /**
+     * @notice Get a single task's metadata by taskId.
+     */
+    function getTaskMeta(uint256 taskId) external view returns (TaskMeta memory) {
+        if (!taskExists[taskId]) revert TaskNotFound();
+        return taskList[taskIdToIndex[taskId]];
+    }
+
     // ── Admin Functions ──
 
+    function proposeAdmin(address _newAdmin) external onlyAdmin {
+        if (_newAdmin == address(0)) revert ZeroAddress();
+        pendingAdmin = _newAdmin;
+        emit AdminTransferProposed(admin, _newAdmin);
+    }
+
+    function acceptAdmin() external {
+        if (msg.sender != pendingAdmin) revert NotPendingAdmin();
+        emit AdminTransferCompleted(admin, pendingAdmin);
+        admin = pendingAdmin;
+        pendingAdmin = address(0);
+    }
+
     function authorizePublisher(address publisher) external onlyAdmin {
+        if (publisher == address(0)) revert ZeroAddress();
         authorizedPublishers[publisher] = true;
+        emit PublisherAuthorized(publisher);
     }
 
     function revokePublisher(address publisher) external onlyAdmin {
         authorizedPublishers[publisher] = false;
+        emit PublisherRevoked(publisher);
+    }
+
+    function pause() external onlyAdmin {
+        _pause();
+    }
+
+    function unpause() external onlyAdmin {
+        _unpause();
     }
 }
