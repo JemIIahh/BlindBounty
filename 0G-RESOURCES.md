@@ -22,23 +22,30 @@ The fastest modular EVM L1 — deploy Solidity contracts like any EVM chain.
 - Mainnet: `https://evmrpc.0g.ai`
 - Testnet: `https://evmrpc-testnet.0g.ai`
 
+**Chain IDs:**
+- Testnet (Galileo): `16602`
+- Testnet (Newton): `16600`
+
 **Block Explorers:**
 - Mainnet: https://chainscan.0g.ai
-- Testnet: https://chainscan-testnet.0g.ai (verify at build time)
+- Testnet: https://chainscan-testnet.0g.ai
 
 **Getting Testnet Tokens:**
-- Faucet: (check docs.0g.ai for current faucet URL)
+- Faucet: https://faucet.0g.ai/ (0.1 0G per wallet per day)
+- Alternative: https://faucets.chain.link/0g-testnet-galileo
 
 **Hardhat Config Example:**
 ```javascript
 networks: {
   "0g-testnet": {
     url: "https://evmrpc-testnet.0g.ai",
-    chainId: TBD, // verify from docs
+    chainId: 16602,
     accounts: [process.env.PRIVATE_KEY],
   }
 }
 ```
+
+**Deploy Contracts Docs:** https://docs.0g.ai/developer-hub/building-on-0g/contracts-on-0g/deploy-contracts
 
 ---
 

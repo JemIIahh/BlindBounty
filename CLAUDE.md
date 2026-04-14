@@ -166,10 +166,13 @@ If at any point the agent (me) appears to be:
 | Date | Task | Outcome | Notes |
 |---|---|---|---|
 | 2026-04-14 | Project scaffolding | ✅ | Folder structure, all .md files, dashboard copied from Execution Market |
+| 2026-04-14 | Phase 1: Smart Contracts | ✅ | 3 contracts (BlindEscrow, BlindReputation, TaskRegistry) + MockERC20, 40 tests all passing. Hardhat 2 + OZ 5.6.1. |
 
 ## Gotchas learned
 
-(append after each surprise — especially 0G SDK issues)
+- Hardhat 3 (`npm install hardhat` pulls v3.3.0) requires ESM and a different toolbox. Stick with `hardhat@^2.22.0` + `@nomicfoundation/hardhat-toolbox@^5.0.0` and set `"type": "commonjs"` in package.json.
+- Node.js 25.x is unsupported by Hardhat — prints warning but works fine.
+- Hardhat 2 tsconfig needs `"rootDir": "."` and `"noEmit": true` plus `"include": ["./test", "./hardhat.config.ts"]` to avoid TS5011 rootDir errors.
 
 ## Open risks / things to verify
 

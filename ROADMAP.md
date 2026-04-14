@@ -2,14 +2,14 @@
 
 > Single-page status tracker. Read this first every session.
 
-## Current Phase: 0 — Scaffolding
+## Current Phase: 1 — Smart Contracts ✅ (ready for Phase 2)
 
 ## Phase Overview
 
 | Phase | Name | Status | Description |
 |---|---|---|---|
-| 0 | Scaffolding | **IN PROGRESS** | Project structure, docs, git, frontend copy |
-| 1 | Smart Contracts | PENDING | Escrow, reputation, task registry on 0G Chain |
+| 0 | Scaffolding | ✅ | Project structure, docs, git, frontend copy |
+| 1 | Smart Contracts | ✅ | Escrow, reputation, task registry — 40 tests passing |
 | 2 | Backend API | PENDING | Task CRUD, submission flow, payment verification |
 | 3 | 0G Storage Integration | PENDING | Encrypted task/evidence upload/download |
 | 4 | 0G Sealed Inference | PENDING | TEE-based evidence verification |
@@ -27,18 +27,18 @@
 | 0.2 Copy Execution Market dashboard | ✅ | `dashboard/` copied |
 | 0.3 Create all .md files | ✅ | CLAUDE.md, ROADMAP.md, CHANGELOG.md, SPEC.md, ARCHITECTURE.md, GOTCHAS.md, SUBMISSION.md, 0G-RESOURCES.md |
 | 0.4 Create folder structure | ✅ | contracts/, backend/, sdk/, scripts/, deployments/, docs/, landing/ |
-| 0.5 Initial commit | PENDING | |
+| 0.5 Initial commit | ✅ | |
 
 ## Phase 1: Smart Contracts (0G Chain)
 
 | Task | Status | Notes |
 |---|---|---|
-| 1.1 Hardhat project setup | PENDING | Solidity, 0G Chain testnet config |
-| 1.2 BlindEscrow contract | PENDING | Lock/release/cancel with encrypted task reference |
-| 1.3 TaskRegistry contract | PENDING | On-chain task metadata (encrypted blob hash, category, reward) |
-| 1.4 BlindReputation contract | PENDING | Anonymous reputation scores (no wallet-to-name linking) |
-| 1.5 Unit tests | PENDING | Full coverage for all entry points |
-| 1.6 Deploy to 0G testnet | PENDING | Verify on explorer |
+| 1.1 Hardhat project setup | ✅ | Hardhat 2 + OZ + 0G testnet config |
+| 1.2 BlindEscrow contract | ✅ | 18 tests: createTask, assignWorker, submitEvidence, completeVerification, cancelTask, admin |
+| 1.3 TaskRegistry contract | ✅ | 10 tests: publishTask, closeTask, getOpenTasks (pagination), admin |
+| 1.4 BlindReputation contract | ✅ | 12 tests: rate, recordDispute, getReputation, admin |
+| 1.5 Unit tests | ✅ | 40 total tests passing |
+| 1.6 Deploy to 0G testnet | PENDING | Needs testnet tokens + deploy script |
 
 ## Phase 2: Backend API
 
