@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.production
+deployments/*.json
+*.log
+.DS_Store
+coverage/
+cache/
+artifacts/
+typechain-types/
