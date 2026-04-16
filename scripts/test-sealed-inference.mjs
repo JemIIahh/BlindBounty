@@ -70,27 +70,26 @@ async function main() {
   const broker = await createZGComputeNetworkBroker(wallet);
 
   console.log('2. Checking ledger funds...');
-  let hasLedger = false;
   try {
     const ledger = await broker.ledger.getLedger();
-    console.log('   Existing ledger found:', JSON.stringify(ledger).slice(0, 300));
-    hasLedger = true;
+    const available = BigInt(ledger[1] || 0);
+    const total = BigInt(ledger[2] || 0);
+    console.log('   Ledger found — available:', ethers.formatEther(available), '/ total:', ethers.formatEther(total), 'A0GI');
+    if (available > 0n) {
+      console.log('   Sufficient funds, skipping deposit');
+    } else {
+      console.log('   Ledger empty, depositing 3 A0GI...');
+      await broker.ledger.depositFund(3);
+      console.log('   Deposited');
+    }
   } catch {
-    console.log('   No existing ledger');
-  }
-
-  if (!hasLedger) {
+    console.log('   No ledger found, depositing 3 A0GI...');
     if (parseFloat(ethers.formatEther(balance)) < 3.0) {
-      console.error('   ERROR: Need at least 3 A0GI for initial broker deposit (have ' + ethers.formatEther(balance) + ')');
-      console.error('   Prior deposits may have been consumed. Request more from faucet.');
+      console.error('   ERROR: Need at least 3 A0GI for initial deposit (have ' + ethers.formatEther(balance) + ')');
       process.exit(1);
     }
-    try {
-      await broker.ledger.depositFund(3);
-      console.log('   Deposited 3 A0GI to ledger');
-    } catch (e) {
-      console.log('   Deposit result:', (e.message || '').slice(0, 200));
-    }
+    await broker.ledger.depositFund(3);
+    console.log('   Deposited');
   }
 
   console.log('3. Listing inference providers...');
