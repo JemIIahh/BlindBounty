@@ -2,20 +2,20 @@
 
 > Single-page status tracker. Read this first every session.
 
-## Current Phase: 5 — Frontend Adaptation
+## Current Phase: 6 — Polish & Edge Cases
 
 ## Phase Overview
 
 | Phase | Name | Status | Description |
 |---|---|---|---|
 | 0 | Scaffolding | ✅ | Project structure, docs, git, frontend copy |
-| 1 | Smart Contracts | ✅ | Production-grade: 3 contracts, 87 tests, full security hardening |
+| 1 | Smart Contracts | ✅ | 3 contracts, 103 tests, deployed to 0G testnet |
 | 2 | Backend API | ✅ | Express + TypeScript, all routes, middleware, security audit |
-| 3 | 0G Storage Integration | ✅ | Encrypted upload/download, ECIES + AES-256-GCM, security audit |
-| 4 | 0G Sealed Inference | ✅ | TEE-based evidence verification via 0G Compute broker |
-| 5 | Frontend Adaptation | PENDING | Rebrand, privacy UI, connect to backend |
-| 6 | End-to-End Testing | PENDING | Full flow: post → match → submit → verify → pay |
-| 7 | Submission | PENDING | Demo video, X post, HackQuest form |
+| 3 | 0G Storage Integration | ✅ | Encrypted upload/download, verified on testnet |
+| 4 | 0G Sealed Inference | ✅ | TEE verification live on testnet (qwen-2.5-7b-instruct) |
+| 5 | Frontend | ✅ (mostly) | Fresh build, 7 pages, crypto, auth — needs rebrand + reputation UI |
+| 6 | Polish & Edge Cases | IN PROGRESS | Rebrand, reputation display, edge case testing |
+| 7 | Submission | BLOCKED | Demo video, X post, HackQuest — after everything works |
 
 ---
 
@@ -25,8 +25,8 @@
 |---|---|---|
 | 0.1 Create project folder + git init | ✅ | `/Users/ram/Desktop/BlindBounty` |
 | 0.2 Copy Execution Market dashboard | ✅ | `dashboard/` copied |
-| 0.3 Create all .md files | ✅ | CLAUDE.md, ROADMAP.md, CHANGELOG.md, SPEC.md, ARCHITECTURE.md, GOTCHAS.md, SUBMISSION.md, 0G-RESOURCES.md |
-| 0.4 Create folder structure | ✅ | contracts/, backend/, sdk/, scripts/, deployments/, docs/, landing/ |
+| 0.3 Create all .md files | ✅ | CLAUDE.md, ROADMAP.md, PITCH.md, etc. |
+| 0.4 Create folder structure | ✅ | contracts/, backend/, frontend/, scripts/ |
 | 0.5 Initial commit | ✅ | |
 
 ## Phase 1: Smart Contracts (0G Chain) ✅
@@ -34,71 +34,93 @@
 | Task | Status | Notes |
 |---|---|---|
 | 1.1 Hardhat project setup | ✅ | Hardhat 2 + OZ + 0G testnet config |
-| 1.2 BlindEscrow contract | ✅ | 18 tests: createTask, assignWorker, submitEvidence, completeVerification, cancelTask, admin |
-| 1.3 TaskRegistry contract | ✅ | 10 tests: publishTask, closeTask, getOpenTasks (pagination), admin |
-| 1.4 BlindReputation contract | ✅ | 12 tests: rate, recordDispute, getReputation, admin |
-| 1.5 Unit tests | ✅ | 87 total tests after security hardening |
-| 1.6 Deploy to 0G testnet | ✅ | 4 contracts deployed: MockERC20, BlindReputation, TaskRegistry, BlindEscrow. Addresses in `contracts/deployments/0g-testnet.json` |
+| 1.2 BlindEscrow contract | ✅ | 57 tests: 6 payment strategies, all state transitions |
+| 1.3 TaskRegistry contract | ✅ | 26 tests: publish, close, pagination, admin |
+| 1.4 BlindReputation contract | ✅ | 20 tests: rate, dispute, getReputation, admin |
+| 1.5 Unit tests | ✅ | 103 total tests |
+| 1.6 Deploy to 0G testnet | ✅ | BlindEscrow, TaskRegistry, BlindReputation, MockERC20 |
 
 ## Phase 2: Backend API ✅
 
 | Task | Status | Notes |
 |---|---|---|
-| 2.1 Express project setup | ✅ | TypeScript ESM, helmet, cors, rate-limit, zod validation |
-| 2.2 Task endpoints | ✅ | GET /tasks, GET /tasks/:id, POST /tasks, POST /tasks/:id/apply, GET /tasks/:id/applications, POST /tasks/:id/assign, POST /tasks/:id/cancel |
-| 2.3 Submission endpoints | ✅ | POST /submissions/submit, POST /submissions/verify, GET /submissions/:taskId |
-| 2.4 Worker matching | ✅ | Apply to task (in-memory store), agent reviews applications |
-| 2.5 Chain services | ✅ | ethers.js v6 provider, BlindEscrow/TaskRegistry/BlindReputation contract instances, unsigned tx builders |
-| 2.6 Reputation endpoints | ✅ | GET /reputation/:address, GET /reputation/leaderboard |
-| 2.7 Auth middleware | ✅ | SIWE (EIP-191 sig → JWT), X-API-Key for agents, timing-safe comparison |
-| 2.8 Security hardening | ✅ | 21-issue audit: timing-safe auth, no keypair endpoint, path traversal protection, HKDF, input validation |
+| 2.1 Express project setup | ✅ | TypeScript ESM, helmet, cors, rate-limit, zod |
+| 2.2 Task endpoints | ✅ | CRUD + apply + assign + cancel |
+| 2.3 Submission endpoints | ✅ | submit, verify, get |
+| 2.4 Worker matching | ✅ | In-memory store with caps |
+| 2.5 Chain services | ✅ | ethers.js v6, unsigned tx builders |
+| 2.6 Reputation endpoints | ✅ | GET by address, leaderboard |
+| 2.7 Auth middleware | ✅ | SIWE + JWT (HS256 pinned) + API key |
+| 2.8 Security hardening | ✅ | JWT entropy check, payload validation, nonce TTL sweep, auth on assign/cancel |
 
 ## Phase 3: 0G Storage Integration ✅
 
 | Task | Status | Notes |
 |---|---|---|
-| 3.1 Install 0G TS SDK | ✅ | `@0gfoundation/0g-ts-sdk` with Indexer + MemData |
-| 3.2 Encrypt-then-upload | ✅ | AES-256-GCM symmetric + ECIES (secp256k1 ECDH + HKDF + AES) |
-| 3.3 Storage service | ✅ | Real 0G Storage via Indexer + local file fallback for dev |
-| 3.4 Crypto service | ✅ | aesEncrypt/Decrypt, eciesEncrypt/Decrypt, generateKeyPair, sha256 |
-| 3.5 Storage routes | ✅ | POST /storage/upload, GET /storage/:rootHash, POST /storage/crypto/hash |
-| 3.6 Security audit | ✅ | 21 issues found and fixed (3 critical, 5 high, 7 medium, 6 low) |
+| 3.1 Install 0G TS SDK | ✅ | `@0gfoundation/0g-ts-sdk` |
+| 3.2 Encrypt-then-upload | ✅ | AES-256-GCM + ECIES |
+| 3.3 Storage service | ✅ | Real 0G Storage + local fallback |
+| 3.4 Crypto service | ✅ | Browser-compatible + backend-compatible byte formats |
+| 3.5 Storage routes | ✅ | upload, download, hash |
+| 3.6 Testnet verification | ✅ | Real tx hashes, merkle proofs, round-trip confirmed |
 
 ## Phase 4: 0G Sealed Inference ✅
 
 | Task | Status | Notes |
 |---|---|---|
-| 4.1 Install broker SDK | ✅ | `@0glabs/0g-serving-broker` v0.7.5 |
-| 4.2 Verification service | ✅ | Broker setup, provider discovery, structured verification prompt, TEE attestation check |
-| 4.3 Verification routes | ✅ | POST /verification/verify, GET /verification/providers, GET /verification/status |
-| 4.4 Local fallback | ✅ | Auto-pass stub when 0G Compute not configured (dev mode) |
-| 4.5 Config + env | ✅ | OG_COMPUTE_PRIVATE_KEY, OG_COMPUTE_RPC_URL, OG_COMPUTE_PROVIDER_ADDRESS |
+| 4.1 Install broker SDK | ✅ | `@0glabs/0g-serving-broker` v0.7.5 (CJS workaround for broken ESM) |
+| 4.2 Verification service | ✅ | Broker + provider discovery + structured prompt + TEE attestation |
+| 4.3 Verification routes | ✅ | verify, providers, status |
+| 4.4 Local fallback | ✅ | Dev mode auto-pass, production mode fail-hard |
+| 4.5 TLS fix | ✅ | Force TLS 1.2 for 0G endpoints (incompatible with TLS 1.3) |
+| 4.6 Testnet verification | ✅ | Live inference: qwen-2.5-7b-instruct, 0.9 confidence, 7.4s |
+| 4.7 Ledger management | ✅ | Check existing balance before depositing, 13 A0GI available |
 
-## Phase 5: Frontend Adaptation
-
-| Task | Status | Notes |
-|---|---|---|
-| 5.1 Rebrand | PENDING | New name, colors, logo in theme.ts |
-| 5.2 Task feed (anonymous) | PENDING | Category, location zone, reward — no instructions visible |
-| 5.3 Task detail (encrypted) | PENDING | Decrypt only for assigned worker |
-| 5.4 Submission flow | PENDING | Encrypted evidence upload UI |
-| 5.5 Verification status | PENDING | Sealed Inference progress + result display |
-| 5.6 Anonymous profiles | PENDING | Reputation score only, no wallet/name exposure |
-| 5.7 Agent dashboard | PENDING | Post encrypted bounties, review sealed results |
-
-## Phase 6: End-to-End Testing
+## Phase 5: Frontend ✅ (mostly)
 
 | Task | Status | Notes |
 |---|---|---|
-| 6.1 Local full flow | PENDING | Agent → post → worker → apply → match → submit → verify → pay |
-| 6.2 Testnet full flow | PENDING | Same on 0G testnet with real tokens |
-| 6.3 Edge cases | PENDING | Cancel, dispute, timeout, insufficient funds |
+| 5.1 Scaffold (Vite + React + Tailwind) | ✅ | Fresh build, not adapted from dashboard |
+| 5.2 UI primitives + utils | ✅ | Button, Card, Modal, Badge, Input, Select, etc. |
+| 5.3 Wallet + auth context | ✅ | MetaMask connect, chain switch, SIWE nonce → JWT |
+| 5.4 Browser crypto | ✅ | AES-256-GCM, ECIES, SHA-256 (Web Crypto API) |
+| 5.5 Landing page | ✅ | A2H/H2A narrative, 3-step flow, feature cards |
+| 5.6 Task feed | ✅ | Grid of TaskCards, loading skeletons, pagination |
+| 5.7 Task detail | ✅ | Status, apply button, assign button |
+| 5.8 Agent dashboard | ✅ | Create encrypted task, full encrypt → upload → hash → tx flow |
+| 5.9 Worker view | ✅ | Decrypt instructions, submit encrypted evidence |
+| 5.10 Verification status | ✅ | Trigger verification, display result + TEE badge |
+| 5.11 Security fixes | ✅ | No private key logging, double-click prevention, chunked base64 |
+| 5.12 Rebrand (logo, colors, name) | PENDING | Still using generic theme |
+| 5.13 Anonymous profiles (reputation UI) | PENDING | Reputation data exists on-chain, no UI yet |
 
-## Phase 7: Submission
+## Phase 6: Polish & Edge Cases — IN PROGRESS
 
 | Task | Status | Notes |
 |---|---|---|
-| 7.1 Demo video | PENDING | Screen recording of full flow |
-| 7.2 X post | PENDING | Public post about BlindBounty (mandatory) |
-| 7.3 HackQuest submission form | PENDING | Track 3, all links, description |
-| 7.4 GitHub repo public | PENDING | Clean README, license |
+| 6.1 Full lifecycle (testnet) | ✅ | 10-step flow verified on 0G testnet |
+| 6.2 0G Storage round-trip | ✅ | Upload + download with real tx hashes |
+| 6.3 0G Sealed Inference live | ✅ | TEE evaluation working, broker ledger funded |
+| 6.4 Rebrand | PENDING | Logo, colors, favicon |
+| 6.5 Reputation display | PENDING | Show wallet reputation scores in UI |
+| 6.6 Edge case testing | PENDING | Cancel, dispute, timeout, insufficient funds |
+| 6.7 Error states | PENDING | Error boundary, toast notifications, network errors |
+
+## Phase 7: Submission — BLOCKED (after everything works)
+
+| Task | Status | Notes |
+|---|---|---|
+| 7.1 Demo video | BLOCKED | Screen recording of full flow |
+| 7.2 X post | BLOCKED | Public post (mandatory) |
+| 7.3 HackQuest submission form | BLOCKED | Track 3, all links |
+| 7.4 GitHub repo public | ✅ | `JemIIahh/BlindBounty` |
+| 7.5 PITCH.md | ✅ | Scenario-driven demo script, checklist self-assessment |
+
+---
+
+## Remaining Work (Phase 6)
+
+1. **Rebrand** — logo, color theme, favicon, page titles
+2. **Reputation UI** — display on-chain reputation scores for wallets
+3. **Edge case testing** — cancel flow, dispute flow, timeout reclaim, error handling
+4. **Error states** — error boundary component, toast notifications, network error handling
