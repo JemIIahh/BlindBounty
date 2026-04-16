@@ -11,6 +11,15 @@ export const authRouter = Router();
 // In-memory nonce store: address → { nonce, expiresAt }
 const nonceStore = new Map<string, { nonce: string; expiresAt: number }>();
 const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_NONCE_STORE_SIZE = 10_000;
+
+// Periodic sweep of expired nonces to prevent unbounded memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of nonceStore) {
+    if (now > entry.expiresAt) nonceStore.delete(key);
+  }
+}, 60_000); // sweep every minute
 
 // --- Schemas ---
 const nonceSchema = z.object({
@@ -30,6 +39,11 @@ authRouter.post('/nonce', (req, res, next) => {
   try {
     const { address } = nonceSchema.parse(req.body);
     const normalized = address.toLowerCase();
+
+    // Cap store size to prevent memory exhaustion from nonce spam
+    if (nonceStore.size >= MAX_NONCE_STORE_SIZE) {
+      throw new AppError(429, 'TOO_MANY_REQUESTS', 'Too many pending nonces, try again later');
+    }
 
     const nonce = ethers.hexlify(ethers.randomBytes(32));
     nonceStore.set(normalized, { nonce, expiresAt: Date.now() + NONCE_TTL_MS });
@@ -75,8 +89,9 @@ authRouter.post('/verify', (req, res, next) => {
     // Consume nonce
     nonceStore.delete(normalized);
 
-    // Issue JWT
+    // Issue JWT — pin algorithm to HS256 to prevent algorithm confusion attacks
     const token = jwt.sign({ address: normalized }, config.jwtSecret, {
+      algorithm: 'HS256',
       expiresIn: config.jwtExpiry as string,
     } as jwt.SignOptions);
 

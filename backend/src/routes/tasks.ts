@@ -11,6 +11,8 @@ export const tasksRouter = Router();
 
 // In-memory applications store (backed by JSON file in production)
 const applications: Application[] = [];
+const MAX_APPLICATIONS = 10_000;
+const MAX_APPLICATIONS_PER_TASK = 100;
 
 // --- Schemas ---
 const createTaskSchema = z.object({
@@ -144,12 +146,23 @@ tasksRouter.post('/:id/apply', requireAuth, async (req: AuthRequest, res, next) 
     const { message } = applySchema.parse(req.body);
     const applicant = req.user!.address;
 
+    // Global cap to prevent unbounded memory growth
+    if (applications.length >= MAX_APPLICATIONS) {
+      throw new AppError(429, 'TOO_MANY_REQUESTS', 'Application limit reached');
+    }
+
     // Check for duplicate application
     const existing = applications.find(
       (a) => a.taskId === taskId && a.applicant === applicant,
     );
     if (existing) {
       throw new AppError(409, 'ALREADY_APPLIED', 'Already applied to this task');
+    }
+
+    // Per-task cap
+    const taskAppCount = applications.filter((a) => a.taskId === taskId).length;
+    if (taskAppCount >= MAX_APPLICATIONS_PER_TASK) {
+      throw new AppError(429, 'TASK_FULL', 'This task has reached its application limit');
     }
 
     const application: Application = {
@@ -204,6 +217,12 @@ tasksRouter.post('/:id/assign', requireAuth, async (req: AuthRequest, res, next)
     const { worker } = assignSchema.parse(req.body);
     const from = req.user!.address;
 
+    // Verify caller is the task agent (on-chain check will also enforce, but fail early)
+    const task = await escrowService.getTask(taskId);
+    if (task.agent.toLowerCase() !== from.toLowerCase() && from !== 'agent') {
+      throw new AppError(403, 'FORBIDDEN', 'Only the task agent can assign workers');
+    }
+
     const tx = await escrowService.buildAssignWorker(from, taskId, worker);
 
     const body: ApiResponse = {
@@ -228,6 +247,13 @@ tasksRouter.post('/:id/cancel', requireAuth, async (req: AuthRequest, res, next)
     }
 
     const from = req.user!.address;
+
+    // Verify caller is the task agent
+    const task = await escrowService.getTask(taskId);
+    if (task.agent.toLowerCase() !== from.toLowerCase() && from !== 'agent') {
+      throw new AppError(403, 'FORBIDDEN', 'Only the task agent can cancel tasks');
+    }
+
     const tx = await escrowService.buildCancelTask(from, taskId);
 
     const body: ApiResponse = {

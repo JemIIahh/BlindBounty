@@ -88,8 +88,14 @@ export default function WorkerView() {
       // 4. ECIES-wrap AES key to agent
       const wrappedToAgent = await eciesEncrypt(aesKey, agentPubKey);
 
-      // 5. Build and send tx — include wrapped key for agent
-      console.log('Wrapped AES key for agent:', toBase64(wrappedToAgent));
+      // 5. Build and send tx — store wrapped key for agent to retrieve
+      try {
+        const stored = JSON.parse(localStorage.getItem('blindbounty_evidence_keys') || '[]');
+        stored.push({ taskId, wrappedKey: toBase64(wrappedToAgent), createdAt: new Date().toISOString() });
+        localStorage.setItem('blindbounty_evidence_keys', JSON.stringify(stored));
+      } catch {
+        // localStorage may be unavailable
+      }
       submitEvidence.mutate({ taskId, evidenceHash });
       setSubmitSuccess(true);
     } finally {
@@ -131,7 +137,7 @@ export default function WorkerView() {
             <Button
               variant="primary"
               loading={decrypting}
-              disabled={!rootHash || !wrappedKeyHex || !workerPrivKey}
+              disabled={decrypting || !rootHash || !wrappedKeyHex || !workerPrivKey}
               onClick={handleDecrypt}
             >
               Decrypt Instructions
@@ -180,8 +186,8 @@ export default function WorkerView() {
               <Button
                 variant="primary"
                 fullWidth
-                loading={submitting}
-                disabled={!taskId || !evidence.trim() || !agentPubKey}
+                loading={submitting || submitEvidence.isPending}
+                disabled={submitting || submitEvidence.isPending || !taskId || !evidence.trim() || !agentPubKey}
                 onClick={handleSubmitEvidence}
               >
                 Encrypt & Submit Evidence

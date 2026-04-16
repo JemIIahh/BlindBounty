@@ -185,17 +185,30 @@ function parseVerificationResponse(raw: string): { passed: boolean; confidence: 
  * The TEE signs the response for integrity.
  */
 export async function verifyEvidence(req: VerificationRequest): Promise<VerificationResult> {
+  // Input length validation — prevent excessively large prompts
+  if (req.taskRequirements.length > 10_000) {
+    throw new Error('Task requirements exceed 10,000 character limit');
+  }
+  if (req.evidenceSummary.length > 10_000) {
+    throw new Error('Evidence summary exceeds 10,000 character limit');
+  }
+
   if (!isComputeConfigured()) {
+    if (config.nodeEnv === 'production') {
+      throw new Error('0G Compute not configured — verification unavailable in production');
+    }
     return verifyLocal(req);
   }
 
   // Attempt 0G Sealed Inference; fall back to local stub on infrastructure errors
-  // (e.g., insufficient ledger funds, provider unavailable). This keeps the app
-  // functional during development while clearly marking results as non-TEE.
+  // (e.g., insufficient ledger funds, provider unavailable). In production, fail hard.
   try {
     return await verify0g(req);
   } catch (e: any) {
-    console.error('[verification] 0G Compute failed, falling back to local stub:', e.message);
+    console.error('[verification] 0G Compute failed:', e.message);
+    if (config.nodeEnv === 'production') {
+      throw new Error('Verification service unavailable');
+    }
     const result = await verifyLocal(req);
     result.reasoning = `[FALLBACK] 0G Compute error: ${e.message?.slice(0, 100)}. ` + result.reasoning;
     return result;

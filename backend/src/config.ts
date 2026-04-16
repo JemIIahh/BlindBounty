@@ -12,6 +12,12 @@ function optional(key: string, fallback: string): string {
   return process.env[key] || fallback;
 }
 
+// Validate JWT secret has minimum entropy
+const jwtSecret = required('JWT_SECRET');
+if (jwtSecret.length < 32) {
+  throw new Error('JWT_SECRET must be at least 32 characters');
+}
+
 export const config = {
   port: parseInt(optional('PORT', '3001'), 10),
   nodeEnv: optional('NODE_ENV', 'development'),
@@ -26,7 +32,7 @@ export const config = {
   blindReputationAddress: required('BLIND_REPUTATION_ADDRESS'),
 
   // Auth
-  jwtSecret: required('JWT_SECRET'),
+  jwtSecret,
   jwtExpiry: optional('JWT_EXPIRY', '24h'),
   agentApiKey: process.env.AGENT_API_KEY || '',
 

@@ -137,7 +137,15 @@ export function fromBytes(bytes: Uint8Array): string {
 }
 
 export function toBase64(bytes: Uint8Array): string {
-  return btoa(String.fromCharCode(...bytes));
+  // Chunked conversion to avoid stack overflow on large payloads
+  // (String.fromCharCode(...bytes) fails when bytes.length > ~65536)
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(binary);
 }
 
 export function fromBase64(b64: string): Uint8Array {

@@ -45,8 +45,12 @@ export function requireAuth(req: AuthRequest, _res: Response, next: NextFunction
   }
 
   try {
-    const payload = jwt.verify(token, config.jwtSecret) as AuthUser;
-    req.user = { address: payload.address };
+    const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+    // Validate payload shape — jwt.verify returns string | JwtPayload
+    if (typeof payload === 'string' || !payload || typeof (payload as any).address !== 'string') {
+      throw new Error('malformed payload');
+    }
+    req.user = { address: (payload as any).address };
     next();
   } catch {
     throw new AppError(401, 'INVALID_TOKEN', 'Invalid or expired token');
@@ -74,8 +78,10 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
   }
 
   try {
-    const payload = jwt.verify(token, config.jwtSecret) as AuthUser;
-    req.user = { address: payload.address };
+    const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
+    if (typeof payload !== 'string' && payload && typeof (payload as any).address === 'string') {
+      req.user = { address: (payload as any).address };
+    }
   } catch {
     // Ignore invalid tokens for optional auth
   }

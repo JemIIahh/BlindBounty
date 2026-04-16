@@ -86,16 +86,26 @@ export default function AgentDashboard() {
         });
       });
 
-      // Store encryption keys locally (agent's responsibility)
+      // Store encryption keys in localStorage (agent's responsibility to back up)
+      // NEVER log private keys to console
       const taskData = {
         taskHash,
         rootHash,
         wrappedKey: toBase64(wrappedKey),
-        agentPrivateKey: agentKeys.privateKey,
         agentPublicKey: agentKeys.publicKey,
         txHash: receipt.hash,
       };
-      console.log('Task created:', taskData);
+      try {
+        const stored = JSON.parse(localStorage.getItem('blindbounty_tasks') || '[]');
+        stored.push({
+          ...taskData,
+          agentPrivateKey: agentKeys.privateKey,
+          createdAt: new Date().toISOString(),
+        });
+        localStorage.setItem('blindbounty_tasks', JSON.stringify(stored));
+      } catch {
+        // localStorage may be unavailable — silently degrade
+      }
       setCreatedId(rootHash);
       setInstructions('');
       setAmount('');
@@ -176,8 +186,8 @@ export default function AgentDashboard() {
             <Button
               variant="primary"
               fullWidth
-              loading={creating}
-              disabled={!instructions.trim() || !amount || !token}
+              loading={creating || txSend.isPending}
+              disabled={creating || txSend.isPending || !instructions.trim() || !amount || !token}
               onClick={handleCreate}
             >
               Create Encrypted Task
