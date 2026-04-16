@@ -3,10 +3,19 @@ dist/
 .env
 .env.local
 .env.production
-deployments/*.json
 *.log
 .DS_Store
 coverage/
 cache/
 artifacts/
 typechain-types/
+
+# Local storage fallback (dev only)
+.storage/
+
+# Contract build artifacts (not the source)
+contracts/cache/
+contracts/artifacts/
+
+# Ignore secrets but keep deployment addresses
+contracts/.env

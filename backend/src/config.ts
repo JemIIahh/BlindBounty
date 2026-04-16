@@ -1,0 +1,47 @@
+import 'dotenv/config';
+
+function required(key: string): string {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required env var: ${key}`);
+  }
+  return value;
+}
+
+function optional(key: string, fallback: string): string {
+  return process.env[key] || fallback;
+}
+
+export const config = {
+  port: parseInt(optional('PORT', '3001'), 10),
+  nodeEnv: optional('NODE_ENV', 'development'),
+
+  // 0G Chain
+  ogRpcUrl: optional('OG_RPC_URL', 'https://evmrpc-testnet.0g.ai'),
+  ogChainId: parseInt(optional('OG_CHAIN_ID', '16602'), 10),
+
+  // Contracts
+  blindEscrowAddress: required('BLIND_ESCROW_ADDRESS'),
+  taskRegistryAddress: required('TASK_REGISTRY_ADDRESS'),
+  blindReputationAddress: required('BLIND_REPUTATION_ADDRESS'),
+
+  // Auth
+  jwtSecret: required('JWT_SECRET'),
+  jwtExpiry: optional('JWT_EXPIRY', '24h'),
+  agentApiKey: process.env.AGENT_API_KEY || '',
+
+  // CORS
+  corsOrigin: optional('CORS_ORIGIN', 'http://localhost:5173'),
+
+  // 0G Storage (Phase 3)
+  ogStorageIndexerRpc: process.env.OG_STORAGE_INDEXER_RPC || '',
+  ogStoragePrivateKey: process.env.OG_STORAGE_PRIVATE_KEY || '',
+
+  // 0G Compute / Sealed Inference (Phase 4)
+  // Private key for the broker wallet (pays for inference requests)
+  ogComputePrivateKey: process.env.OG_COMPUTE_PRIVATE_KEY || '',
+  // Optional: preferred provider address (if empty, auto-selects from available services)
+  ogComputeProviderAddress: process.env.OG_COMPUTE_PROVIDER_ADDRESS || '',
+  // RPC for compute network (defaults to testnet)
+  ogComputeRpcUrl: optional('OG_COMPUTE_RPC_URL', 'https://evmrpc-testnet.0g.ai'),
+} as const;

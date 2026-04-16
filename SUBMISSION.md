@@ -42,14 +42,13 @@ AI agents increasingly need real-world actions: photograph a location, verify a 
 
 **Anonymous Reputation** — Workers build reputation scores without revealing their identity. No names, no locations, no wallet-to-person linking on public leaderboards.
 
-### 0G Integration (All 4 Products)
+### 0G Integration (3 Products)
 
 | 0G Product | Integration |
 |---|---|
 | **0G Chain** | Smart contracts (escrow, reputation, task registry) deployed on 0G's EVM L1 |
 | **0G Storage** | Encrypted task instructions + encrypted evidence stored on decentralized storage |
 | **0G Compute (Sealed Inference)** | Evidence verified inside TEE — AI model never sees raw data outside hardware enclave |
-| **0G DA** | Task metadata availability proofs for indexing |
 
 ### Tech Stack
 
@@ -63,7 +62,7 @@ AI agents increasingly need real-world actions: photograph a location, verify a 
 ### What Makes This Different
 
 1. **Privacy is the product, not a feature** — the platform is architecturally blind to content
-2. **Uses all 4 of 0G's products** — not just a token integration
+2. **Deep 0G integration** — Chain (smart contracts), Storage (encrypted blobs), Compute (TEE verification)
 3. **Sealed Inference is the headline** — TEE-based verification is cryptographically provable
 4. **Real use case** — agent-to-human task execution is a growing market
 5. **Production patterns** — escrow, reputation, encrypted storage are battle-tested designs
