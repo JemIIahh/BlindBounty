@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useCallback, type ReactNode } from 'react';
+import { usePrivy } from '@privy-io/react-auth';
 import { useWallet } from './WalletContext';
-import { postNonce, postVerify } from '../services/auth';
+import { setAccessTokenGetter } from '../lib/api';
 
 interface AuthState {
   jwt: string | null;
@@ -13,44 +14,32 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { address, signer } = useWallet();
-  const [jwt, setJwt] = useState<string | null>(() => localStorage.getItem('bb_jwt'));
-  const [authenticating, setAuthenticating] = useState(false);
+  const { login: privyLogin, logout: privyLogout, authenticated, ready, getAccessToken } = usePrivy();
+  const { address } = useWallet();
 
-  const isAuthenticated = !!jwt && !!address;
+  const isAuthenticated = authenticated && !!address;
+  const authenticating = !ready;
 
-  const logout = useCallback(() => {
-    setJwt(null);
-    localStorage.removeItem('bb_jwt');
-  }, []);
-
-  // Clear JWT if address changes
+  // Wire up api.ts to use Privy's access token
   useEffect(() => {
-    if (!address) {
-      logout();
+    if (authenticated) {
+      setAccessTokenGetter(getAccessToken);
+    } else {
+      setAccessTokenGetter(null);
     }
-  }, [address, logout]);
+  }, [authenticated, getAccessToken]);
 
   const login = useCallback(async () => {
-    if (!address || !signer) return;
-    setAuthenticating(true);
-    try {
-      // Step 1: Get nonce
-      const { nonce } = await postNonce(address);
+    privyLogin();
+  }, [privyLogin]);
 
-      // Step 2: Sign the message (must match backend format exactly)
-      const message = `Sign this message to authenticate with BlindBounty.\n\nNonce: ${nonce}`;
-      const signature = await signer.signMessage(message);
+  const logout = useCallback(() => {
+    privyLogout();
+  }, [privyLogout]);
 
-      // Step 3: Verify and get JWT
-      const { token } = await postVerify(address, signature);
-
-      localStorage.setItem('bb_jwt', token);
-      setJwt(token);
-    } finally {
-      setAuthenticating(false);
-    }
-  }, [address, signer]);
+  // Expose a synchronous jwt value for consumers that check it directly
+  // For API calls, the getter in api.ts handles async token retrieval
+  const jwt = isAuthenticated ? 'privy-managed' : null;
 
   return (
     <AuthContext.Provider value={{ jwt, isAuthenticated, authenticating, login, logout }}>

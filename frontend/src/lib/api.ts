@@ -23,8 +23,16 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return (body as ApiResponse<T>).data;
 }
 
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('bb_jwt');
+// Module-level token getter — set by AuthContext when Privy authenticates
+let _getAccessToken: (() => Promise<string | null>) | null = null;
+
+export function setAccessTokenGetter(getter: (() => Promise<string | null>) | null) {
+  _getAccessToken = getter;
+}
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (!_getAccessToken) return {};
+  const token = await _getAccessToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -46,7 +54,7 @@ export async function post<T>(path: string, body?: unknown): Promise<T> {
 
 export async function authedGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
   });
   return handleResponse<T>(res);
 }
@@ -54,7 +62,7 @@ export async function authedGet<T>(path: string): Promise<T> {
 export async function authedPost<T>(path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
     body: body ? JSON.stringify(body) : undefined,
   });
   return handleResponse<T>(res);

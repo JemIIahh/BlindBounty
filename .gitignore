@@ -19,3 +19,10 @@ contracts/artifacts/
 
 # Ignore secrets but keep deployment addresses
 contracts/.env
+.aidesigner/*
+!.aidesigner/.gitkeep
+
+# Local tool configs
+.agents/
+.claude/
+.mcp.json

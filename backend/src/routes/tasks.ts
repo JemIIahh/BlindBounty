@@ -4,7 +4,9 @@ import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import * as escrowService from '../services/escrow.js';
 import * as registryService from '../services/registry.js';
-import type { AuthRequest, ApiResponse, Application } from '../types.js';
+import type { AuthRequest, ApiResponse, Application, AgentCapability, ExecutorType, VerificationMode } from '../types.js';
+import { AGENT_CAPABILITIES } from '../types.js';
+import * as a2aStore from '../services/a2aStore.js';
 import { randomUUID } from 'crypto';
 
 export const tasksRouter = Router();
@@ -22,6 +24,15 @@ const createTaskSchema = z.object({
   category: z.string().min(1).max(64),
   locationZone: z.string().min(1).max(128),
   duration: z.string().min(1, 'Duration required'), // seconds as string
+  // A2A optional fields
+  targetExecutorType: z.enum(['human', 'agent']).optional(),
+  verificationMode: z.enum(['manual', 'auto', 'oracle']).optional(),
+  verificationCriteria: z.object({
+    required_fields: z.array(z.string()).optional(),
+    min_length: z.number().int().positive().optional(),
+    contains_keywords: z.array(z.string()).optional(),
+  }).optional(),
+  requiredCapabilities: z.array(z.enum(AGENT_CAPABILITIES as unknown as [string, ...string[]])).optional(),
 });
 
 const applySchema = z.object({
@@ -125,6 +136,18 @@ tasksRouter.post('/', requireAuth, async (req: AuthRequest, res, next) => {
       data.locationZone,
       BigInt(data.duration),
     );
+
+    // Store A2A metadata if this is an agent-targeted task
+    if (data.targetExecutorType === 'agent') {
+      // Use taskHash as a stable ID (actual on-chain taskId isn't known until tx confirms)
+      a2aStore.setMeta({
+        taskId: data.taskHash,
+        targetExecutorType: data.targetExecutorType,
+        verificationMode: data.verificationMode ?? 'manual',
+        verificationCriteria: data.verificationCriteria,
+        requiredCapabilities: (data.requiredCapabilities ?? []) as AgentCapability[],
+      });
+    }
 
     const body: ApiResponse = {
       success: true,

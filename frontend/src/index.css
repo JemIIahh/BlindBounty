@@ -4,6 +4,83 @@
 
 @layer base {
   body {
-    @apply bg-white text-neutral-950;
+    @apply bg-[#0d0d0d] text-neutral-300 antialiased;
   }
+
+  ::selection {
+    @apply bg-amber-500/30 text-white;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-600;
+  }
+}
+
+@layer components {
+  /* Octant-style thin-bordered dark cards */
+  .card-dark {
+    @apply bg-surface border border-neutral-800 rounded-xl transition-all duration-300;
+  }
+  .card-dark:hover {
+    @apply border-neutral-700;
+  }
+
+  /* Ghost button (Octant style) */
+  .btn-ghost {
+    @apply px-6 py-3 border border-neutral-700 text-neutral-300 rounded-lg text-sm font-medium
+           transition-all duration-300 hover:border-neutral-500 hover:text-white;
+  }
+
+  /* Accent button */
+  .btn-accent {
+    @apply px-6 py-3 bg-amber-500 text-black rounded-lg text-sm font-semibold
+           transition-all duration-300 hover:bg-amber-400;
+  }
+
+  /* Section label */
+  .section-label {
+    @apply text-[11px] uppercase tracking-[0.2em] text-neutral-500 font-medium;
+  }
+
+  /* Display heading — chunky serif like Octant */
+  .heading-display {
+    @apply font-display font-black text-white leading-[1.05];
+  }
+
+  /* Subtle grid bg pattern */
+  .bg-grid {
+    background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  /* Amber decorative leaf (mimics Octant's orange leaves) */
+  .leaf-accent::before,
+  .leaf-accent::after {
+    content: '';
+    @apply inline-block w-2 h-2 bg-amber-500 rounded-full mx-1 opacity-80;
+    vertical-align: super;
+    font-size: 0.5em;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Scrolling marquee for tech strip */
+@keyframes scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }

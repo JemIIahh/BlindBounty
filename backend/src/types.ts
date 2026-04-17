@@ -76,3 +76,62 @@ export interface Application {
   message?: string;
   createdAt: string;
 }
+
+// ── A2A (Agent-to-Agent) types ──────────────────────────────────────
+
+export type ExecutorType = 'human' | 'agent';
+export type VerificationMode = 'manual' | 'auto' | 'oracle';
+
+export const AGENT_CAPABILITIES = [
+  'data_processing', 'web_research', 'code_execution', 'content_generation',
+  'api_integration', 'text_analysis', 'translation', 'summarization',
+  'image_analysis', 'document_processing', 'math_computation', 'data_extraction',
+  'report_generation', 'code_review', 'testing', 'scheduling',
+  'email_drafting', 'social_media', 'market_research', 'competitive_analysis',
+] as const;
+
+export type AgentCapability = typeof AGENT_CAPABILITIES[number];
+
+export interface AgentExecutor {
+  address: string;
+  displayName: string;
+  capabilities: AgentCapability[];
+  agentCardUrl?: string;
+  mcpEndpointUrl?: string;
+  reputation: number; // 0-100
+  tasksCompleted: number;
+  registeredAt: string;
+}
+
+export interface A2ATaskMeta {
+  taskId: string;
+  targetExecutorType: ExecutorType;
+  verificationMode: VerificationMode;
+  verificationCriteria?: VerificationCriteria;
+  requiredCapabilities: AgentCapability[];
+}
+
+export type A2ATaskStateStatus =
+  | 'open'
+  | 'accepted'
+  | 'in_progress'
+  | 'submitted'
+  | 'verified'
+  | 'completed'
+  | 'failed';
+
+export interface A2ATaskState {
+  taskId: string;
+  status: A2ATaskStateStatus;
+  executorAddress?: string;
+  acceptedAt?: string;
+  submittedAt?: string;
+  resultData?: Record<string, unknown>;
+  verificationResult?: { passed: boolean; reasons: string[] };
+}
+
+export interface VerificationCriteria {
+  required_fields?: string[];
+  min_length?: number;
+  contains_keywords?: string[];
+}

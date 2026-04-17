@@ -12,9 +12,9 @@ function optional(key: string, fallback: string): string {
   return process.env[key] || fallback;
 }
 
-// Validate JWT secret has minimum entropy
-const jwtSecret = required('JWT_SECRET');
-if (jwtSecret.length < 32) {
+// JWT_SECRET is optional when using Privy JWKS verification
+const jwtSecret = process.env.JWT_SECRET || '';
+if (jwtSecret && jwtSecret.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters');
 }
 
@@ -35,6 +35,7 @@ export const config = {
   jwtSecret,
   jwtExpiry: optional('JWT_EXPIRY', '24h'),
   agentApiKey: process.env.AGENT_API_KEY || '',
+  privyAppId: process.env.PRIVY_APP_ID || '',
 
   // CORS
   corsOrigin: optional('CORS_ORIGIN', 'http://localhost:5173'),

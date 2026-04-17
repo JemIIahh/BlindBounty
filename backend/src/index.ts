@@ -11,12 +11,19 @@ import { submissionsRouter } from './routes/submissions.js';
 import { reputationRouter } from './routes/reputation.js';
 import { storageRouter } from './routes/storage.js';
 import { verificationRouter } from './routes/verification.js';
+import { a2aRouter } from './routes/a2a.js';
+import { a2aProtocolRouter } from './routes/a2aProtocol.js';
 
 const app = express();
 
 // Security
 app.use(helmet());
-app.use(cors({ origin: config.corsOrigin, credentials: true }));
+app.use(cors({
+  origin: config.nodeEnv === 'development'
+    ? [config.corsOrigin, 'http://localhost:5173', 'http://localhost:5174']
+    : config.corsOrigin,
+  credentials: true,
+}));
 app.use(createRateLimiter());
 
 // Body parsing
@@ -30,6 +37,30 @@ app.use('/api/v1/submissions', submissionsRouter);
 app.use('/api/v1/reputation', reputationRouter);
 app.use('/api/v1/storage', storageRouter);
 app.use('/api/v1/verification', verificationRouter);
+app.use('/api/v1/a2a', a2aRouter);
+app.use('/a2a/v1', a2aProtocolRouter);
+
+// Agent card (A2A discovery)
+app.get('/.well-known/agent.json', (_req, res) => {
+  res.json({
+    name: 'BlindBounty',
+    description: 'Privacy-preserving task marketplace with blind escrow on 0G Chain',
+    url: config.corsOrigin || 'http://localhost:3001',
+    version: '1.0.0',
+    capabilities: {
+      a2a: true,
+      streaming: false,
+      pushNotifications: false,
+    },
+    skills: [
+      { id: 'task_execution', name: 'Task Execution', description: 'Accept and execute tasks for payment' },
+      { id: 'blind_escrow', name: 'Blind Escrow', description: 'Privacy-preserving payment escrow' },
+    ],
+    defaultInputModes: ['application/json'],
+    defaultOutputModes: ['application/json'],
+    provider: { organization: 'BlindBounty', url: 'https://github.com/blindbounty' },
+  });
+});
 
 // Error handling (must be last)
 app.use(globalErrorHandler);

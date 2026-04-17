@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useWallet } from '../context/WalletContext';
 import { useAuth } from '../context/AuthContext';
 import { useSubmitEvidence } from '../hooks/useSubmissions';
 import { useTxSend } from '../hooks/useTxSend';
-import { Card, CardHeader, CardBody, Button, Input, Textarea } from '../components/ui';
+import { Button, Input, Textarea } from '../components/ui';
 import { TxPendingModal } from '../components/TxPendingModal';
 import { downloadBlob, uploadBlob } from '../services/storage';
 import {
@@ -19,20 +20,23 @@ import {
   fromBytes,
 } from '../lib/crypto';
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
+
 export default function WorkerView() {
   const { isAuthenticated } = useAuth();
   const { address } = useWallet();
   const txSend = useTxSend();
   const submitEvidence = useSubmitEvidence();
 
-  // Decrypt section
   const [wrappedKeyHex, setWrappedKeyHex] = useState('');
   const [workerPrivKey, setWorkerPrivKey] = useState('');
   const [rootHash, setRootHash] = useState('');
   const [decryptedInstructions, setDecryptedInstructions] = useState<string | null>(null);
   const [decrypting, setDecrypting] = useState(false);
 
-  // Submit section
   const [taskId, setTaskId] = useState('');
   const [evidence, setEvidence] = useState('');
   const [agentPubKey, setAgentPubKey] = useState('');
@@ -41,25 +45,27 @@ export default function WorkerView() {
 
   if (!isAuthenticated || !address) {
     return (
-      <div className="text-center py-20">
-        <h2 className="text-xl font-bold text-neutral-950 mb-2">Worker View</h2>
-        <p className="text-neutral-400">Connect your wallet and sign in to view tasks.</p>
-      </div>
+      <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-md mx-auto text-center py-24">
+        <div className="card-dark p-10">
+          <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-5">
+            <svg className="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="heading-display text-2xl mb-2">Worker View</h2>
+          <p className="text-sm text-neutral-500">Connect your wallet and sign in to view tasks.</p>
+        </div>
+      </motion.div>
     );
   }
 
   const handleDecrypt = async () => {
     setDecrypting(true);
     try {
-      // 1. ECIES-decrypt the wrapped AES key
       const wrappedKey = fromBase64(wrappedKeyHex);
       const aesKey = await eciesDecrypt(wrappedKey, workerPrivKey);
-
-      // 2. Download encrypted blob
       const { data: encryptedB64 } = await downloadBlob(rootHash);
       const encrypted = fromBase64(encryptedB64);
-
-      // 3. AES-decrypt
       const plaintext = await aesDecrypt(encrypted, aesKey);
       setDecryptedInstructions(fromBytes(plaintext));
     } catch (err) {
@@ -74,21 +80,12 @@ export default function WorkerView() {
     if (!evidence.trim() || !taskId || !agentPubKey) return;
     setSubmitting(true);
     try {
-      // 1. Generate new AES key for evidence
       const aesKey = await generateAesKey();
       const encrypted = await aesEncrypt(toBytes(evidence), aesKey);
       const encryptedB64 = toBase64(encrypted);
-
-      // 2. Upload encrypted evidence
       await uploadBlob(encryptedB64);
-
-      // 3. Compute evidence hash
       const evidenceHash = '0x' + await sha256(encrypted);
-
-      // 4. ECIES-wrap AES key to agent
       const wrappedToAgent = await eciesEncrypt(aesKey, agentPubKey);
-
-      // 5. Build and send tx — store wrapped key for agent to retrieve
       try {
         const stored = JSON.parse(localStorage.getItem('blindbounty_evidence_keys') || '[]');
         stored.push({ taskId, wrappedKey: toBase64(wrappedToAgent), createdAt: new Date().toISOString() });
@@ -104,15 +101,23 @@ export default function WorkerView() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-2xl mx-auto space-y-8">
       <TxPendingModal open={txSend.isPending || submitEvidence.isPending} />
 
-      <h1 className="text-2xl font-bold text-neutral-950">Worker View</h1>
+      <div>
+        <h1 className="heading-display text-3xl sm:text-4xl mb-2">Worker View</h1>
+        <p className="text-sm text-neutral-500">Decrypt instructions and submit evidence</p>
+      </div>
 
       {/* Decrypt Instructions */}
-      <Card>
-        <CardHeader title="Decrypt Task Instructions" bordered />
-        <CardBody>
+      <div className="card-dark overflow-hidden">
+        <div className="px-6 py-4 border-b border-neutral-800 flex items-center gap-2">
+          <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          <h2 className="text-sm font-semibold text-white">Decrypt Task Instructions</h2>
+        </div>
+        <div className="px-6 py-6">
           <div className="space-y-4">
             <Input
               label="Root Hash (from agent)"
@@ -144,22 +149,40 @@ export default function WorkerView() {
             </Button>
 
             {decryptedInstructions && (
-              <div className="mt-4 p-4 rounded-lg bg-neutral-950 border border-neutral-800">
-                <h4 className="text-xs font-semibold text-neutral-500 uppercase mb-2">Decrypted Instructions</h4>
-                <p className="text-sm text-white whitespace-pre-wrap">{decryptedInstructions}</p>
+              <div className="mt-4 p-5 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Decrypted
+                  </span>
+                </div>
+                <p className="text-sm text-neutral-300 whitespace-pre-wrap">{decryptedInstructions}</p>
               </div>
             )}
           </div>
-        </CardBody>
-      </Card>
+        </div>
+      </div>
 
       {/* Submit Evidence */}
-      <Card>
-        <CardHeader title="Submit Evidence" bordered />
-        <CardBody>
+      <div className="card-dark overflow-hidden">
+        <div className="px-6 py-4 border-b border-neutral-800 flex items-center gap-2">
+          <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          <h2 className="text-sm font-semibold text-white">Submit Evidence</h2>
+        </div>
+        <div className="px-6 py-6">
           {submitSuccess ? (
-            <div className="text-center py-4">
-              <p className="text-neutral-400 font-semibold">Evidence submitted successfully!</p>
+            <div className="text-center py-8">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-lg font-display text-white mb-1">Evidence submitted successfully!</p>
+              <p className="text-sm text-neutral-500">The agent will review your submission.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -183,19 +206,17 @@ export default function WorkerView() {
                 onChange={(e) => setAgentPubKey(e.target.value)}
                 helperText="For ECIES-wrapping the evidence key to the agent"
               />
-              <Button
-                variant="primary"
-                fullWidth
-                loading={submitting || submitEvidence.isPending}
+              <button
+                className="w-full btn-accent py-3"
                 disabled={submitting || submitEvidence.isPending || !taskId || !evidence.trim() || !agentPubKey}
                 onClick={handleSubmitEvidence}
               >
-                Encrypt & Submit Evidence
-              </Button>
+                {submitting || submitEvidence.isPending ? 'Submitting...' : 'Encrypt & Submit Evidence'}
+              </button>
             </div>
           )}
-        </CardBody>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }

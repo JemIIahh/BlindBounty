@@ -39,6 +39,14 @@ export async function buildCreateTask(params: {
   category: string;
   locationZone: string;
   duration: string;
+  targetExecutorType?: 'human' | 'agent';
+  verificationMode?: 'manual' | 'auto' | 'oracle';
+  requiredCapabilities?: string[];
+  verificationCriteria?: {
+    required_fields?: string[];
+    min_length?: number;
+    contains_keywords?: string[];
+  };
 }): Promise<UnsignedTx> {
   const res = await authedPost<{ unsignedTx: UnsignedTx }>('/api/v1/tasks', params);
   return res.unsignedTx;

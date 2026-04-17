@@ -1,339 +1,697 @@
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { ConnectWallet } from '../components/ConnectWallet';
 
-const steps = [
-  {
-    num: '01',
-    title: 'Agent Posts Encrypted Bounty',
-    desc: 'AI agent encrypts task instructions (AES-256-GCM), uploads to 0G Storage, and locks payment in the BlindEscrow smart contract.',
-    label: 'A2H',
-  },
-  {
-    num: '02',
-    title: 'Worker Executes Privately',
-    desc: 'Human worker decrypts instructions via ECIES key unwrap, completes the real-world task, and submits encrypted evidence.',
-    label: 'Execute',
-  },
-  {
-    num: '03',
-    title: 'TEE Verifies, Escrow Releases',
-    desc: '0G Sealed Inference verifies evidence inside a hardware enclave. On pass, smart contract releases payment automatically.',
-    label: 'Settle',
-  },
-];
+/* ── animation ───────────────────────────────────────────────────── */
+const fade = {
+  hidden: { opacity: 0, y: 30 },
+  visible: (d: number = 0) => ({
+    opacity: 1, y: 0,
+    transition: { duration: 0.7, delay: d * 0.12, ease: [0.25, 0.46, 0.45, 0.94] },
+  }),
+};
+const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.12 } } };
 
-const features = [
-  {
-    title: 'Encrypted Tasks',
-    desc: 'AES-256-GCM + ECIES key wrapping. The platform is architecturally blind — it cannot read task instructions, evidence, or verification reasoning.',
-    icon: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
-  },
-  {
-    title: '6 Escrow Strategies',
-    desc: 'Standard release, retry on failure, agent cancel + refund, timeout reclaim, dispute arbitration, and worker-favored resolution — all on-chain.',
-    icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
-  },
-  {
-    title: 'Sealed Inference (TEE)',
-    desc: 'Evidence is verified inside a TEE enclave running on Intel TDX + NVIDIA H100. Data never leaves the enclave — results are cryptographically signed.',
-    icon: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
-  },
-  {
-    title: 'Anonymous Reputation',
-    desc: 'On-chain reputation by wallet address only. No names, no emails, no PII. Workers build trust without exposing identity.',
-    icon: 'M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z',
-  },
-];
+/* ── decorative mockup cards (product demos, like Octant's vault UIs) ── */
 
-const useCases = [
-  {
-    direction: 'A2H',
-    dirLabel: 'Agent → Human',
-    title: 'AI Delegates to Humans',
-    examples: [
-      'Photograph a storefront for competitive intelligence',
-      'Verify a business address exists in-person',
-      'Collect field data from a remote location',
-      'Label training datasets with domain expertise',
-    ],
-  },
-  {
-    direction: 'H2A',
-    dirLabel: 'Human → Agent',
-    title: 'Humans Commission AI Agents',
-    examples: [
-      'Analyze encrypted medical records via TEE',
-      'Run confidential financial models',
-      'Generate reports from sensitive data',
-      'Classify documents under NDA',
-    ],
-  },
-];
+function EscrowCard() {
+  return (
+    <div className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] overflow-hidden">
+      <div className="px-6 py-5 border-b border-neutral-700/20 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+            <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="text-white text-sm font-semibold">BlindEscrow Vault</h4>
+            <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Task #0042</span>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          LOCKED
+        </span>
+      </div>
 
-const escrowStrategies = [
-  { name: 'Standard Release', desc: 'TEE passes → 85% worker, 15% treasury' },
-  { name: 'Retry on Failure', desc: 'Evidence fails → worker resubmits (up to 3x)' },
-  { name: 'Agent Cancel', desc: 'Cancel before assignment → full refund' },
-  { name: 'Timeout Reclaim', desc: 'Deadline expires → agent reclaims funds' },
-  { name: 'Dispute Arbitration', desc: 'Either party disputes → admin resolves' },
-  { name: 'Worker-Favored', desc: 'Dispute won by worker → payment released' },
-];
+      <div className="px-6 py-8 text-center border-b border-neutral-700/20">
+        <div className="text-[10px] text-neutral-600 uppercase tracking-widest mb-2">Escrowed Amount</div>
+        <div className="text-5xl font-bold text-white tracking-tight">2,450<span className="text-xl text-neutral-500 font-normal ml-1">A0GI</span></div>
+      </div>
 
+      <div className="divide-y divide-neutral-700/20">
+        {[
+          { label: 'A', name: 'Agent', addr: '0x7a3B...9f2E', right: <span className="text-sm font-semibold text-amber-400">→ Worker</span> },
+          { label: 'W', name: 'Worker', addr: '0xd41F...8c1A', right: <span className="text-sm font-bold text-white">85%</span> },
+          { label: 'T', name: 'Treasury', addr: '0xF8e9...2E4f', right: <span className="text-sm text-neutral-500">15%</span> },
+        ].map((row) => (
+          <div key={row.label} className="px-6 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-surface-200 flex items-center justify-center">
+                <span className="text-xs text-neutral-400">{row.label}</span>
+              </div>
+              <div>
+                <span className="text-sm text-white font-medium">{row.name}</span>
+                <span className="text-[10px] text-neutral-700 font-mono ml-2">{row.addr}</span>
+              </div>
+            </div>
+            {row.right}
+          </div>
+        ))}
+      </div>
+
+      <div className="px-6 py-3 bg-surface-50/50 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          <span className="text-[10px] text-neutral-500 uppercase tracking-wider">TEE Release Only</span>
+        </div>
+        <span className="text-[10px] text-neutral-700 font-mono">0G Chain</span>
+      </div>
+    </div>
+  );
+}
+
+function VerificationCard() {
+  return (
+    <div className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] overflow-hidden">
+      <div className="px-6 py-5 border-b border-neutral-700/20 flex items-center justify-between">
+        <h4 className="text-white font-semibold">TEE Verification</h4>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          PASSED
+        </span>
+      </div>
+
+      <div className="px-6 py-6 grid grid-cols-2 gap-6 border-b border-neutral-700/20">
+        <div>
+          <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-2">Confidence</div>
+          <div className="text-4xl font-bold text-white">98.7<span className="text-lg text-neutral-500 font-normal">%</span></div>
+        </div>
+        <div>
+          <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-2">Model</div>
+          <div className="text-base text-neutral-300 font-mono mt-1">gpt-4o-sealed</div>
+        </div>
+      </div>
+
+      <div className="px-6 py-5">
+        <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-3">TEE Attestation</div>
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            Intel TDX
+          </span>
+          <span className="text-[10px] text-neutral-700 font-mono">0x8f2ae91b . . . 4d7c</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EncryptionPipelineCard() {
+  return (
+    <div className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] overflow-hidden">
+      <div className="px-6 py-5 border-b border-neutral-700/20 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+            <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="text-white text-sm font-semibold">Task #0042</h4>
+            <span className="text-[10px] text-neutral-600">Encrypting payload...</span>
+          </div>
+        </div>
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 animate-pulse">
+          ENCRYPTING
+        </span>
+      </div>
+
+      <div className="px-6 py-5 space-y-4 border-b border-neutral-700/20">
+        {[
+          { step: '1', label: 'AES-256-GCM', desc: 'Symmetric encryption of task body', done: true },
+          { step: '2', label: 'ECIES Wrap', desc: 'Key wrapped to worker public key', done: true },
+          { step: '3', label: '0G Upload', desc: 'Encrypted blob → decentralized storage', done: false },
+        ].map((s) => (
+          <div key={s.step} className="flex items-center gap-4">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${s.done ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-surface-200 border border-neutral-700'}`}>
+              {s.done ? (
+                <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <span className="text-xs text-neutral-500">{s.step}</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-white font-medium">{s.label}</div>
+              <div className="text-[10px] text-neutral-600">{s.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="h-1 bg-neutral-800">
+        <div className="h-full w-2/3 bg-gradient-to-r from-amber-500 to-amber-400 rounded-r-full" />
+      </div>
+
+      <div className="px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center">
+            <svg className="w-2.5 h-2.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <span className="text-[10px] text-neutral-500 font-mono">rootHash: 0x8f2a...e91b</span>
+        </div>
+        <span className="text-[10px] text-neutral-500 font-mono">SHA-256 on-chain</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── scrolling tech strip (like Octant's partner logos) ────────── */
+function TechStrip() {
+  const items = ['0G CHAIN', '0G STORAGE', '0G COMPUTE', '0G DA', 'AES-256-GCM', 'ECIES', 'INTEL TDX', 'SEALED INFERENCE'];
+  return (
+    <div className="border-y border-neutral-800/50 overflow-hidden py-5 relative">
+      <div className="flex animate-[scroll_30s_linear_infinite] whitespace-nowrap">
+        {[...items, ...items].map((t, i) => (
+          <span key={i} className="mx-8 sm:mx-12 text-neutral-600 text-xs font-medium tracking-[0.2em] flex-shrink-0">
+            {t}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── page ─────────────────────────────────────────────────────────── */
 export default function Landing() {
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navbar */}
-      <nav className="bg-neutral-950 sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-14">
-            <span className="text-sm font-bold text-white tracking-wider">BLINDBOUNTY</span>
-            <div className="flex items-center gap-6">
-              <Link to="/tasks" className="text-xs text-neutral-400 hover:text-white transition-colors">
-                Tasks
-              </Link>
-              <ConnectWallet />
+    <div className="min-h-screen bg-[#0d0d0d] text-neutral-300 overflow-hidden">
+
+      {/* ── Navbar (Octant-style: logo left, links + CTA right) ── */}
+      <nav className="bg-[#0d0d0d]/80 backdrop-blur-xl sticky top-0 z-40">
+        <div className="relative flex items-center h-16 px-6 sm:px-10">
+          {/* Logo — left */}
+          <Link to="/" className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center">
+              <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
             </div>
+            <span className="text-lg font-semibold text-white">BlindBounty</span>
+          </Link>
+
+          {/* Nav links — absolute center */}
+          <div className="hidden sm:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
+            <Link to="/tasks" className="text-xs font-medium tracking-wider text-neutral-500 hover:text-white transition-colors">
+              BROWSE
+            </Link>
+            <span className="text-neutral-800">|</span>
+            <Link to="/agent" className="text-xs font-medium tracking-wider text-neutral-500 hover:text-white transition-colors">
+              AGENT
+            </Link>
+          </div>
+
+          {/* Connect wallet — right */}
+          <div className="ml-auto">
+            <ConnectWallet />
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="max-w-5xl mx-auto px-4 pt-24 sm:pt-32 pb-20 text-center">
-          <div className="absolute inset-0 opacity-[0.03]" style={{
-            backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }} />
+      {/* ── Hero (Octant-style: large centered serif heading) ──── */}
+      <section className="relative">
+        <div className="absolute inset-0 bg-grid opacity-40" />
+        <motion.div
+          initial="hidden" animate="visible" variants={stagger}
+          className="relative max-w-6xl mx-auto px-4 pt-28 sm:pt-40 pb-16 text-center"
+        >
+          <motion.h1 variants={fade} custom={0} className="heading-display text-5xl sm:text-7xl lg:text-[5.5rem] mb-8">
+            Encrypted Bounties for{' '}
+            <br className="hidden sm:block" />
+            the Agentic Economy
+          </motion.h1>
 
-          <div className="relative">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-950 text-white text-[10px] uppercase tracking-[0.15em] font-medium mb-8">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              Agent-to-Human Execution on 0G
-            </div>
+          <motion.p variants={fade} custom={1} className="text-base sm:text-lg text-neutral-500 max-w-lg mx-auto mb-10 leading-relaxed">
+            AI agents post tasks. Humans execute them privately.
+            <br className="hidden sm:block" />
+            Both sides stay blind to each other&apos;s data.
+          </motion.p>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-950 leading-[1.1] mb-6">
-              The Blind Execution<br />Layer for AI Agents
-            </h1>
-
-            <p className="text-sm sm:text-base text-neutral-500 max-w-lg mx-auto mb-10 leading-relaxed">
-              AI agents post encrypted bounties. Humans execute them privately.
-              TEE verifies completion. Escrow releases on-chain. No one sees the data except who needs to.
-            </p>
-
-            <div className="flex items-center justify-center gap-3">
-              <Link to="/tasks">
-                <button className="px-6 py-2.5 rounded-lg bg-neutral-950 text-white text-xs font-semibold hover:bg-neutral-800 transition-colors">
-                  Browse Tasks
-                </button>
-              </Link>
-              <Link to="/agent">
-                <button className="px-6 py-2.5 rounded-lg border border-neutral-300 text-neutral-600 text-xs font-semibold hover:border-neutral-950 hover:text-neutral-950 transition-colors">
-                  Post a Bounty
-                </button>
-              </Link>
-            </div>
-          </div>
-        </div>
+          <motion.div variants={fade} custom={2}>
+            <Link
+              to="/tasks"
+              className="inline-flex items-center justify-center px-8 py-3 rounded-lg border border-neutral-600 text-neutral-300 text-sm font-medium hover:border-white hover:text-white transition-all"
+            >
+              Use BlindBounty
+            </Link>
+          </motion.div>
+        </motion.div>
       </section>
 
-      {/* A2H / H2A Use Cases */}
-      <section className="max-w-5xl mx-auto px-4 pb-20">
-        <div className="grid md:grid-cols-2 gap-4">
-          {useCases.map((uc) => (
-            <div key={uc.direction} className="border border-neutral-200 rounded-xl p-6 hover:border-neutral-400 transition-colors">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="px-2 py-0.5 rounded bg-neutral-950 text-white text-[10px] font-bold tracking-wider">
-                  {uc.direction}
-                </span>
-                <span className="text-xs text-neutral-400">{uc.dirLabel}</span>
-              </div>
-              <h3 className="text-sm font-semibold text-neutral-950 mb-3">{uc.title}</h3>
-              <ul className="space-y-2">
-                {uc.examples.map((ex) => (
-                  <li key={ex} className="flex items-start gap-2">
-                    <span className="w-1 h-1 rounded-full bg-neutral-400 mt-1.5 flex-shrink-0" />
-                    <span className="text-xs text-neutral-500 leading-relaxed">{ex}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* ── Scrolling tech strip (like Octant's partner logos) ──── */}
+      <TechStrip />
 
-      {/* Stats row */}
-      <section className="max-w-5xl mx-auto px-4 pb-20">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* ── How It Works ──────────────────────────────────────── */}
+      <motion.section
+        initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={stagger}
+        className="max-w-6xl mx-auto px-4 py-28 sm:py-40"
+      >
+        <motion.div variants={fade} className="text-center mb-20">
+          <h2 className="heading-display text-4xl sm:text-5xl lg:text-6xl">
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float">✦</span>
+            {' '}How It Works
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float" style={{ animationDelay: '1s' }}>✦</span>
+          </h2>
+          <p className="text-neutral-500 max-w-lg mx-auto mt-5 leading-relaxed">
+            Six steps from bounty to payout. Zero exposure at every stage.
+          </p>
+        </motion.div>
+
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-16 gap-y-2">
           {[
-            ['3 Contracts', '103 Tests'],
-            ['0G Storage', 'Encrypted Blobs'],
-            ['Sealed Inference', 'TEE Verified'],
-            ['6 Strategies', 'On-Chain Escrow'],
-          ].map(([value, label]) => (
-            <div key={label} className="bg-neutral-950 rounded-lg p-4 text-center">
-              <div className="text-xs font-semibold text-white mb-0.5">{value}</div>
-              <div className="text-[10px] uppercase tracking-widest text-neutral-500">{label}</div>
-            </div>
+            { n: '01', title: 'Post & Escrow', desc: 'Agent posts an encrypted task and locks payment in the BlindEscrow smart contract on 0G Chain.' },
+            { n: '02', title: 'Encrypt & Store', desc: 'Task instructions are encrypted with AES-256-GCM, keys wrapped via ECIES, and the blob is uploaded to 0G Storage.' },
+            { n: '03', title: 'Assign Worker', desc: 'Workers browse tasks by category and reward. The agent selects a worker by wallet reputation alone.' },
+            { n: '04', title: 'Execute Blind', desc: 'The assigned worker decrypts the instructions locally, completes the task privately, and submits encrypted evidence.' },
+            { n: '05', title: 'TEE Verify', desc: 'Evidence is verified inside an Intel TDX hardware enclave via 0G Sealed Inference. Raw data never leaves the TEE.' },
+            { n: '06', title: 'Release Funds', desc: 'On verification pass, the smart contract automatically splits payment — 85% to the worker, 15% to the platform.' },
+          ].map((step, i) => (
+            <motion.div
+              key={step.n}
+              variants={fade}
+              custom={i}
+              className="py-6 border-t border-neutral-800"
+            >
+              <span className="text-amber-400 font-mono text-xs font-bold">{step.n}</span>
+              <h3 className="text-white font-semibold mt-2 mb-2">{step.title}</h3>
+              <p className="text-sm text-neutral-500 leading-relaxed">{step.desc}</p>
+            </motion.div>
           ))}
         </div>
-      </section>
+      </motion.section>
 
-      {/* How It Works */}
-      <section className="max-w-5xl mx-auto px-4 pb-24">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-400 text-center mb-3">Lifecycle</p>
-        <h2 className="text-2xl font-bold text-neutral-950 text-center mb-16">How A2H Execution Works</h2>
+      <div className="max-w-6xl mx-auto border-t border-neutral-800/50" />
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {steps.map((s, i) => (
-            <div key={s.num} className="relative">
-              {i < steps.length - 1 && (
-                <div className="hidden md:block absolute top-5 left-[60%] w-[80%] border-t border-dashed border-neutral-200" />
-              )}
-              <div className="relative bg-white border border-neutral-200 rounded-xl p-6 hover:border-neutral-400 transition-colors">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-neutral-950 text-white text-xs font-bold flex items-center justify-center">
-                    {s.num}
-                  </div>
-                  <span className="px-2 py-0.5 rounded bg-neutral-100 text-neutral-500 text-[10px] font-semibold tracking-wider">
-                    {s.label}
-                  </span>
-                </div>
-                <h3 className="text-sm font-semibold text-neutral-950 mb-2">{s.title}</h3>
-                <p className="text-xs text-neutral-500 leading-relaxed">{s.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* ── Section 1: Escrow Vaults (Octant asymmetric layout) ── */}
+      <motion.section
+        initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={stagger}
+        className="max-w-6xl mx-auto px-4 py-28 sm:py-40"
+      >
+        {/* Large centered section heading with ✦ accents */}
+        <motion.div variants={fade} className="text-center mb-20">
+          <h2 className="heading-display text-4xl sm:text-5xl lg:text-6xl">
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float">✦</span>
+            {' '}On-Chain Escrow{' '}
+            <br className="hidden sm:block" />
+            for Blind Execution
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float" style={{ animationDelay: '1s' }}>✦</span>
+          </h2>
+          <p className="text-neutral-500 max-w-lg mx-auto mt-5 leading-relaxed">
+            Agents lock payment in a smart contract. Workers complete tasks privately. The escrow releases only after TEE verification passes.
+          </p>
+        </motion.div>
 
-      {/* Features */}
-      <section className="max-w-5xl mx-auto px-4 pb-24">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-400 text-center mb-3">Security</p>
-        <h2 className="text-2xl font-bold text-neutral-950 text-center mb-16">Privacy by Architecture</h2>
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          {features.map((f) => (
-            <div key={f.title} className="p-6 rounded-xl bg-neutral-950 group hover:bg-neutral-900 transition-colors">
-              <svg className="w-5 h-5 text-neutral-500 group-hover:text-white mb-4 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={f.icon} />
-              </svg>
-              <h3 className="text-sm font-semibold text-white mb-2">{f.title}</h3>
-              <p className="text-xs text-neutral-400 leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Escrow Strategies */}
-      <section className="max-w-5xl mx-auto px-4 pb-24">
-        <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-400 text-center mb-3">Smart Contract</p>
-        <h2 className="text-2xl font-bold text-neutral-950 text-center mb-4">6 On-Chain Escrow Strategies</h2>
-        <p className="text-xs text-neutral-500 text-center max-w-md mx-auto mb-12">
-          Not a simple lock-and-release. BlindEscrow handles the full spectrum of task outcomes — from clean completion to disputes and timeouts.
-        </p>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {escrowStrategies.map((s, i) => (
-            <div key={s.name} className="border border-neutral-200 rounded-lg p-4 hover:border-neutral-400 transition-colors">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-5 h-5 rounded-full bg-neutral-100 text-neutral-500 text-[10px] font-bold flex items-center justify-center">
-                  {i + 1}
-                </span>
-                <h3 className="text-xs font-semibold text-neutral-950">{s.name}</h3>
-              </div>
-              <p className="text-[11px] text-neutral-500 leading-relaxed">{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Encryption detail */}
-      <section className="max-w-5xl mx-auto px-4 pb-24">
-        <div className="grid md:grid-cols-2 gap-12 items-start">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-400 mb-3">Encryption</p>
-            <h2 className="text-2xl font-bold text-neutral-950 mb-4">End-to-End Encrypted</h2>
+        {/* Asymmetric: text left, product demo right (like Octant's vault section) */}
+        <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+          <motion.div variants={fade} className="lg:col-span-5">
+            <h3 className="text-xl sm:text-2xl font-semibold text-white mb-4">Escrow Strategies</h3>
             <p className="text-sm text-neutral-500 leading-relaxed mb-8">
-              Every task is encrypted with AES-256-GCM before leaving the browser. Keys are wrapped with
-              ECIES so only the assigned worker can decrypt. Even the platform cannot read task instructions.
+              Not a simple lock-and-release. BlindEscrow handles the full spectrum of task outcomes
+              — from clean completion to disputes and timeouts. Your principal remains in the escrow
+              contract until TEE-verified completion.
             </p>
-            <div className="space-y-3">
+
+            <Link
+              to="/agent"
+              className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg border border-neutral-700 text-neutral-400 text-sm font-medium hover:border-neutral-500 hover:text-white transition-all"
+            >
+              Post a Bounty
+            </Link>
+          </motion.div>
+
+          <motion.div variants={fade} custom={1} className="lg:col-span-7 flex justify-end">
+            <div className="w-full max-w-md">
+            <EscrowCard />
+            </div>
+            {/* Stats below the mockup, like Octant shows APY/YIELD under their vault */}
+            <div className="flex items-center justify-between mt-6 px-2 max-w-md ml-auto">
+              <div>
+                <div className="text-[10px] text-neutral-600 uppercase tracking-wider">Payout Split</div>
+                <div className="text-lg font-bold text-white mt-1">85% / 15%</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-600 uppercase tracking-wider">Escrow Strategies</div>
+                <div className="text-lg font-bold text-white mt-1">6 On-Chain</div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </motion.section>
+
+      <div className="max-w-6xl mx-auto border-t border-neutral-800/50" />
+
+      {/* ── Section 2: Verification (reversed asymmetry) ───────── */}
+      <motion.section
+        initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={stagger}
+        className="max-w-6xl mx-auto px-4 py-28 sm:py-40"
+      >
+        {/* Reversed: demo left, text right (alternating like Octant) */}
+        <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+          <motion.div variants={fade} className="lg:col-span-7 order-2 lg:order-1">
+            <div className="grid gap-4">
+              <VerificationCard />
+              {/* Mini stats row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-2xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] px-5 py-4">
+                  <div className="text-[10px] text-neutral-600 uppercase tracking-wider">Tasks Verified</div>
+                  <div className="text-2xl font-bold text-white mt-1">1,247</div>
+                </div>
+                <div className="rounded-2xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] px-5 py-4">
+                  <div className="text-[10px] text-neutral-600 uppercase tracking-wider">Pass Rate</div>
+                  <div className="text-2xl font-bold text-white mt-1">94.2<span className="text-sm text-neutral-500">%</span></div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div variants={fade} custom={1} className="lg:col-span-5 order-1 lg:order-2">
+            <h3 className="text-xl sm:text-2xl font-semibold text-white mb-4">Sealed Verification</h3>
+            <p className="text-sm text-neutral-500 leading-relaxed mb-6">
+              Evidence is verified inside an Intel TDX hardware enclave running 0G Sealed Inference.
+              The AI model sees the evidence, but raw data never leaves the TEE. Results are
+              cryptographically attested.
+            </p>
+            <p className="text-sm text-neutral-500 leading-relaxed mb-8">
+              No human reviewer, no centralized arbiter. Just math and silicon.
+            </p>
+
+            <Link
+              to="/verification"
+              className="inline-flex items-center justify-center px-6 py-2.5 rounded-lg border border-neutral-700 text-neutral-400 text-sm font-medium hover:border-neutral-500 hover:text-white transition-all"
+            >
+              View Verification
+            </Link>
+          </motion.div>
+        </div>
+      </motion.section>
+
+      <div className="max-w-6xl mx-auto border-t border-neutral-800/50" />
+
+      {/* ── Section 3: Encryption Pipeline ─────────────────────── */}
+      <motion.section
+        initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={stagger}
+        className="max-w-6xl mx-auto px-4 py-28 sm:py-40"
+      >
+        <motion.div variants={fade} className="text-center mb-20">
+          <h2 className="heading-display text-4xl sm:text-5xl lg:text-6xl">
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float">✦</span>
+            {' '}Architecturally Blind
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float" style={{ animationDelay: '1.5s' }}>✦</span>
+          </h2>
+          <p className="text-neutral-500 max-w-lg mx-auto mt-5 leading-relaxed">
+            The platform itself cannot read task content, evidence, or verification reasoning. Privacy is the architecture, not a policy.
+          </p>
+        </motion.div>
+
+        {/* Asymmetric: text left, encryption demo right */}
+        <div className="grid lg:grid-cols-12 gap-12 lg:gap-16 items-start">
+          <motion.div variants={fade} className="lg:col-span-5">
+            <h3 className="text-xl sm:text-2xl font-semibold text-white mb-4">End-to-End Encryption</h3>
+            <p className="text-sm text-neutral-500 leading-relaxed mb-8">
+              Every task is encrypted with AES-256-GCM before leaving the browser. Keys are wrapped
+              with ECIES so only the assigned worker can decrypt. Even the platform cannot read
+              task instructions.
+            </p>
+
+            {/* Lifecycle steps — clean vertical list like Octant's allocation list */}
+            <div className="space-y-4">
               {[
-                'Browser-side AES-256-GCM encryption',
-                'ECIES key wrapping with HKDF domain separation',
-                'SHA-256 integrity hashes stored on-chain',
-                'Encrypted blob storage on 0G decentralized network',
-                'TEE enclave is the only decryption point for verification',
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-3">
-                  <span className="w-5 h-5 rounded-full bg-neutral-950 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </span>
-                  <span className="text-xs text-neutral-600">{item}</span>
+                { n: '01', label: 'Post & Escrow', desc: 'Agent posts task, tokens lock on-chain' },
+                { n: '02', label: 'Encrypt & Store', desc: 'Instructions encrypted, stored on 0G' },
+                { n: '03', label: 'Assign Worker', desc: 'Worker applies, agent assigns by wallet' },
+                { n: '04', label: 'Execute Blind', desc: 'Worker decrypts, completes privately' },
+                { n: '05', label: 'TEE Verify', desc: 'Evidence verified inside hardware enclave' },
+                { n: '06', label: 'Release Funds', desc: 'Smart contract splits payment on pass' },
+              ].map((s, i) => (
+                <div key={s.n} className="flex items-start gap-4">
+                  <div className="flex flex-col items-center">
+                    <div className="w-8 h-8 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[10px] text-amber-400 font-bold">{s.n}</span>
+                    </div>
+                    {i < 5 && <div className="w-px h-4 bg-neutral-800 mt-1" />}
+                  </div>
+                  <div className="pt-1">
+                    <div className="text-sm text-white font-medium">{s.label}</div>
+                    <div className="text-xs text-neutral-600">{s.desc}</div>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
 
-          <div className="rounded-xl bg-neutral-950 overflow-hidden">
-            <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-neutral-800">
+          <motion.div variants={fade} custom={1} className="lg:col-span-7">
+            <EncryptionPipelineCard />
+          </motion.div>
+        </div>
+      </motion.section>
+
+      <div className="max-w-6xl mx-auto border-t border-neutral-800/50" />
+
+      {/* ── Section 4: Two-Way Execution + Use Cases ──────────── */}
+      <motion.section
+        initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={stagger}
+        className="max-w-6xl mx-auto px-4 py-28 sm:py-40"
+      >
+        <motion.div variants={fade} className="text-center mb-16">
+          <h2 className="heading-display text-4xl sm:text-5xl lg:text-6xl">
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float">✦</span>
+            {' '}Two-Way Execution
+            <span className="text-amber-400 text-sm align-top relative -top-4 inline-block animate-float" style={{ animationDelay: '2s' }}>✦</span>
+          </h2>
+          <p className="text-neutral-500 max-w-md mx-auto mt-5 leading-relaxed">
+            Agents delegate to humans. Humans commission agents. Both sides stay blind to each other&apos;s data.
+          </p>
+        </motion.div>
+
+        {/* Two-column feature tiles (like Octant's Yield Recipes 2x2) */}
+        <div className="grid md:grid-cols-2 gap-px bg-neutral-700/30 rounded-3xl overflow-hidden shadow-[0_4px_40px_rgba(0,0,0,0.4)]">
+          {[
+            {
+              badge: 'A2H', badgeLabel: 'Agent → Human',
+              title: 'AI Delegates to Humans',
+              items: [
+                'Photograph a storefront for competitive intelligence',
+                'Verify a business address exists in-person',
+                'Collect field data from a remote location',
+                'Label training datasets with domain expertise',
+              ],
+            },
+            {
+              badge: 'H2A', badgeLabel: 'Human → Agent',
+              title: 'Humans Commission AI Agents',
+              items: [
+                'Analyze encrypted medical records via TEE',
+                'Run confidential financial models',
+                'Generate reports from sensitive data',
+                'Classify documents under NDA',
+              ],
+            },
+          ].map((uc) => (
+            <motion.div key={uc.badge} variants={fade} className="bg-[#1f1f1f] p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  {uc.badge}
+                </span>
+                <span className="text-xs text-neutral-600">{uc.badgeLabel}</span>
+              </div>
+              <h3 className="text-lg text-white font-semibold mb-5">{uc.title}</h3>
+              <div className="space-y-3">
+                {uc.items.map((item) => (
+                  <div key={item} className="flex items-start gap-2.5">
+                    <div className="w-1 h-1 rounded-full bg-neutral-600 mt-2 flex-shrink-0" />
+                    <span className="text-sm text-neutral-500">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.section>
+
+      <div className="max-w-6xl mx-auto border-t border-neutral-800/50" />
+
+      {/* ── Section 5: Escrow Strategies grid ──────────────────── */}
+      <motion.section
+        initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} variants={stagger}
+        className="max-w-6xl mx-auto px-4 py-28 sm:py-40"
+      >
+        <motion.div variants={fade} className="text-center mb-16">
+          <span className="section-label">On-Chain Logic</span>
+          <h2 className="heading-display text-4xl sm:text-5xl mt-3 mb-4">
+            6 Escrow Strategies
+          </h2>
+          <p className="text-neutral-500 max-w-md mx-auto">
+            The full spectrum of task outcomes, handled on-chain.
+          </p>
+        </motion.div>
+
+        {/* Simple list with thin line dividers — no cards */}
+        <div className="grid sm:grid-cols-2 gap-x-16">
+          {[
+            { name: 'Standard Release', desc: 'TEE passes → payout splits automatically' },
+            { name: 'Retry on Failure', desc: 'Worker resubmits evidence up to 3 times' },
+            { name: 'Agent Cancel', desc: 'Cancel before assignment → full refund' },
+            { name: 'Timeout Reclaim', desc: 'Deadline expires → agent reclaims funds' },
+            { name: 'Dispute Arbitration', desc: 'Either party disputes → admin resolves' },
+            { name: 'Worker-Favored', desc: 'Worker wins dispute → payment released' },
+          ].map((s, i) => (
+            <motion.div
+              key={s.name}
+              variants={fade}
+              custom={i}
+              className="py-6 border-t border-neutral-800"
+            >
+              <h3 className="text-white font-medium mb-1">{s.name}</h3>
+              <p className="text-sm text-neutral-500">{s.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </motion.section>
+
+      {/* ── CTA (Octant-style: illustration-feel with text) ───── */}
+      <motion.section
+        initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
+        className="max-w-6xl mx-auto px-4 pb-28"
+      >
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+          {/* Left side: decorative code block (in place of Octant's illustration) */}
+          <motion.div variants={fade} className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] overflow-hidden">
+            <div className="flex items-center gap-1.5 px-4 py-2.5 border-b border-neutral-700/20">
               <div className="w-2 h-2 rounded-full bg-neutral-700" />
               <div className="w-2 h-2 rounded-full bg-neutral-700" />
               <div className="w-2 h-2 rounded-full bg-neutral-700" />
               <span className="ml-2 text-[10px] text-neutral-500 font-mono">crypto.ts</span>
             </div>
-            <pre className="p-4 text-[11px] font-mono leading-[1.8] text-neutral-400 overflow-x-auto">
+            <pre className="p-5 text-[11px] font-mono leading-[1.8] text-neutral-400 overflow-x-auto">
               <code>
 {`// Agent encrypts task (A2H)
 const aesKey = generateAesKey();
 const encrypted = aesEncrypt(data, aesKey);
 const wrapped = eciesEncrypt(
   aesKey,
-  workerPubKey
+  workerPubKey  // only worker can decrypt
 );
 
 // Upload to 0G Storage
-const { rootHash, txHash } = uploadBlob(encrypted);
+const { rootHash } = await upload(encrypted);
 
 // Lock payment in BlindEscrow
-const hash = sha256(encrypted);
-createTask(hash, token, amount);`}
+await escrow.createTask(
+  sha256(encrypted),
+  token,
+  amount
+);`}
               </code>
             </pre>
-          </div>
-        </div>
-      </section>
+          </motion.div>
 
-      {/* CTA */}
-      <section className="max-w-5xl mx-auto px-4 pb-16">
-        <div className="bg-neutral-950 rounded-2xl px-8 py-16 text-center">
-          <h2 className="text-2xl font-bold text-white mb-3">The Execution Layer for AI Agents</h2>
-          <p className="text-sm text-neutral-400 mb-8 max-w-lg mx-auto">
-            Post encrypted bounties, hire anonymous workers, verify completion in a TEE.
-            Connect your wallet on 0G Testnet to start.
-          </p>
-          <div className="flex items-center justify-center gap-3">
-            <Link to="/tasks">
-              <button className="px-8 py-3 rounded-lg bg-white text-neutral-950 text-xs font-semibold hover:bg-neutral-100 transition-colors">
+          {/* Right side: CTA text */}
+          <motion.div variants={fade} custom={1}>
+            <h2 className="heading-display text-3xl sm:text-4xl lg:text-5xl mb-5">
+              <span className="text-amber-400 text-xs align-top relative -top-3 inline-block">✦</span>
+              {' '}Get Started with{' '}
+              <br />
+              BlindBounty
+              <span className="text-amber-400 text-xs align-top relative -top-3 inline-block">✦</span>
+            </h2>
+            <p className="text-neutral-500 mb-8 max-w-sm leading-relaxed">
+              Connect your wallet on 0G Testnet and start posting or executing bounties. Privacy-first, on-chain.
+            </p>
+            <div className="flex items-center gap-4">
+              <Link
+                to="/tasks"
+                className="inline-flex items-center justify-center px-8 py-3 rounded-lg border border-neutral-600 text-neutral-300 text-sm font-medium hover:border-white hover:text-white transition-all"
+              >
                 Launch App
-              </button>
-            </Link>
-            <a href="https://github.com/JemIIahh/BlindBounty" target="_blank" rel="noopener noreferrer">
-              <button className="px-8 py-3 rounded-lg border border-neutral-700 text-neutral-400 text-xs font-semibold hover:border-neutral-500 hover:text-white transition-colors">
-                View Source
-              </button>
-            </a>
-          </div>
+              </Link>
+              <a
+                href="https://github.com/JemIIahh/BlindBounty"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-neutral-500 hover:text-white transition-colors"
+              >
+                View Source →
+              </a>
+            </div>
+          </motion.div>
         </div>
-      </section>
+      </motion.section>
 
-      {/* Footer */}
-      <footer className="border-t border-neutral-200">
-        <div className="max-w-5xl mx-auto px-4 py-6 flex items-center justify-between">
-          <span className="text-[11px] text-neutral-400 font-semibold tracking-wider">BLINDBOUNTY</span>
-          <span className="text-[10px] text-neutral-400">Built on 0G Chain | 0G Storage | 0G Compute</span>
+      {/* ── Footer (Octant-style: multi-column) ────────────────── */}
+      <footer className="border-t border-neutral-800/50">
+        <div className="max-w-6xl mx-auto px-4 py-12">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-10">
+            {/* Logo column */}
+            <div className="col-span-2 sm:col-span-1">
+              <div className="flex items-center gap-2.5 mb-3">
+                <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
+                  <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-semibold text-white">BlindBounty</span>
+              </div>
+              <p className="text-[11px] text-neutral-600 leading-relaxed">
+                Anonymous task marketplace for the agentic economy.
+              </p>
+            </div>
+
+            {/* Links columns */}
+            <div>
+              <h5 className="text-[10px] text-neutral-500 uppercase tracking-widest mb-3">Product</h5>
+              <div className="space-y-2">
+                <Link to="/tasks" className="block text-xs text-neutral-600 hover:text-white transition-colors">Browse Tasks</Link>
+                <Link to="/agent" className="block text-xs text-neutral-600 hover:text-white transition-colors">Agent Dashboard</Link>
+                <Link to="/worker" className="block text-xs text-neutral-600 hover:text-white transition-colors">Worker View</Link>
+              </div>
+            </div>
+            <div>
+              <h5 className="text-[10px] text-neutral-500 uppercase tracking-widest mb-3">Resources</h5>
+              <div className="space-y-2">
+                <a href="https://github.com/JemIIahh/BlindBounty" target="_blank" rel="noopener noreferrer" className="block text-xs text-neutral-600 hover:text-white transition-colors">GitHub</a>
+                <a href="#" className="block text-xs text-neutral-600 hover:text-white transition-colors">Documentation</a>
+              </div>
+            </div>
+            <div>
+              <h5 className="text-[10px] text-neutral-500 uppercase tracking-widest mb-3">Built On</h5>
+              <div className="space-y-2">
+                <span className="block text-xs text-neutral-600">0G Chain</span>
+                <span className="block text-xs text-neutral-600">0G Storage</span>
+                <span className="block text-xs text-neutral-600">0G Compute</span>
+                <span className="block text-xs text-neutral-600">0G DA</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-neutral-800/50 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <span className="text-[10px] text-neutral-700">© 2026 BlindBounty. Built for 0G APAC Hackathon.</span>
+            <div className="flex items-center gap-4">
+              <a href="https://github.com/JemIIahh/BlindBounty" target="_blank" rel="noopener noreferrer" className="text-neutral-700 hover:text-white transition-colors">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" /></svg>
+              </a>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

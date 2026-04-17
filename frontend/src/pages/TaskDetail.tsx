@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useTask, useApplications, useApplyToTask } from '../hooks/useTasks';
 import { useTxSend } from '../hooks/useTxSend';
 import { useWallet } from '../context/WalletContext';
@@ -11,6 +12,11 @@ import { TxPendingModal } from '../components/TxPendingModal';
 import { truncateAddress, formatCurrency, formatDate } from '../lib/utils';
 import { buildAssignTask, buildCancelTask } from '../services/tasks';
 import { TaskStatus } from '../types/api';
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
 
 export default function TaskDetail() {
   const { id } = useParams<{ id: string }>();
@@ -34,8 +40,8 @@ export default function TaskDetail() {
   }
 
   const { onChain, meta } = data;
-  const isAgent = address?.toLowerCase() === onChain.agent.toLowerCase();
-  const isWorker = address?.toLowerCase() === onChain.worker.toLowerCase();
+  const isAgent = address?.toLowerCase() === onChain.agent?.toLowerCase();
+  const isWorker = address?.toLowerCase() === onChain.worker?.toLowerCase();
   const reward = Number(meta.reward) / 1e18;
 
   const handleApply = () => {
@@ -58,56 +64,67 @@ export default function TaskDetail() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-3xl mx-auto">
       <TxPendingModal open={txSend.isPending} />
 
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm text-neutral-600 mb-8">
+        <Link to="/tasks" className="hover:text-amber-400 transition-colors">Tasks</Link>
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+        <span className="text-neutral-300">Task #{id}</span>
+      </div>
+
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-8">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-2xl font-bold text-neutral-950">Task #{id}</h1>
+            <h1 className="heading-display text-2xl sm:text-3xl">Task #{id}</h1>
             <StatusBadge status={onChain.status} showDot />
           </div>
-          <div className="flex items-center gap-4 text-sm text-neutral-400">
+          <div className="flex items-center gap-4 text-sm text-neutral-500">
             <span>{meta.category.replace('_', ' ')}</span>
             <span>{meta.locationZone || 'Global'}</span>
             <EncryptionIndicator encrypted={true} />
           </div>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold text-neutral-950">{formatCurrency(reward)}</div>
-          <div className="text-xs text-neutral-500">Escrow Locked</div>
+          <div className="text-3xl font-bold text-amber-400">{formatCurrency(reward)}</div>
+          <div className="text-[10px] uppercase tracking-wider text-neutral-600 mt-1">Escrow Locked</div>
         </div>
       </div>
 
       {/* Details */}
-      <Card className="mb-6">
-        <CardHeader title="Task Details" bordered />
-        <CardBody>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+      <div className="card-dark mb-6 overflow-hidden">
+        <div className="px-6 py-4 border-b border-neutral-800">
+          <h2 className="text-sm font-semibold text-white">Task Details</h2>
+        </div>
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-2 gap-6">
             <div>
-              <span className="text-neutral-500">Agent</span>
-              <p className="text-neutral-950 font-mono">{truncateAddress(onChain.agent)}</p>
+              <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Agent</span>
+              <p className="text-sm text-neutral-300 font-mono mt-1">{truncateAddress(onChain.agent)}</p>
             </div>
             <div>
-              <span className="text-neutral-500">Worker</span>
-              <p className="text-neutral-950 font-mono">
+              <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Worker</span>
+              <p className="text-sm text-neutral-300 font-mono mt-1">
                 {onChain.worker === '0x0000000000000000000000000000000000000000'
                   ? 'Unassigned'
                   : truncateAddress(onChain.worker)}
               </p>
             </div>
             <div>
-              <span className="text-neutral-500">Created</span>
-              <p className="text-neutral-950">{formatDate(new Date(Number(onChain.createdAt) * 1000))}</p>
+              <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Created</span>
+              <p className="text-sm text-neutral-300 mt-1">{formatDate(new Date(Number(onChain.createdAt) * 1000))}</p>
             </div>
             <div>
-              <span className="text-neutral-500">Deadline</span>
-              <p className="text-neutral-950">{formatDate(new Date(Number(onChain.deadline) * 1000))}</p>
+              <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Deadline</span>
+              <p className="text-sm text-neutral-300 mt-1">{formatDate(new Date(Number(onChain.deadline) * 1000))}</p>
             </div>
           </div>
-        </CardBody>
-      </Card>
+        </div>
+      </div>
 
       {/* Worker: Apply section */}
       {isAuthenticated && !isAgent && onChain.status === TaskStatus.Funded && (
@@ -138,9 +155,9 @@ export default function TaskDetail() {
                 </div>
               </div>
             ) : (
-              <Button variant="primary" size="sm" onClick={() => setShowApplyForm(true)}>
+              <button className="btn-accent text-xs py-2" onClick={() => setShowApplyForm(true)}>
                 Apply
-              </Button>
+              </button>
             )}
           </CardBody>
         </Card>
@@ -148,56 +165,61 @@ export default function TaskDetail() {
 
       {/* Agent: Applications list + Assign */}
       {isAgent && applications && applications.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader title={`Applications (${applications.length})`} bordered />
-          <CardBody padding="none">
+        <div className="card-dark mb-6 overflow-hidden">
+          <div className="px-6 py-4 border-b border-neutral-800">
+            <h2 className="text-sm font-semibold text-white">Applications ({applications.length})</h2>
+          </div>
+          <div className="divide-y divide-neutral-800">
             {applications.map((app) => (
-              <div
-                key={app.id}
-                className="flex items-center justify-between px-6 py-3 border-b border-neutral-200 last:border-0"
-              >
+              <div key={app.id} className="flex items-center justify-between px-6 py-4">
                 <div>
-                  <p className="text-sm text-neutral-950 font-mono">{truncateAddress(app.applicant)}</p>
+                  <p className="text-sm text-neutral-300 font-mono">{truncateAddress(app.applicant)}</p>
                   {app.message && (
-                    <p className="text-xs text-neutral-400 mt-0.5">{app.message}</p>
+                    <p className="text-sm text-neutral-500 mt-0.5">{app.message}</p>
                   )}
                 </div>
                 {onChain.status === TaskStatus.Funded && (
-                  <Button
-                    variant="primary"
-                    size="xs"
+                  <button
+                    className="btn-accent text-xs py-1.5 px-4"
                     onClick={() => handleAssign(app.applicant)}
-                    loading={txSend.isPending}
+                    disabled={txSend.isPending}
                   >
                     Assign
-                  </Button>
+                  </button>
                 )}
               </div>
             ))}
-          </CardBody>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Agent: Cancel */}
       {isAgent && onChain.status === TaskStatus.Funded && (
         <div className="flex justify-end">
-          <Button variant="danger" size="sm" onClick={handleCancel} loading={txSend.isPending}>
+          <button
+            className="px-4 py-2 rounded-lg border border-red-900/50 text-red-400 text-sm font-medium hover:border-red-700 hover:text-red-300 transition-colors disabled:opacity-50"
+            onClick={handleCancel}
+            disabled={txSend.isPending}
+          >
             Cancel Task & Refund
-          </Button>
+          </button>
         </div>
       )}
 
       {/* Worker: Already assigned */}
       {isWorker && onChain.status === TaskStatus.Assigned && (
-        <Card className="mb-6">
-          <CardBody>
-            <div className="text-center py-4">
-              <p className="text-neutral-950 font-semibold mb-2">You are assigned to this task</p>
-              <p className="text-sm text-neutral-400">Go to your Worker Dashboard to decrypt instructions and submit evidence.</p>
+        <div className="card-dark p-6 mb-6 border-amber-500/20">
+          <div className="text-center">
+            <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-3">
+              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
             </div>
-          </CardBody>
-        </Card>
+            <p className="text-white font-semibold mb-1">You are assigned to this task</p>
+            <p className="text-sm text-neutral-500">Go to your Worker Dashboard to decrypt instructions and submit evidence.</p>
+          </div>
+        </div>
       )}
-    </div>
+    </motion.div>
   );
 }
