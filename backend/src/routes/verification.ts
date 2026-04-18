@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import * as verificationService from '../services/verification.js';
+import { forensicStore } from '../services/forensicStore.js';
 import type { AuthRequest, ApiResponse } from '../types.js';
 
 export const verificationRouter = Router();
@@ -28,7 +29,17 @@ verificationRouter.post('/verify', requireAuth, async (req: AuthRequest, res, ne
   try {
     const input = verifySchema.parse(req.body);
 
-    const result = await verificationService.verifyEvidence(input);
+    // Auto-lookup forensic data if available for this task
+    const forensicData = forensicStore.getReport(String(input.taskId));
+    const verificationInput: verificationService.VerificationRequest = {
+      ...input,
+      ...(forensicData && {
+        forensicReport: forensicData.signedReport.report,
+        forensicValidation: forensicData.validation,
+      }),
+    };
+
+    const result = await verificationService.verifyEvidence(verificationInput);
 
     const body: ApiResponse = {
       success: true,

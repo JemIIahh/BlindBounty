@@ -6,6 +6,9 @@ import { useSubmitEvidence } from '../hooks/useSubmissions';
 import { useTxSend } from '../hooks/useTxSend';
 import { Button, Input, Textarea } from '../components/ui';
 import { TxPendingModal } from '../components/TxPendingModal';
+import { ForensicExtractor } from '../components/ForensicExtractor';
+import { submitForensicReport } from '../services/forensics';
+import type { ForensicReport } from '../lib/forensicTypes';
 import { downloadBlob, uploadBlob } from '../services/storage';
 import {
   aesDecrypt,
@@ -42,6 +45,8 @@ export default function WorkerView() {
   const [agentPubKey, setAgentPubKey] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [forensicReport, setForensicReport] = useState<ForensicReport | null>(null);
 
   if (!isAuthenticated || !address) {
     return (
@@ -94,6 +99,20 @@ export default function WorkerView() {
         // localStorage may be unavailable
       }
       submitEvidence.mutate({ taskId, evidenceHash });
+
+      // Submit forensic report if photo was analyzed
+      if (forensicReport && window.ethereum) {
+        try {
+          const { BrowserProvider } = await import('ethers');
+          const provider = new BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const signature = await signer.signMessage(forensicReport.reportHash);
+          await submitForensicReport(taskId, { report: forensicReport, signature });
+        } catch (err) {
+          console.warn('Forensic report submission failed (non-blocking):', err);
+        }
+      }
+
       setSubmitSuccess(true);
     } finally {
       setSubmitting(false);
@@ -192,6 +211,27 @@ export default function WorkerView() {
                 value={taskId}
                 onChange={(e) => setTaskId(e.target.value)}
               />
+              <div>
+                <label className="block text-xs font-medium text-neutral-400 mb-1.5">Photo Evidence (optional)</label>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setPhotoFile(f);
+                    setForensicReport(null);
+                  }}
+                  className="block w-full text-sm text-neutral-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-neutral-800 file:text-neutral-300 hover:file:bg-neutral-700 file:cursor-pointer"
+                />
+              </div>
+              {photoFile && taskId && address && (
+                <ForensicExtractor
+                  file={photoFile}
+                  taskId={taskId}
+                  workerAddress={address}
+                  onReportReady={setForensicReport}
+                />
+              )}
               <Textarea
                 label="Evidence"
                 placeholder="Describe your completed work..."

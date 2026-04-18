@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { useVerificationStatus, useTriggerVerification } from '../hooks/useVerification';
 import { Input, Textarea } from '../components/ui';
 import { VerificationBadge } from '../components/VerificationBadge';
+import { ForensicResults } from '../components/ForensicResults';
+import { getForensicReport, type ForensicReportResponse } from '../services/forensics';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -15,10 +17,18 @@ export default function VerificationStatus() {
   const { data: status, isLoading } = useVerificationStatus();
   const triggerMutation = useTriggerVerification();
 
+  const [forensicData, setForensicData] = useState<ForensicReportResponse | null>(null);
+
   const [taskId, setTaskId] = useState('');
   const [taskCategory, setTaskCategory] = useState('');
   const [taskRequirements, setTaskRequirements] = useState('');
   const [evidenceSummary, setEvidenceSummary] = useState('');
+
+  useEffect(() => {
+    if (taskId) {
+      getForensicReport(taskId).then(setForensicData).catch(() => setForensicData(null));
+    }
+  }, [taskId]);
 
   const handleTrigger = () => {
     if (!taskId || !taskCategory || !taskRequirements || !evidenceSummary) return;
@@ -43,6 +53,13 @@ export default function VerificationStatus() {
       ) : status && (
         <div className="mb-6 card-dark p-4 text-sm text-neutral-400">
           {status.message}
+        </div>
+      )}
+
+      {/* Forensic analysis */}
+      {forensicData && (
+        <div className="mb-6">
+          <ForensicResults validation={forensicData.validation} />
         </div>
       )}
 

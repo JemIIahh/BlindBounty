@@ -44,6 +44,10 @@ export const config = {
   ogStorageIndexerRpc: process.env.OG_STORAGE_INDEXER_RPC || '',
   ogStoragePrivateKey: process.env.OG_STORAGE_PRIVATE_KEY || '',
 
+  // Forensic verification
+  forensicMaxPhotoAgeMs: parseInt(optional('FORENSIC_MAX_PHOTO_AGE_MS', '1800000'), 10),  // 30 min
+  forensicPhashThreshold: parseInt(optional('FORENSIC_PHASH_THRESHOLD', '10'), 10),
+
   // 0G Compute / Sealed Inference (Phase 4)
   // Private key for the broker wallet (pays for inference requests)
   ogComputePrivateKey: process.env.OG_COMPUTE_PRIVATE_KEY || '',

@@ -13,6 +13,7 @@ import { storageRouter } from './routes/storage.js';
 import { verificationRouter } from './routes/verification.js';
 import { a2aRouter } from './routes/a2a.js';
 import { a2aProtocolRouter } from './routes/a2aProtocol.js';
+import { forensicsRouter } from './routes/forensics.js';
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use('/api/v1/reputation', reputationRouter);
 app.use('/api/v1/storage', storageRouter);
 app.use('/api/v1/verification', verificationRouter);
 app.use('/api/v1/a2a', a2aRouter);
+app.use('/api/v1/forensics', forensicsRouter);
 app.use('/a2a/v1', a2aProtocolRouter);
 
 // Agent card (A2A discovery)
