@@ -14,6 +14,10 @@ import { verificationRouter } from './routes/verification.js';
 import { a2aRouter } from './routes/a2a.js';
 import { a2aProtocolRouter } from './routes/a2aProtocol.js';
 import { forensicsRouter } from './routes/forensics.js';
+import { custodyRouter } from './routes/custody.js';
+import { stakingRouter } from './routes/staking.js';
+import { accountingRouter } from './routes/accounting.js';
+import { getDb } from './services/database.js';
 
 const app = express();
 
@@ -40,6 +44,9 @@ app.use('/api/v1/storage', storageRouter);
 app.use('/api/v1/verification', verificationRouter);
 app.use('/api/v1/a2a', a2aRouter);
 app.use('/api/v1/forensics', forensicsRouter);
+app.use('/api/v1/custody', custodyRouter);
+app.use('/api/v1/staking', stakingRouter);
+app.use('/api/v1/accounting', accountingRouter);
 app.use('/a2a/v1', a2aProtocolRouter);
 
 // Agent card (A2A discovery)
@@ -66,6 +73,9 @@ app.get('/.well-known/agent.json', (_req, res) => {
 
 // Error handling (must be last)
 app.use(globalErrorHandler);
+
+// Initialize SQLite database and run migrations
+getDb();
 
 app.listen(config.port, () => {
   console.log(`BlindBounty backend listening on port ${config.port} (${config.nodeEnv})`);

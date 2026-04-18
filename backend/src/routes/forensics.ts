@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import type { AuthRequest } from '../types.js';
 import { forensicStore } from '../services/forensicStore.js';
 import { validateForensicReport } from '../services/forensicValidation.js';
+import * as custodyVault from '../services/custodyVault.js';
 
 const router = Router();
 
@@ -58,6 +59,18 @@ router.post('/submit', requireAuth, async (req: AuthRequest, res, next) => {
 
     const validation = await validateForensicReport(signedReport);
     forensicStore.saveReport(taskId, signedReport, validation);
+
+    // Ingest into custody vault for chain-of-custody tracking
+    try {
+      custodyVault.ingestEvidence(
+        taskId,
+        signedReport.report.reportHash,
+        signedReport.report.workerAddress,
+        JSON.stringify({ type: 'forensic_report', validation }),
+      );
+    } catch (custodyErr) {
+      console.warn('[forensics] Custody ingest failed (non-blocking):', custodyErr);
+    }
 
     res.json({ success: true, data: validation });
   } catch (err: any) {

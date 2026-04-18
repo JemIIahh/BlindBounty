@@ -22,6 +22,9 @@ contracts/.env
 .aidesigner/*
 !.aidesigner/.gitkeep
 
+# SQLite data directory
+backend/data/
+
 # Local tool configs
 .agents/
 .claude/

@@ -8,6 +8,7 @@ import { Button, Input, Textarea } from '../components/ui';
 import { TxPendingModal } from '../components/TxPendingModal';
 import { ForensicExtractor } from '../components/ForensicExtractor';
 import { submitForensicReport } from '../services/forensics';
+import { useWorkerStakes } from '../hooks/useStaking';
 import type { ForensicReport } from '../lib/forensicTypes';
 import { downloadBlob, uploadBlob } from '../services/storage';
 import {
@@ -33,6 +34,7 @@ export default function WorkerView() {
   const { address } = useWallet();
   const txSend = useTxSend();
   const submitEvidence = useSubmitEvidence();
+  const { data: stakingData } = useWorkerStakes(address ?? null);
 
   const [wrappedKeyHex, setWrappedKeyHex] = useState('');
   const [workerPrivKey, setWorkerPrivKey] = useState('');
@@ -127,6 +129,51 @@ export default function WorkerView() {
         <h1 className="heading-display text-3xl sm:text-4xl mb-2">Worker View</h1>
         <p className="text-sm text-neutral-500">Decrypt instructions and submit evidence</p>
       </div>
+
+      {/* Staking Summary */}
+      {stakingData?.summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Total Staked', value: stakingData.summary.totalLocked, color: 'text-amber-400' },
+            { label: 'Active', value: stakingData.summary.activeStakes, color: 'text-blue-400' },
+            { label: 'Returned', value: stakingData.summary.totalReturned, color: 'text-emerald-400' },
+            { label: 'Slashed', value: stakingData.summary.totalSlashed, color: 'text-red-400' },
+          ].map((stat) => (
+            <div key={stat.label} className="card-dark p-4 text-center">
+              <div className={`text-lg font-bold ${stat.color}`}>{stat.value}</div>
+              <div className="text-[10px] uppercase tracking-wider text-neutral-600 mt-1">{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Stakes History */}
+      {stakingData?.stakes && stakingData.stakes.length > 0 && (
+        <div className="card-dark overflow-hidden">
+          <div className="px-6 py-4 border-b border-neutral-800">
+            <h2 className="text-sm font-semibold text-white">Stake History</h2>
+          </div>
+          <div className="divide-y divide-neutral-800">
+            {stakingData.stakes.slice(0, 10).map((stake) => (
+              <div key={stake.id} className="flex items-center justify-between px-6 py-3">
+                <div>
+                  <span className="text-sm text-neutral-300">Task #{stake.task_id}</span>
+                  <span className="text-xs text-neutral-500 ml-2">{stake.stake_amount} tokens</span>
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                  stake.status === 'locked'
+                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    : stake.status === 'returned'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                }`}>
+                  {stake.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Decrypt Instructions */}
       <div className="card-dark overflow-hidden">

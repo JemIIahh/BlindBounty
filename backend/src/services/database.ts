@@ -1,0 +1,148 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DB_DIR = path.resolve(__dirname, '../../data');
+const DB_PATH = path.join(DB_DIR, 'blindbounty.db');
+
+let db: Database.Database | null = null;
+
+export function getDb(): Database.Database {
+  if (db) return db;
+
+  fs.mkdirSync(DB_DIR, { recursive: true });
+  db = new Database(DB_PATH);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+
+  runMigrations(db);
+  return db;
+}
+
+// --- Migration runner ---
+
+interface Migration {
+  id: number;
+  name: string;
+  sql: string;
+}
+
+const migrations: Migration[] = [
+  {
+    id: 1,
+    name: 'custody_entries_and_audit_log',
+    sql: `
+      CREATE TABLE IF NOT EXISTS custody_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,
+        evidence_hash TEXT NOT NULL,
+        submitter TEXT NOT NULL,
+        data_snapshot TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_custody_task ON custody_entries(task_id);
+
+      CREATE TABLE IF NOT EXISTS custody_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL,
+        entry_id INTEGER REFERENCES custody_entries(id),
+        action TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        detail TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_audit_task ON custody_audit_log(task_id);
+    `,
+  },
+  {
+    id: 2,
+    name: 'reputation_history_and_events',
+    sql: `
+      CREATE TABLE IF NOT EXISTS reputation_history (
+        address TEXT PRIMARY KEY,
+        raw_score REAL NOT NULL DEFAULT 0,
+        tasks_completed INTEGER NOT NULL DEFAULT 0,
+        disputes INTEGER NOT NULL DEFAULT 0,
+        last_task_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS reputation_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        score_delta REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_rep_events_addr ON reputation_events(address);
+    `,
+  },
+  {
+    id: 3,
+    name: 'stakes',
+    sql: `
+      CREATE TABLE IF NOT EXISTS stakes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker TEXT NOT NULL,
+        task_id TEXT NOT NULL UNIQUE,
+        task_reward REAL NOT NULL,
+        stake_amount REAL NOT NULL,
+        status TEXT NOT NULL DEFAULT 'locked',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_stakes_worker ON stakes(worker);
+      CREATE INDEX IF NOT EXISTS idx_stakes_task ON stakes(task_id);
+    `,
+  },
+  {
+    id: 4,
+    name: 'transactions',
+    sql: `
+      CREATE TABLE IF NOT EXISTS transactions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,
+        role TEXT NOT NULL,
+        task_id TEXT,
+        type TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        fee REAL NOT NULL DEFAULT 0,
+        net REAL NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'confirmed',
+        tx_hash TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_tx_address ON transactions(address);
+      CREATE INDEX IF NOT EXISTS idx_tx_type ON transactions(type);
+      CREATE INDEX IF NOT EXISTS idx_tx_created ON transactions(created_at);
+    `,
+  },
+];
+
+function runMigrations(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  const applied = new Set(
+    database
+      .prepare('SELECT id FROM schema_migrations')
+      .all()
+      .map((row: any) => row.id as number),
+  );
+
+  for (const m of migrations) {
+    if (applied.has(m.id)) continue;
+    database.exec(m.sql);
+    database
+      .prepare('INSERT INTO schema_migrations (id, name) VALUES (?, ?)')
+      .run(m.id, m.name);
+    console.log(`[db] Applied migration ${m.id}: ${m.name}`);
+  }
+}

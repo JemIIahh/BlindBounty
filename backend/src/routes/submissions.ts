@@ -4,6 +4,8 @@ import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import * as escrowService from '../services/escrow.js';
 import type { AuthRequest, ApiResponse } from '../types.js';
+import * as accountingService from '../services/accountingService.js';
+import * as reputationDecay from '../services/reputationDecay.js';
 
 export const submissionsRouter = Router();
 
@@ -49,6 +51,45 @@ submissionsRouter.post('/verify', requireAuth, async (req: AuthRequest, res, nex
     const from = req.user!.address;
 
     const tx = await escrowService.buildCompleteVerification(from, taskId, passed);
+
+    // Record accounting + reputation events
+    try {
+      const task = await escrowService.getTask(taskId);
+      const amount = Number(task.amount) / 1e18;
+      const workerAddr = task.worker;
+
+      if (passed) {
+        const fee = amount * 0.01; // 1% platform fee
+        accountingService.recordTransaction({
+          address: workerAddr,
+          role: 'worker',
+          taskId: String(taskId),
+          type: 'payment',
+          amount,
+          fee,
+          net: amount - fee,
+        });
+        accountingService.recordTransaction({
+          address: 'platform',
+          role: 'platform',
+          taskId: String(taskId),
+          type: 'fee',
+          amount: fee,
+        });
+        reputationDecay.recordTaskCompletion(workerAddr, String(taskId), 10);
+      } else {
+        accountingService.recordTransaction({
+          address: workerAddr,
+          role: 'worker',
+          taskId: String(taskId),
+          type: 'slash',
+          amount: 0,
+        });
+        reputationDecay.recordDispute(workerAddr, String(taskId));
+      }
+    } catch (hookErr) {
+      console.warn('[submissions] Accounting/reputation hook failed (non-blocking):', hookErr);
+    }
 
     const body: ApiResponse = {
       success: true,

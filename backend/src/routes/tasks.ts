@@ -8,6 +8,7 @@ import type { AuthRequest, ApiResponse, Application, AgentCapability, ExecutorTy
 import { AGENT_CAPABILITIES } from '../types.js';
 import * as a2aStore from '../services/a2aStore.js';
 import { randomUUID } from 'crypto';
+import * as accountingService from '../services/accountingService.js';
 
 export const tasksRouter = Router();
 
@@ -149,6 +150,19 @@ tasksRouter.post('/', requireAuth, async (req: AuthRequest, res, next) => {
       });
     }
 
+    // Record escrow_lock accounting event
+    try {
+      accountingService.recordTransaction({
+        address: from,
+        role: 'agent',
+        taskId: data.taskHash,
+        type: 'escrow_lock',
+        amount: Number(data.amount) / 1e18,
+      });
+    } catch (accErr) {
+      console.warn('[tasks] Accounting record failed (non-blocking):', accErr);
+    }
+
     const body: ApiResponse = {
       success: true,
       data: { unsignedTx: tx },
@@ -278,6 +292,20 @@ tasksRouter.post('/:id/cancel', requireAuth, async (req: AuthRequest, res, next)
     }
 
     const tx = await escrowService.buildCancelTask(from, taskId);
+
+    // Record refund accounting event
+    try {
+      const amount = Number(task.amount) / 1e18;
+      accountingService.recordTransaction({
+        address: from,
+        role: 'agent',
+        taskId: String(taskId),
+        type: 'refund',
+        amount,
+      });
+    } catch (accErr) {
+      console.warn('[tasks] Accounting record failed (non-blocking):', accErr);
+    }
 
     const body: ApiResponse = {
       success: true,

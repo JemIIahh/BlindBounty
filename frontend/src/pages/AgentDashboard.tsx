@@ -7,6 +7,8 @@ import { Input, Textarea, Select } from '../components/ui';
 import { TxPendingModal } from '../components/TxPendingModal';
 import { buildCreateTask } from '../services/tasks';
 import { uploadBlob } from '../services/storage';
+import { useAccountingEntries, useAccountingSummary } from '../hooks/useAccounting';
+import { buildExportUrl } from '../services/accounting';
 import {
   generateAesKey,
   aesEncrypt,
@@ -46,6 +48,12 @@ export default function AgentDashboard() {
   const [requiredCapabilities, setRequiredCapabilities] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'create' | 'accounting'>('create');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [txType, setTxType] = useState('');
+  const { data: entriesData } = useAccountingEntries(dateFrom || undefined, dateTo || undefined, txType || undefined);
+  const { data: summaryData } = useAccountingSummary(dateFrom || undefined, dateTo || undefined);
 
   if (!isAuthenticated || !address) {
     return (
@@ -117,10 +125,142 @@ export default function AgentDashboard() {
     <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-2xl mx-auto">
       <TxPendingModal open={txSend.isPending} />
 
-      <div className="mb-10">
+      <div className="mb-6">
         <h1 className="heading-display text-3xl sm:text-4xl mb-2">Agent Dashboard</h1>
         <p className="text-sm text-neutral-500">Create and manage encrypted tasks</p>
       </div>
+
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-neutral-800 mb-6">
+        <button
+          onClick={() => setActiveTab('create')}
+          className={`pb-2 text-sm font-medium transition-colors ${
+            activeTab === 'create'
+              ? 'text-amber-400 border-b-2 border-amber-400'
+              : 'text-neutral-500 hover:text-neutral-300'
+          }`}
+        >
+          Create Task
+        </button>
+        <button
+          onClick={() => setActiveTab('accounting')}
+          className={`pb-2 text-sm font-medium transition-colors ${
+            activeTab === 'accounting'
+              ? 'text-amber-400 border-b-2 border-amber-400'
+              : 'text-neutral-500 hover:text-neutral-300'
+          }`}
+        >
+          Accounting
+        </button>
+      </div>
+
+      {activeTab === 'accounting' ? (
+        <div className="space-y-6">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="block text-[10px] text-neutral-500 uppercase tracking-wider mb-1">From</label>
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-neutral-300" />
+            </div>
+            <div>
+              <label className="block text-[10px] text-neutral-500 uppercase tracking-wider mb-1">To</label>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-neutral-300" />
+            </div>
+            <div>
+              <label className="block text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Type</label>
+              <select value={txType} onChange={(e) => setTxType(e.target.value)}
+                className="bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-sm text-neutral-300">
+                <option value="">All</option>
+                <option value="escrow_lock">Escrow Lock</option>
+                <option value="payment">Payment</option>
+                <option value="fee">Fee</option>
+                <option value="refund">Refund</option>
+                <option value="stake">Stake</option>
+                <option value="slash">Slash</option>
+                <option value="stake_return">Stake Return</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Summary Cards */}
+          {summaryData && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Total Earned', value: summaryData.totalEarned, color: 'text-emerald-400' },
+                { label: 'Fees', value: summaryData.totalFees, color: 'text-amber-400' },
+                { label: 'Net Revenue', value: summaryData.netRevenue, color: 'text-blue-400' },
+                { label: 'Transactions', value: summaryData.taskCount, color: 'text-neutral-300' },
+              ].map((stat) => (
+                <div key={stat.label} className="card-dark p-4 text-center">
+                  <div className={`text-lg font-bold ${stat.color}`}>{stat.value}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-600 mt-1">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Transaction Table */}
+          <div className="card-dark overflow-hidden">
+            <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-white">Transactions ({entriesData?.total ?? 0})</h2>
+              <div className="flex gap-2">
+                <a
+                  href={buildExportUrl('csv', dateFrom || undefined, dateTo || undefined)}
+                  className="px-3 py-1 text-xs font-medium rounded-lg border border-neutral-700 text-neutral-300 hover:border-neutral-500 transition-colors"
+                >
+                  Export CSV
+                </a>
+                <a
+                  href={buildExportUrl('json', dateFrom || undefined, dateTo || undefined)}
+                  className="px-3 py-1 text-xs font-medium rounded-lg border border-neutral-700 text-neutral-300 hover:border-neutral-500 transition-colors"
+                >
+                  Export JSON
+                </a>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-[10px] text-neutral-500 uppercase tracking-wider">
+                    <th className="px-6 py-3 text-left">Date</th>
+                    <th className="px-6 py-3 text-left">Task</th>
+                    <th className="px-6 py-3 text-left">Type</th>
+                    <th className="px-6 py-3 text-right">Amount</th>
+                    <th className="px-6 py-3 text-right">Fee</th>
+                    <th className="px-6 py-3 text-right">Net</th>
+                    <th className="px-6 py-3 text-left">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-800">
+                  {entriesData?.transactions?.map((tx) => (
+                    <tr key={tx.id} className="text-neutral-300">
+                      <td className="px-6 py-3 text-xs">{new Date(tx.created_at).toLocaleDateString()}</td>
+                      <td className="px-6 py-3 text-xs font-mono">{tx.task_id ?? '-'}</td>
+                      <td className="px-6 py-3">
+                        <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-800 border border-neutral-700">
+                          {tx.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-right text-xs">{tx.amount}</td>
+                      <td className="px-6 py-3 text-right text-xs text-neutral-500">{tx.fee}</td>
+                      <td className="px-6 py-3 text-right text-xs">{tx.net}</td>
+                      <td className="px-6 py-3 text-xs">{tx.status}</td>
+                    </tr>
+                  ))}
+                  {(!entriesData?.transactions || entriesData.transactions.length === 0) && (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-8 text-center text-neutral-500 text-sm">No transactions yet.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
 
       {createdId && (
         <div className="card-dark p-5 mb-6 border-emerald-500/20 flex items-start gap-3">
@@ -250,6 +390,9 @@ export default function AgentDashboard() {
           </div>
         </div>
       </div>
+
+        </>
+      )}
     </motion.div>
   );
 }

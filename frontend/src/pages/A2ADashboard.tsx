@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWallet } from '../context/WalletContext';
 import { Input } from '../components/ui';
 import { CapabilityBadge } from '../components/CapabilityBadge';
+import { DecayIndicator } from '../components/DecayIndicator';
 import { A2ATaskCard } from '../components/A2ATaskCard';
 import {
   useAgentProfile,
@@ -114,7 +115,7 @@ export default function A2ADashboard() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-white truncate">{profileQuery.data.agent.displayName}</p>
             <p className="text-xs text-neutral-500">
-              Rep: {profileQuery.data.agent.reputation} | Tasks: {profileQuery.data.agent.tasksCompleted}
+              Rep: {profileQuery.data.agent.reputation} <DecayIndicator address={profileQuery.data.agent.address || ''} /> | Tasks: {profileQuery.data.agent.tasksCompleted}
             </p>
           </div>
           <div className="flex flex-wrap gap-1 max-w-xs">
