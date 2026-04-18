@@ -27,12 +27,12 @@
 }
 
 @layer components {
-  /* Octant-style thin-bordered dark cards */
+  /* Glassmorphic dark cards */
   .card-dark {
-    @apply bg-surface border border-neutral-800 rounded-xl transition-all duration-300;
+    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-xl transition-all duration-300;
   }
   .card-dark:hover {
-    @apply border-neutral-700;
+    @apply border-white/[0.1];
   }
 
   /* Ghost button (Octant style) */

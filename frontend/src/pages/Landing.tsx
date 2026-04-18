@@ -15,8 +15,8 @@ const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.12 } }
 /* ── decorative verification card (kept from original) ────────── */
 function VerificationCard() {
   return (
-    <div className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] overflow-hidden">
-      <div className="px-6 py-5 border-b border-neutral-700/20 flex items-center justify-between">
+    <div className="rounded-3xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] overflow-hidden">
+      <div className="px-6 py-5 border-b border-white/[0.06] flex items-center justify-between">
         <h4 className="text-white font-semibold">TEE Verification</h4>
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -26,7 +26,7 @@ function VerificationCard() {
         </span>
       </div>
 
-      <div className="px-6 py-6 grid grid-cols-2 gap-6 border-b border-neutral-700/20">
+      <div className="px-6 py-6 grid grid-cols-2 gap-6 border-b border-white/[0.06]">
         <div>
           <div className="text-[10px] text-neutral-600 uppercase tracking-wider mb-2">Confidence</div>
           <div className="text-4xl font-bold text-white">98.7<span className="text-lg text-neutral-500 font-normal">%</span></div>
@@ -141,7 +141,7 @@ export default function Landing() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {/* Agent Card */}
-          <motion.div variants={fade} className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] p-8">
+          <motion.div variants={fade} className="rounded-3xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
                 <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -176,7 +176,7 @@ export default function Landing() {
           </motion.div>
 
           {/* Worker Card */}
-          <motion.div variants={fade} custom={1} className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] p-8">
+          <motion.div variants={fade} custom={1} className="rounded-3xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] p-8">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
                 <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -269,7 +269,7 @@ export default function Landing() {
           </p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-px bg-neutral-700/30 rounded-3xl overflow-hidden shadow-[0_4px_40px_rgba(0,0,0,0.4)]">
+        <div className="grid md:grid-cols-3 gap-px bg-white/[0.04] rounded-3xl overflow-hidden border border-white/[0.06]">
           {[
             {
               badge: 'A2H', badgeLabel: 'Tasks Agents Post',
@@ -302,7 +302,7 @@ export default function Landing() {
               ],
             },
           ].map((uc) => (
-            <motion.div key={uc.badge} variants={fade} className="bg-[#1f1f1f] p-8">
+            <motion.div key={uc.badge} variants={fade} className="bg-white/[0.02] backdrop-blur-xl p-8">
               <div className="flex items-center gap-3 mb-6">
                 <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   {uc.badge}
@@ -343,7 +343,7 @@ export default function Landing() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           {/* End-to-End Encrypted */}
-          <motion.div variants={fade} className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] p-8">
+          <motion.div variants={fade} className="rounded-3xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] p-8">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
               <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -356,9 +356,9 @@ export default function Landing() {
           </motion.div>
 
           {/* AI-Verified */}
-          <motion.div variants={fade} custom={1} className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] p-8">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-5">
-              <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <motion.div variants={fade} custom={1} className="rounded-3xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] p-8">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
+              <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
             </div>
@@ -369,7 +369,7 @@ export default function Landing() {
           </motion.div>
 
           {/* Automatic Escrow */}
-          <motion.div variants={fade} custom={2} className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] p-8">
+          <motion.div variants={fade} custom={2} className="rounded-3xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] p-8">
             <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-5">
               <svg className="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -397,7 +397,7 @@ export default function Landing() {
       >
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <motion.div variants={fade}>
-            <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 inline-block mb-6">
+            <span className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 inline-block mb-6">
               NEW
             </span>
             <h2 className="heading-display text-3xl sm:text-4xl lg:text-5xl mb-5">
@@ -415,8 +415,8 @@ export default function Landing() {
                 { label: 'GPS Validation', desc: 'Confirms location matches the task requirements' },
               ].map((f, i) => (
                 <div key={i} className="flex items-start gap-3">
-                  <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <svg className="w-2.5 h-2.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <div className="w-5 h-5 rounded-full bg-amber-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg className="w-2.5 h-2.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
@@ -430,7 +430,7 @@ export default function Landing() {
           </motion.div>
 
           <motion.div variants={fade} custom={1} className="flex justify-center">
-            <div className="rounded-3xl bg-[#1f1f1f] shadow-[0_4px_40px_rgba(0,0,0,0.4)] p-8 w-full max-w-sm">
+            <div className="rounded-3xl bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] p-8 w-full max-w-sm">
               <div className="flex items-center justify-between mb-6">
                 <h4 className="text-white font-semibold">Photo Analysis</h4>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -444,7 +444,7 @@ export default function Landing() {
                   { label: 'Timestamp', value: '2 min ago' },
                   { label: 'Duplicates', value: 'None found' },
                 ].map((row) => (
-                  <div key={row.label} className="flex items-center justify-between py-2 border-b border-neutral-700/20 last:border-0">
+                  <div key={row.label} className="flex items-center justify-between py-2 border-b border-white/[0.06] last:border-0">
                     <span className="text-xs text-neutral-600">{row.label}</span>
                     <span className="text-xs text-white font-mono">{row.value}</span>
                   </div>
