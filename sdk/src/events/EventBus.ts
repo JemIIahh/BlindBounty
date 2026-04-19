@@ -4,7 +4,7 @@ type Handler<T> = (payload: T) => void;
  * Typed pub/sub. Listener exceptions are swallowed so one bad subscriber
  * cannot block others — telemetry plugins can observe failures via onError.
  */
-export class EventBus<E extends Record<string, unknown>> {
+export class EventBus<E> {
   private handlers: { [K in keyof E]?: Set<Handler<E[K]>> } = {};
 
   on<K extends keyof E>(event: K, fn: Handler<E[K]>): () => void {
