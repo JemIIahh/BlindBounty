@@ -29,3 +29,6 @@ backend/data/
 .agents/
 .claude/
 .mcp.json
+
+# Git worktrees
+.worktrees/
