@@ -15,6 +15,7 @@
 | 4 | 0G Sealed Inference | ✅ | TEE verification live on testnet (qwen-2.5-7b-instruct) |
 | 5 | Frontend | ✅ (mostly) | Fresh build, 7 pages, crypto, auth — needs rebrand + reputation UI |
 | 6 | Polish & Edge Cases | IN PROGRESS | Rebrand, reputation display, edge case testing |
+| 6.5 | SDK (hackathon slice) | ✅ | `@blindbounty/sdk` 0.1.0 — crypto, chain, storage, Agent/Worker roles, 97 tests |
 | 7 | Submission | BLOCKED | Demo video, X post, HackQuest — after everything works |
 
 ---
@@ -94,6 +95,34 @@
 | 5.12 Rebrand (logo, colors, name) | PENDING | Still using generic theme |
 | 5.13 Anonymous profiles (reputation UI) | PENDING | Reputation data exists on-chain, no UI yet |
 
+## Phase 6.5: SDK (hackathon slice) ✅
+
+`@blindbounty/sdk` v0.1.0 — an isomorphic TypeScript SDK for integrators.
+Shipped via the plan in `docs/plans/2026-04-18-blindbounty-sdk-implementation.md`
+(design in `docs/plans/2026-04-18-blindbounty-sdk-design.md`).
+
+| Task | Status | Notes |
+|---|---|---|
+| 6.5.0 Scaffold | ✅ | 15 subpath exports, tsup ESM+CJS, vitest, biome |
+| 6.5.1 Errors | ✅ | Typed hierarchy, 35 stable codes, retriable flag |
+| 6.5.2 Types | ✅ | Address, TaskId, Reward, TaskStatus, TaskKey, etc. |
+| 6.5.3 Events | ✅ | Typed EventBus with 9 lifecycle events |
+| 6.5.4 Crypto | ✅ | AES-256-GCM + ECIES-secp256k1, byte-compat with backend (fixture test) |
+| 6.5.5 Network | ✅ | 0G Galileo testnet pinned |
+| 6.5.6 Signer | ✅ | Ethers + PrivateKey adapters |
+| 6.5.7 KeyStore | ✅ | InMemory with encrypted export |
+| 6.5.8 Chain | ✅ | Typed clients for BlindEscrow/TaskRegistry/BlindReputation |
+| 6.5.9 Storage | ✅ | ZgStorage (0G) + MemoryStorage (tests) |
+| 6.5.10 Agent role | ✅ | createTask, assignWorker, cancel, fetchAndDecryptEvidence |
+| 6.5.11 Worker role | ✅ | browse, decryptInstructions, submitEvidence, claimTimeout |
+| 6.5.12 Dogfood (frontend) | ✅ | `frontend/src/lib/crypto.ts` re-exports from SDK |
+
+Deferred to post-hackathon: BrowserSigner/KmsSigner, File/Browser KeyStore
+persistence, REST API client for reserved namespaces (staking/a2a/custody/
+forensics/accounting), Verifier role, umbrella `BlindBounty` class, battle-
+testing matrix, TypeDoc site, npm publish, Python port, backend dogfood
+(sync Buffer → async Uint8Array migration is invasive).
+
 ## Phase 6: Polish & Edge Cases — IN PROGRESS
 
 | Task | Status | Notes |
@@ -124,3 +153,36 @@
 2. **Reputation UI** — display on-chain reputation scores for wallets
 3. **Edge case testing** — cancel flow, dispute flow, timeout reclaim, error handling
 4. **Error states** — error boundary component, toast notifications, network error handling
+
+---
+
+## Phase 8: Post-Hackathon — Multi-Chain Expansion
+
+> Not part of hackathon submission. BlindBounty currently runs exclusively on 0G Chain. Multi-chain support is a post-hackathon goal.
+
+| Task | Status | Notes |
+|---|---|---|
+| 8.1 Multi-chain contract deployment | PLANNED | Deploy BlindEscrow, TaskRegistry, BlindReputation to Base, Arbitrum, Polygon |
+| 8.2 Chain selector UI | PLANNED | Let users pick which chain to post/browse tasks on |
+| 8.3 Cross-chain storage relay | PLANNED | Tasks on non-0G chains relay encrypted blobs to 0G Storage via backend |
+| 8.4 Alternative TEE verification | PLANNED | Integrate Phala Network or Lit Protocol as TEE fallback for non-0G chains |
+| 8.5 Bridge integration | PLANNED | LayerZero or Hyperlane for cross-chain escrow messaging |
+| 8.6 Multi-chain reputation | PLANNED | Aggregate reputation scores across all deployed chains |
+
+### Multi-Chain Architecture (Post-Hackathon)
+
+```
+Current (Hackathon):
+  Users → 0G Chain (contracts + escrow + reputation)
+        → 0G Storage (encrypted blobs)
+        → 0G Compute (TEE verification)
+
+Future (Multi-Chain):
+  Users → Chain Selector → Base / Arbitrum / Polygon / 0G Chain
+                         → Contracts deployed per-chain
+                         → 0G Storage (shared privacy layer, all chains)
+                         → 0G Compute OR Phala/Lit (TEE per-chain)
+```
+
+### Why 0G Stays Central
+Even on other chains, 0G Storage and Compute remain the default privacy layer. The encryption, blob storage, and TEE verification are chain-agnostic services — only the escrow contracts need per-chain deployment.

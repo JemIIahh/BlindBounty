@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@blindbounty/sdk": "file:../sdk",
     "@privy-io/react-auth": "^3.22.1",
     "@tanstack/react-query": "^5.91.3",
     "clsx": "^2.1.1",
