@@ -1,87 +1,177 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
+import { Breadcrumb, PageHeader, StatCard, Button } from '../components/bb';
 import { useOpenTasks } from '../hooks/useTasks';
-import { TaskCard } from '../components/TaskCard';
-import { SkeletonTaskCard } from '../components/ui';
+import { truncateAddress } from '../lib/utils';
+import type { TaskMeta } from '../types/api';
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
+function formatBounty(amountWei: string): string {
+  try {
+    const n = BigInt(amountWei);
+    // Assume 18 decimals; show with up to 2 decimals for readability.
+    const whole = n / 10n ** 18n;
+    const frac = Number(n % 10n ** 18n) / 1e18;
+    const total = Number(whole) + frac;
+    return total >= 1
+      ? `${total.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      : total.toFixed(4);
+  } catch {
+    return amountWei;
+  }
+}
+
+function formatAge(isoOrSeconds: string): string {
+  const ts = /^\d+$/.test(isoOrSeconds) ? Number(isoOrSeconds) * 1000 : Date.parse(isoOrSeconds);
+  if (!Number.isFinite(ts)) return '—';
+  const delta = Date.now() - ts;
+  const mins = Math.floor(delta / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
 
 export default function TaskFeed() {
-  const [page, setPage] = useState(0);
-  const limit = 12;
-  const { data: tasks, isLoading, error } = useOpenTasks(page * limit, limit);
+  const { data: tasks, isLoading, error } = useOpenTasks(0, 50);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const selected: TaskMeta | null =
+    (tasks && selectedId && tasks.find((t) => t.taskId === selectedId)) || tasks?.[0] || null;
+  // If user hasn't manually clicked a row yet, default to first real task so the detail pane isn't empty.
+  const activeId = selectedId ?? selected?.taskId ?? null;
+
+  const totalOpenReward =
+    tasks?.reduce((acc, t) => {
+      try { return acc + BigInt(t.reward); } catch { return acc; }
+    }, 0n) ?? 0n;
 
   return (
     <div>
-      <motion.div initial="hidden" animate="visible" variants={fadeUp} className="mb-10">
-        <h1 className="heading-display text-3xl sm:text-4xl mb-2">Task Feed</h1>
-        <p className="text-sm text-neutral-500">Open encrypted tasks available for workers</p>
-      </motion.div>
+      <Breadcrumb items={['marketplace', 'tasks']} />
+      <PageHeader
+        title="Task feed"
+        description="Open encrypted tasks available for workers."
+        right={
+          <span className="text-[11px] font-mono text-ink-3 uppercase tracking-widest">
+            {tasks?.length ?? 0} open · live from chain
+          </span>
+        }
+      />
 
-      {error && (
-        <div className="card-dark p-4 mb-6 border-red-900/50">
-          <p className="text-sm text-red-400">Failed to load tasks. Is the backend running?</p>
+      {/* Stat cards — live counts, rest remain placeholders until backend exposes them */}
+      <div className="grid grid-cols-4 gap-0 border border-line mb-8">
+        <StatCard label="open bounties" value={formatBounty(totalOpenReward.toString())} sub="total escrowed" />
+        <div className="border-l border-line">
+          <StatCard label="open tasks" value={String(tasks?.length ?? 0)} sub="live" subColor="ok" />
         </div>
-      )}
+        <div className="border-l border-line">
+          <StatCard label="my reputation" value="—" sub="connect wallet" />
+        </div>
+        <div className="border-l border-line">
+          <StatCard label="network" value="0g" sub="galileo · 16602" subColor="ok" />
+        </div>
+      </div>
 
-      {isLoading && (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonTaskCard key={i} />
+      {/* Table + detail panel */}
+      <div className="grid grid-cols-[1fr_380px] gap-0 border border-line">
+        {/* Task table */}
+        <div>
+          <div className="grid grid-cols-[80px_1fr_100px_100px_80px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
+            <span>id</span>
+            <span>category · zone</span>
+            <span>bounty</span>
+            <span>agent</span>
+            <span>age</span>
+          </div>
+
+          {isLoading && (
+            <div className="px-5 py-8 text-center text-xs font-mono text-ink-3">loading…</div>
+          )}
+
+          {error && !isLoading && (
+            <div className="px-5 py-8 text-center text-xs font-mono text-err">
+              failed to load tasks: {(error as Error).message}
+            </div>
+          )}
+
+          {!isLoading && !error && tasks && tasks.length === 0 && (
+            <div className="px-5 py-8 text-center text-xs font-mono text-ink-3">
+              no open tasks. check back soon.
+            </div>
+          )}
+
+          {tasks?.map((task) => (
+            <button
+              key={task.taskId}
+              onClick={() => setSelectedId(task.taskId)}
+              className={`grid grid-cols-[80px_1fr_100px_100px_80px] gap-4 px-5 py-4 border-b border-line text-[13px] font-mono w-full text-left transition-colors duration-150 ${
+                activeId === task.taskId ? 'bg-surface-2' : 'hover:bg-surface-2'
+              }`}
+            >
+              <span className="text-ink-3">#{task.taskId}</span>
+              <span className="text-ink truncate">
+                {task.category} · <span className="text-ink-3">{task.locationZone || 'global'}</span>
+              </span>
+              <span className="text-ink font-semibold">{formatBounty(task.reward)}</span>
+              <span className="text-ink-3 truncate">{truncateAddress(task.agent)}</span>
+              <span className="text-ink-3">{formatAge(task.createdAt)}</span>
+            </button>
           ))}
         </div>
-      )}
 
-      {!isLoading && tasks && tasks.length === 0 && (
-        <motion.div initial="hidden" animate="visible" variants={fadeUp} className="text-center py-24">
-          <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-5">
-            <svg className="w-7 h-7 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-            </svg>
-          </div>
-          <h3 className="text-xl font-display text-white mb-2">No tasks yet</h3>
-          <p className="text-sm text-neutral-500">Be the first to create an encrypted task.</p>
-        </motion.div>
-      )}
+        {/* Detail panel */}
+        <div className="border-l border-line p-6">
+          {selected ? (
+            <>
+              <div className="text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 mb-2">
+                task detail · #{selected.taskId}
+              </div>
+              <h2 className="text-2xl font-mono font-bold text-ink leading-tight mb-6">
+                {selected.category}
+              </h2>
 
-      {!isLoading && tasks && tasks.length > 0 && (
-        <>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {tasks.map((task, i) => (
-              <motion.div
-                key={task.taskId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: i * 0.05 }}
-              >
-                <TaskCard task={task} />
-              </motion.div>
-            ))}
-          </div>
-          <div className="flex items-center justify-center gap-3 mt-10">
-            <button
-              className="px-5 py-2 rounded-lg border border-neutral-800 text-sm text-neutral-400 hover:text-white hover:border-neutral-600 transition-all disabled:opacity-30 disabled:hover:text-neutral-400 disabled:hover:border-neutral-800"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-            >
-              Previous
-            </button>
-            <span className="px-4 py-2 rounded-lg bg-surface border border-neutral-800 text-sm font-medium text-white">
-              {page + 1}
-            </span>
-            <button
-              className="px-5 py-2 rounded-lg border border-neutral-800 text-sm text-neutral-400 hover:text-white hover:border-neutral-600 transition-all disabled:opacity-30 disabled:hover:text-neutral-400 disabled:hover:border-neutral-800"
-              disabled={tasks.length < limit}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </>
-      )}
+              <div className="grid grid-cols-2 gap-0 border border-line mb-6">
+                <div className="p-4">
+                  <div className="text-[10px] font-mono font-semibold uppercase tracking-widest text-ink-3 mb-1">bounty</div>
+                  <div className="text-xl font-mono font-bold text-ink">{formatBounty(selected.reward)}</div>
+                </div>
+                <div className="p-4 border-l border-line">
+                  <div className="text-[10px] font-mono font-semibold uppercase tracking-widest text-ink-3 mb-1">zone</div>
+                  <div className="text-xl font-mono font-bold text-ink truncate">{selected.locationZone || 'global'}</div>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <div className="text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 mb-2">
+                  agent
+                </div>
+                <div className="bg-surface-2 border border-line p-3 text-xs font-mono text-ink-3 break-all">
+                  {selected.agent}
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <div className="text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 mb-2">
+                  posted
+                </div>
+                <div className="text-sm font-mono text-ink">{formatAge(selected.createdAt)} ago</div>
+              </div>
+
+              <div className="flex gap-3">
+                <Link to={`/tasks/${selected.taskId}`} className="flex-1">
+                  <Button variant="primary" label="view_details" className="w-full" />
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full text-sm font-mono text-ink-3">
+              {isLoading ? 'loading…' : 'select a task to view details'}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
