@@ -21,7 +21,7 @@ const WalletContext = createContext<WalletState | null>(null);
 
 /* ── Privy-based provider ───────────────────────────────────────── */
 function PrivyWalletProvider({ children }: { children: ReactNode }) {
-  const { login, logout: privyLogout, authenticated, ready } = usePrivy();
+  const { login, logout: privyLogout, connectWallet, authenticated, ready, user } = usePrivy();
   const { wallets } = useWallets();
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
@@ -53,16 +53,50 @@ function PrivyWalletProvider({ children }: { children: ReactNode }) {
     try { await wallet.switchChain(OG_CHAIN_ID); } catch (err) { console.error('Failed to switch chain:', err); }
   }, [wallet]);
 
+  /**
+   * Connect flow. Three states we must handle cleanly:
+   *   (a) not authenticated — open the full Privy login modal (wallet/email/google/twitter)
+   *   (b) authenticated, session cached, no wallet yet — this is the silent-no-op bug
+   *       scenario. Open Privy's wallet picker directly via connectWallet().
+   *   (c) authenticated + wallet already linked — nothing to do.
+   */
   const connect = useCallback(async () => {
-    if (authenticated) return;
     setConnecting(true);
-    try { login(); } finally { setConnecting(false); }
-  }, [authenticated, login]);
+    try {
+      if (!authenticated) {
+        login();
+      } else if (!wallet) {
+        // Cached Privy session but no active wallet: open the wallet picker.
+        connectWallet();
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }, [authenticated, wallet, login, connectWallet]);
 
+  /**
+   * Disconnect fully — clear Privy's cached session too, so the next Connect
+   * click always shows the modal again. Without this, Privy's localStorage
+   * keeps the user "authenticated" and login() is a no-op on next click.
+   */
   const disconnect = useCallback(() => {
     privyLogout();
     setProvider(null); setSigner(null); setChainId(null);
   }, [privyLogout]);
+
+  // Diagnostic — visible in the browser console so you can confirm Privy is
+  // actually mounted with the expected config at runtime.
+  useEffect(() => {
+    if (!ready) return;
+    console.log('[BlindBounty/Privy]', {
+      ready,
+      authenticated,
+      userId: user?.id,
+      walletCount: wallets.length,
+      address,
+      chainId,
+    });
+  }, [ready, authenticated, user?.id, wallets.length, address, chainId]);
 
   return (
     <WalletContext.Provider value={{ address, provider, signer, chainId, connecting: connecting || !ready, connect, disconnect, switchChain, isCorrectChain }}>
