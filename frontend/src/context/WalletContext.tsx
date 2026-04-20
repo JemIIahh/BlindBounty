@@ -75,13 +75,30 @@ function PrivyWalletProvider({ children }: { children: ReactNode }) {
   }, [authenticated, wallet, login, connectWallet]);
 
   /**
-   * Disconnect fully — clear Privy's cached session too, so the next Connect
-   * click always shows the modal again. Without this, Privy's localStorage
-   * keeps the user "authenticated" and login() is a no-op on next click.
+   * Disconnect fully. Always clears local wallet/signer state. If Privy's
+   * backend returns 400 (no session to destroy — happens when the local
+   * state is stale but the server-side session already expired), we log
+   * and move on rather than surface the error: from the user's perspective
+   * disconnect still succeeded, and the next Connect will re-open the modal.
    */
-  const disconnect = useCallback(() => {
-    privyLogout();
-    setProvider(null); setSigner(null); setChainId(null);
+  const disconnect = useCallback(async () => {
+    setProvider(null);
+    setSigner(null);
+    setChainId(null);
+    try {
+      await privyLogout();
+    } catch (err) {
+      console.warn('[BlindBounty/Privy] logout rejected by server (likely stale session):', err);
+    }
+    // Belt-and-suspenders: wipe any Privy tokens Vite dev HMR might be holding.
+    if (typeof window !== 'undefined') {
+      try {
+        for (let i = window.localStorage.length - 1; i >= 0; i--) {
+          const k = window.localStorage.key(i);
+          if (k && k.startsWith('privy:')) window.localStorage.removeItem(k);
+        }
+      } catch { /* ignore */ }
+    }
   }, [privyLogout]);
 
   // Diagnostic — visible in the browser console so you can confirm Privy is
