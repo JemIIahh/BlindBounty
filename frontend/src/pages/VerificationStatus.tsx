@@ -1,184 +1,225 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
+import {
+  Breadcrumb,
+  PageHeader,
+  SectionRule,
+  Panel,
+  StatCard,
+  Button,
+  Tag,
+  FormField,
+  FormInput,
+  FormTextarea,
+} from '../components/bb';
+import { useTriggerVerification, useVerificationStatus } from '../hooks/useVerification';
 import { useAuth } from '../context/AuthContext';
-import { useVerificationStatus, useTriggerVerification } from '../hooks/useVerification';
-import { Input, Textarea } from '../components/ui';
-import { VerificationBadge } from '../components/VerificationBadge';
-import { ForensicResults } from '../components/ForensicResults';
-import { getForensicReport, type ForensicReportResponse } from '../services/forensics';
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
+import type { VerificationResult } from '../types/api';
 
 export default function VerificationStatus() {
-  const { isAuthenticated } = useAuth();
-  const { data: status, isLoading } = useVerificationStatus();
-  const triggerMutation = useTriggerVerification();
-
-  const [forensicData, setForensicData] = useState<ForensicReportResponse | null>(null);
-
+  const [activeTab, setActiveTab] = useState<'trigger' | 'result'>('trigger');
   const [taskId, setTaskId] = useState('');
   const [taskCategory, setTaskCategory] = useState('');
-  const [taskRequirements, setTaskRequirements] = useState('');
+  const [requirements, setRequirements] = useState('');
   const [evidenceSummary, setEvidenceSummary] = useState('');
 
-  useEffect(() => {
-    if (taskId) {
-      getForensicReport(taskId).then(setForensicData).catch(() => setForensicData(null));
-    }
-  }, [taskId]);
+  const { isAuthenticated } = useAuth();
+  const { data: teeStatus } = useVerificationStatus();
+  const trigger = useTriggerVerification();
+  const [result, setResult] = useState<VerificationResult | null>(null);
+  const [triggerError, setTriggerError] = useState<string | null>(null);
 
-  const handleTrigger = () => {
-    if (!taskId || !taskCategory || !taskRequirements || !evidenceSummary) return;
-    triggerMutation.mutate({
-      taskId: parseInt(taskId),
-      taskCategory,
-      taskRequirements,
-      evidenceSummary,
-    });
+  const handleTrigger = async () => {
+    setTriggerError(null);
+    setResult(null);
+    try {
+      const res = await trigger.mutateAsync({
+        taskId: parseInt(taskId, 10),
+        taskCategory,
+        taskRequirements: requirements,
+        evidenceSummary,
+      });
+      setResult(res);
+      setActiveTab('result');
+    } catch (err) {
+      setTriggerError((err as Error).message || 'verification failed');
+    }
   };
 
   return (
-    <motion.div initial="hidden" animate="visible" variants={fadeUp} className="max-w-2xl mx-auto">
-      <div className="mb-10">
-        <h1 className="heading-display text-3xl sm:text-4xl mb-2">Verification</h1>
-        <p className="text-sm text-neutral-500">TEE-powered evidence verification</p>
+    <div>
+      <Breadcrumb items={['account', 'verification']} />
+      <PageHeader
+        title="Verification"
+        description="TEE-attested evidence verification · cryptographic custody chain."
+      />
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-4 gap-0 border border-line mb-8">
+        <StatCard
+          label="sealed inference"
+          value={teeStatus?.configured ? 'ONLINE' : 'OFFLINE'}
+          sub={teeStatus?.configured ? '0g compute ready' : 'not configured'}
+          subColor={teeStatus?.configured ? 'ok' : 'warn'}
+        />
+        <div className="border-l border-line">
+          <StatCard label="status" value="—" sub="connect to view" />
+        </div>
+        <div className="border-l border-line">
+          <StatCard label="last result" value={result ? (result.passed ? 'PASS' : 'FAIL') : '—'} sub={result ? `${(result.confidence * 100).toFixed(1)}% conf` : 'no run yet'} subColor={result ? (result.passed ? 'ok' : 'err') : undefined} />
+        </div>
+        <div className="border-l border-line">
+          <StatCard label="network" value="0g" sub="galileo testnet" subColor="ok" />
+        </div>
       </div>
 
-      {/* System status */}
-      {isLoading ? (
-        <div className="text-sm text-neutral-600">Checking verification status...</div>
-      ) : status && (
-        <div className="mb-6 card-dark p-4 text-sm text-neutral-400">
-          {status.message}
+      {teeStatus && !teeStatus.configured && (
+        <div className="mb-6 px-4 py-3 border border-warn/40 bg-warn/10 text-xs font-mono text-warn">
+          {teeStatus.message}
         </div>
       )}
 
-      {/* Forensic analysis */}
-      {forensicData && (
-        <div className="mb-6">
-          <ForensicResults validation={forensicData.validation} />
-        </div>
-      )}
+      {/* Tabs */}
+      <div className="flex gap-6 border-b border-line mb-8">
+        {(['trigger', 'result'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`pb-2.5 text-xs font-mono font-semibold tracking-widest transition-colors border-b -mb-px ${
+              activeTab === tab
+                ? 'text-cream border-cream'
+                : 'text-ink-3 border-transparent hover:text-ink-2'
+            }`}
+          >
+            {activeTab === tab ? '▸ ' : ''}{tab}
+          </button>
+        ))}
+      </div>
 
-      {/* Verification result */}
-      {triggerMutation.data && (
-        <div className={`mb-6 rounded-xl border overflow-hidden ${
-          triggerMutation.data.passed
-            ? 'border-emerald-500/20 bg-emerald-500/5'
-            : 'border-red-500/20 bg-red-500/5'
-        }`}>
-          <div className="px-6 py-4 border-b border-inherit flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-white">Verification Result</h2>
-            <VerificationBadge verified={triggerMutation.data.passed} />
-          </div>
-          <div className="px-6 py-5">
-            <div className="space-y-5">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Status</span>
-                  <p className={`text-xl font-bold mt-1 ${triggerMutation.data.passed ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {triggerMutation.data.passed ? 'PASSED' : 'FAILED'}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Confidence</span>
-                  <p className="text-2xl font-bold text-white mt-1">{(triggerMutation.data.confidence * 100).toFixed(1)}%</p>
-                </div>
-                <div>
-                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Model</span>
-                  <p className="text-sm text-neutral-300 font-mono mt-1">{triggerMutation.data.model}</p>
-                </div>
-                {triggerMutation.data.attestation && (
-                  <div>
-                    <span className="text-[10px] text-neutral-600 uppercase tracking-wider">TEE Attestation</span>
-                    <div className="mt-1">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                        </svg>
-                        TEE Verified
-                      </span>
-                    </div>
-                    <p className="text-xs text-neutral-600 font-mono truncate mt-1">{triggerMutation.data.attestation}</p>
-                  </div>
-                )}
-              </div>
+      {/* Trigger tab */}
+      {activeTab === 'trigger' && (
+        <div className="grid grid-cols-[1fr_340px] gap-0 border border-line">
+          <div className="p-6 space-y-5">
+            <SectionRule num="01" title="trigger sealed verification" />
 
-              {triggerMutation.data.reasoning && (
-                <div>
-                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Reasoning</span>
-                  <p className="text-sm text-neutral-300 mt-1 whitespace-pre-wrap leading-relaxed">{triggerMutation.data.reasoning}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Loading state */}
-      {triggerMutation.isPending && (
-        <div className="mb-6 card-dark p-10 text-center border-amber-500/20">
-          <div className="inline-flex items-center gap-3">
-            <svg className="animate-spin w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <span className="text-sm font-medium text-amber-400">Verifying in TEE enclave...</span>
-          </div>
-        </div>
-      )}
-
-      {/* Trigger verification */}
-      {isAuthenticated && !triggerMutation.data && !triggerMutation.isPending && (
-        <div className="card-dark overflow-hidden">
-          <div className="px-6 py-4 border-b border-neutral-800">
-            <h2 className="text-sm font-semibold text-white">Trigger Verification</h2>
-          </div>
-          <div className="px-6 py-6">
-            <div className="space-y-5">
-              <p className="text-sm text-neutral-500">
-                As the agent, provide the task details and evidence summary to trigger TEE verification.
-              </p>
-              <Input
-                label="Task ID"
-                placeholder="e.g., 1"
+            <FormField label="task_id" required>
+              <FormInput
+                placeholder="e.g., 1847"
                 value={taskId}
                 onChange={(e) => setTaskId(e.target.value)}
               />
-              <Input
-                label="Task Category"
-                placeholder="e.g., simple_action"
+            </FormField>
+
+            <FormField label="category">
+              <FormInput
+                placeholder="e.g., knowledge_access"
                 value={taskCategory}
                 onChange={(e) => setTaskCategory(e.target.value)}
               />
-              <Textarea
-                label="Task Requirements"
-                placeholder="What was the worker asked to do?"
-                value={taskRequirements}
-                onChange={(e) => setTaskRequirements(e.target.value)}
+            </FormField>
+
+            <FormField label="requirements" hint="what was the worker asked to do?">
+              <FormTextarea
                 rows={3}
+                placeholder="describe task requirements..."
+                value={requirements}
+                onChange={(e) => setRequirements(e.target.value)}
               />
-              <Textarea
-                label="Evidence Summary"
-                placeholder="Summary of the worker's submitted evidence..."
+            </FormField>
+
+            <FormField label="evidence_summary" hint="summary of submitted evidence">
+              <FormTextarea
+                rows={4}
+                placeholder="summary of the worker's submitted evidence..."
                 value={evidenceSummary}
                 onChange={(e) => setEvidenceSummary(e.target.value)}
-                rows={4}
               />
-              <button
-                className="w-full btn-accent py-3"
-                disabled={!taskId || !taskCategory || !taskRequirements || !evidenceSummary}
+            </FormField>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <Button
+                variant="primary"
+                label={trigger.isPending ? 'verifying…' : 'seal_and_verify'}
+                disabled={!taskId || !requirements || !evidenceSummary || !isAuthenticated || trigger.isPending}
                 onClick={handleTrigger}
-              >
-                Trigger Sealed Verification
-              </button>
+              />
+              <Button
+                variant="ghost"
+                label="reset"
+                onClick={() => {
+                  setTaskId('');
+                  setTaskCategory('');
+                  setRequirements('');
+                  setEvidenceSummary('');
+                  setResult(null);
+                  setTriggerError(null);
+                }}
+              />
+              {!isAuthenticated && (
+                <span className="text-[11px] font-mono text-ink-3">connect wallet to verify</span>
+              )}
+              {triggerError && (
+                <span className="text-[11px] font-mono text-err break-all">{triggerError}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Right rail */}
+          <div className="border-l border-line p-6 space-y-6">
+            <SectionRule num="I" title="what the enclave checks" />
+
+            <div className="space-y-4">
+              {[
+                { n: '01', desc: 'fetch encrypted evidence blob from 0g storage' },
+                { n: '02', desc: 'decrypt inside intel tdx enclave — data never leaves' },
+                { n: '03', desc: 'run sealed inference model on plaintext evidence' },
+                { n: '04', desc: 'compare against task requirements — output pass/fail + confidence' },
+                { n: '05', desc: 'sign attestation with enclave key — post to 0g chain' },
+              ].map((step) => (
+                <div key={step.n} className="flex gap-3">
+                  <span className="text-cream font-mono text-xs font-bold mt-0.5">[{step.n}]</span>
+                  <p className="text-xs font-mono text-ink-3 leading-relaxed">{step.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       )}
-    </motion.div>
+
+      {/* Result tab */}
+      {activeTab === 'result' && (
+        <Panel>
+          <SectionRule num="02" title="last verification result" />
+          {result ? (
+            <div className="mt-4 space-y-4">
+              <div className="flex items-center gap-3">
+                <Tag tone={result.passed ? 'ok' : 'err'}>{result.passed ? 'PASSED' : 'FAILED'}</Tag>
+                <span className="text-xs font-mono text-ink">confidence {(result.confidence * 100).toFixed(1)}%</span>
+                {result.model && <span className="text-[11px] font-mono text-ink-3">model: {result.model}</span>}
+              </div>
+              {result.reasoning && (
+                <div>
+                  <div className="text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 mb-2">tee reasoning</div>
+                  <pre className="bg-surface-2 border border-line p-4 text-xs font-mono text-ink-3 leading-relaxed whitespace-pre-wrap">
+                    {result.reasoning}
+                  </pre>
+                </div>
+              )}
+              {result.attestation && (
+                <div>
+                  <div className="text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 mb-2">attestation</div>
+                  <div className="bg-surface-2 border border-line p-3 text-[11px] font-mono text-ink-3 break-all">
+                    {result.attestation}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-12 text-center text-xs font-mono text-ink-3">
+              no result yet. trigger a verification from the first tab.
+            </div>
+          )}
+        </Panel>
+      )}
+    </div>
   );
 }
