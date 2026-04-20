@@ -28,7 +28,13 @@ function PrivyWalletProvider({ children }: { children: ReactNode }) {
   const [chainId, setChainId] = useState<number | null>(null);
   const [connecting, setConnecting] = useState(false);
 
-  const wallet = wallets[0] ?? null;
+  // Only treat a wallet as "connected" when Privy says we're authenticated.
+  // Without this gate, Privy's useWallets() can surface a page-level injected
+  // MetaMask even before the user completes the Privy login flow — causing
+  // the TopBar to render "disconnect/address" instead of "connect_wallet",
+  // and clicks to silently hit /sessions/logout (400, nothing to destroy).
+  const rawWallet = wallets[0] ?? null;
+  const wallet = authenticated ? rawWallet : null;
   const address = wallet?.address ?? null;
   const isCorrectChain = chainId === OG_CHAIN_ID;
 
