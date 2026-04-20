@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../../context/WalletContext';
 import { LogoMark } from './LogoMark';
@@ -5,6 +6,18 @@ import { Button } from './Button';
 
 export function TopBar() {
   const { address, connect, disconnect, connecting } = useWallet();
+  const [copied, setCopied] = useState(false);
+
+  const copyAddress = async () => {
+    if (!address) return;
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // clipboard blocked (iframe, insecure context) — silently ignore
+    }
+  };
 
   const toggleTheme = () => {
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
@@ -65,15 +78,29 @@ export function TopBar() {
         </span>
       </button>
 
-      {/* Wallet — right */}
+      {/* Wallet — right. Address click = copy. Disconnect is its own button. */}
       {address ? (
-        <button
-          onClick={disconnect}
-          className="flex items-center gap-2 px-3 py-2 border border-line text-xs font-mono text-ink-2 hover:border-line-2 transition-colors"
-        >
-          <span className="w-1.5 h-1.5 bg-ok inline-block" />
-          <span>{address.slice(0, 6)}…{address.slice(-4)}</span>
-        </button>
+        <div className="flex items-center border border-line text-xs font-mono">
+          <button
+            onClick={copyAddress}
+            title={copied ? 'copied!' : `click to copy ${address}`}
+            className="flex items-center gap-2 px-3 py-2 text-ink-2 hover:bg-surface-2 transition-colors"
+          >
+            <span className="w-1.5 h-1.5 bg-ok inline-block" />
+            <span>{address.slice(0, 6)}…{address.slice(-4)}</span>
+            <span className="text-[10px] text-ink-3">
+              {copied ? '✓ copied' : '⧉'}
+            </span>
+          </button>
+          <button
+            onClick={disconnect}
+            title="disconnect wallet"
+            aria-label="disconnect wallet"
+            className="px-2.5 py-2 border-l border-line text-ink-3 hover:text-err hover:bg-surface-2 transition-colors"
+          >
+            ×
+          </button>
+        </div>
       ) : (
         <Button
           variant="outline"
