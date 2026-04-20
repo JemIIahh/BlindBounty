@@ -4,7 +4,7 @@ import { PrivyProvider } from '@privy-io/react-auth';
 import { ogTestnet } from './config/chains';
 import { WalletProvider } from './context/WalletContext';
 import { AuthProvider } from './context/AuthContext';
-import { AppLayout } from './components/layout/AppLayout';
+import { DashboardLayout } from './components/bb/DashboardLayout';
 import Landing from './pages/Landing';
 import TaskFeed from './pages/TaskFeed';
 import TaskDetail from './pages/TaskDetail';
@@ -13,6 +13,8 @@ import WorkerView from './pages/WorkerView';
 import VerificationStatus from './pages/VerificationStatus';
 import HowItWorks from './pages/HowItWorks';
 import A2ADashboard from './pages/A2ADashboard';
+import Earnings from './pages/Earnings';
+import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
@@ -28,6 +30,18 @@ function MaybePrivy({ children }: { children: ReactNode }) {
         supportedChains: [ogTestnet],
         appearance: { theme: 'dark' },
         loginMethods: ['wallet', 'email', 'google', 'twitter'],
+        // Disable Coinbase Smart Wallet — CSW only supports a fixed chain list
+        // (Base, Mainnet, etc.) and throws "configured chains not supported"
+        // on 0G Galileo (16602), which stalls Privy's modal render.
+        // EOA-only means the regular Coinbase Wallet browser extension /
+        // mobile app still works; only the smart-contract-wallet flavor is off.
+        externalWallets: {
+          coinbaseWallet: {
+            config: {
+              preference: { options: 'eoaOnly' },
+            },
+          },
+        },
         embeddedWallets: {
           ethereum: {
             createOnLogin: 'users-without-wallets',
@@ -47,7 +61,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route element={<AppLayout />}>
+            <Route element={<DashboardLayout />}>
               <Route path="/how-it-works" element={<HowItWorks />} />
               <Route path="/tasks" element={<TaskFeed />} />
               <Route path="/tasks/:id" element={<TaskDetail />} />
@@ -55,8 +69,10 @@ export default function App() {
               <Route path="/worker" element={<WorkerView />} />
               <Route path="/verification" element={<VerificationStatus />} />
               <Route path="/a2a" element={<A2ADashboard />} />
+              <Route path="/earnings" element={<Earnings />} />
+              <Route path="/settings" element={<Settings />} />
             </Route>
-            <Route path="*" element={<AppLayout />}>
+            <Route path="*" element={<DashboardLayout />}>
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
