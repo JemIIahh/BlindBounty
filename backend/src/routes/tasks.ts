@@ -64,14 +64,17 @@ tasksRouter.get('/', async (req, res, next) => {
 
     let tasks: Record<string, unknown>[] = [];
     let total = 0;
+    let chainError: string | null = null;
     try {
       const rawTasks = await registryService.getOpenTasks(offset, limit);
       total = await registryService.openTaskCount();
       tasks = rawTasks.map((t) => serializeBigInts(t as unknown as Record<string, unknown>));
     } catch (chainErr) {
-      // In dev mode with dummy contract addresses, chain calls will fail.
-      // Return empty task list so the frontend can still render.
-      console.warn('[tasks] Chain call failed, returning empty list:', (chainErr as Error).message);
+      // Surface chain failures so the UI can show a real error instead of
+      // pretending the list is empty. Frontends can still render a graceful
+      // empty state by inspecting data.chainError.
+      chainError = (chainErr as Error).message || 'chain call failed';
+      console.warn('[tasks] Chain call failed:', chainError);
     }
 
     const body: ApiResponse = {
@@ -82,6 +85,7 @@ tasksRouter.get('/', async (req, res, next) => {
         offset,
         limit,
         hasMore: offset + tasks.length < total,
+        ...(chainError ? { chainError } : {}),
       },
     };
     res.json(body);
