@@ -2,74 +2,179 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── BlindBounty Design System Tokens ──────────────────────────── */
+
+/* Light theme (default) */
+:root {
+  --bb-bg:         #fafaf9;
+  --bb-surface:    #ffffff;
+  --bb-surface-2:  #f5f5f4;
+  --bb-line:       #d6d3d1;
+  --bb-line-2:     #a8a29e;
+  --bb-ink:        #09090b;
+  --bb-ink-2:      #3f3f46;
+  --bb-ink-3:      #71717a;
+  --bb-invert:     #09090b;
+  --bb-invert-fg:  #fafaf9;
+  --bb-cream:      #b8860b;
+  --bb-ok:         #047857;
+  --bb-warn:       #b45309;
+  --bb-err:        #b91c1c;
+  --bb-info:       #1d4ed8;
+}
+
+/* Dark theme */
+html[data-theme="dark"] {
+  --bb-bg:         #09090b;
+  --bb-surface:    #0d0d0d;
+  --bb-surface-2:  #111113;
+  --bb-line:       #27272a;
+  --bb-line-2:     #3f3f46;
+  --bb-ink:        #fafaf9;
+  --bb-ink-2:      #d4d4d8;
+  --bb-ink-3:      #a1a1aa;
+  --bb-invert:     #f5efe0;
+  --bb-invert-fg:  #09090b;
+  --bb-cream:      #f5efe0;
+  --bb-ok:         #10b981;
+  --bb-warn:       #f59e0b;
+  --bb-err:        #ef4444;
+  --bb-info:       #3b82f6;
+}
+
 @layer base {
   body {
-    @apply bg-[#0d0d0d] text-neutral-300 antialiased;
+    @apply bg-bg text-ink-2 antialiased;
+    /* Readable sans-serif as default body font. Mono is preserved everywhere
+       components opt in via the `font-mono` utility (addresses, hashes, IDs,
+       code blocks, terminal prompts). */
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    letter-spacing: 0;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
   }
 
   ::selection {
-    @apply bg-amber-500/30 text-white;
+    background-color: rgba(245, 239, 224, 0.3);
+    color: var(--bb-ink);
   }
 
   /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bb-line); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--bb-line-2); }
+
+  /* All inputs: sharp corners, hairline border, cream focus */
+  input, textarea, select {
+    @apply border border-line bg-surface text-ink;
+    border-radius: 0 !important;
+    caret-color: var(--bb-cream);
+    font-family: inherit; /* sans by default, but addresses/hashes can opt into mono per-field */
   }
-  ::-webkit-scrollbar-track {
-    @apply bg-transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-neutral-700 rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-neutral-600;
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--bb-cream) !important;
+    outline: none !important;
+    box-shadow: none !important;
   }
 }
 
 @layer components {
-  /* Glassmorphic dark cards */
+  /* ── Card — hairline border, sharp corners, no shadow ────────── */
   .card-dark {
-    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-xl transition-all duration-300;
-  }
-  .card-dark:hover {
-    @apply border-white/[0.1];
+    @apply bg-surface border border-line transition-colors duration-200;
   }
 
-  /* Ghost button (Octant style) */
+  /* ── Bracket button — terminal style [ label ] ───────────────── */
+  .btn-bracket {
+    @apply inline-flex items-center gap-1 px-5 py-2.5 border border-line text-ink font-mono text-xs font-semibold uppercase tracking-widest transition-colors duration-200;
+  }
+  .btn-bracket:hover {
+    border-color: var(--bb-cream);
+    color: var(--bb-cream);
+  }
+  .btn-bracket-primary {
+    @apply inline-flex items-center gap-1 px-5 py-2.5 bg-invert text-invert-fg font-mono text-xs font-semibold uppercase tracking-widest transition-colors duration-200;
+    border: 1px solid var(--bb-invert);
+  }
+  .btn-bracket-primary:hover {
+    opacity: 0.9;
+  }
+
+  /* ── Ghost button ────────────────────────────────────────────── */
   .btn-ghost {
-    @apply px-6 py-3 border border-neutral-700 text-neutral-300 rounded-lg text-sm font-medium
-           transition-all duration-300 hover:border-neutral-500 hover:text-white;
+    @apply px-4 py-2 border border-line text-ink-2 text-xs font-mono font-medium tracking-wide transition-colors duration-200;
+  }
+  .btn-ghost:hover {
+    @apply border-line-2 text-ink;
   }
 
-  /* Accent button */
-  .btn-accent {
-    @apply px-6 py-3 bg-amber-500 text-black rounded-lg text-sm font-semibold
-           transition-all duration-300 hover:bg-amber-400;
+  /* ── Section rule — §N ─ TITLE ───────────────────────────────── */
+  .section-rule {
+    @apply flex items-center gap-3 text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3;
   }
-
-  /* Section label */
-  .section-label {
-    @apply text-[11px] uppercase tracking-[0.2em] text-neutral-500 font-medium;
+  .section-rule .section-num {
+    color: var(--bb-cream);
   }
-
-  /* Display heading — chunky serif like Octant */
-  .heading-display {
-    @apply font-display font-black text-white leading-[1.05];
-  }
-
-  /* Subtle grid bg pattern */
-  .bg-grid {
-    background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
-    background-size: 32px 32px;
-  }
-
-  /* Amber decorative leaf (mimics Octant's orange leaves) */
-  .leaf-accent::before,
-  .leaf-accent::after {
+  .section-rule::after {
     content: '';
-    @apply inline-block w-2 h-2 bg-amber-500 rounded-full mx-1 opacity-80;
-    vertical-align: super;
-    font-size: 0.5em;
+    @apply flex-1 h-px bg-line;
+  }
+
+  /* ── Status chip — uppercase, tiny, semantic colors ──────────── */
+  .chip {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-wider border whitespace-nowrap;
+  }
+  .chip-ok {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--bb-ok);
+    border-color: rgba(16, 185, 129, 0.25);
+  }
+  .chip-err {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--bb-err);
+    border-color: rgba(239, 68, 68, 0.25);
+  }
+  .chip-info {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--bb-info);
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+  .chip-warn {
+    background: rgba(217, 119, 6, 0.12);
+    color: var(--bb-warn);
+    border-color: rgba(217, 119, 6, 0.25);
+  }
+  .chip-neutral {
+    @apply border-line text-ink-3 bg-transparent;
+  }
+
+  /* ── Section label ───────────────────────────────────────────── */
+  .section-label {
+    @apply text-[11px] uppercase tracking-widest text-ink-3 font-mono font-medium;
+  }
+
+  /* ── Display heading — IBM Plex Mono, medium weight ──────────── */
+  .heading-display {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    @apply font-medium text-ink leading-[1.05];
+    letter-spacing: -0.015em;
+  }
+
+  /* ── Lifecycle row ───────────────────────────────────────────── */
+  .lifecycle-row {
+    @apply flex items-center justify-between py-2 text-xs font-mono;
+  }
+  .lifecycle-dot-active {
+    @apply w-2 h-2 bg-cream mr-3 inline-block;
+  }
+  .lifecycle-dot-pending {
+    @apply w-2 h-2 border border-ink-3 mr-3 inline-block;
   }
 }
 
@@ -77,10 +182,4 @@
   .text-balance {
     text-wrap: balance;
   }
-}
-
-/* Scrolling marquee for tech strip */
-@keyframes scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
 }
