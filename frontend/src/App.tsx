@@ -16,6 +16,8 @@ import A2ADashboard from './pages/A2ADashboard';
 import Earnings from './pages/Earnings';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
+import DeployAgent from './pages/DeployAgent';
+import AgentMarketplace from './pages/AgentMarketplace';
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
 const isValidPrivyId = privyAppId && privyAppId.startsWith('c') && privyAppId.length > 10;
@@ -71,6 +73,8 @@ export default function App() {
               <Route path="/a2a" element={<A2ADashboard />} />
               <Route path="/earnings" element={<Earnings />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/agents" element={<AgentMarketplace />} />
+              <Route path="/agents/deploy" element={<DeployAgent />} />
             </Route>
             <Route path="*" element={<DashboardLayout />}>
               <Route path="*" element={<NotFound />} />

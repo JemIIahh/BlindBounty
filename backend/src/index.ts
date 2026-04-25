@@ -17,6 +17,7 @@ import { forensicsRouter } from './routes/forensics.js';
 import { custodyRouter } from './routes/custody.js';
 import { stakingRouter } from './routes/staking.js';
 import { accountingRouter } from './routes/accounting.js';
+import { agentsRouter } from './routes/agents.js';
 import { getDb } from './services/database.js';
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/v1/forensics', forensicsRouter);
 app.use('/api/v1/custody', custodyRouter);
 app.use('/api/v1/staking', stakingRouter);
 app.use('/api/v1/accounting', accountingRouter);
+app.use('/api/v1/agents', agentsRouter);
 app.use('/a2a/v1', a2aProtocolRouter);
 
 // Agent card (A2A discovery)

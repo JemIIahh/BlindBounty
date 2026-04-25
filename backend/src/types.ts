@@ -204,6 +204,32 @@ export interface ForensicValidation {
 
 export type TaskForensicCategory = 'physical_presence' | 'location_based' | 'creative' | 'general';
 
+// ── Deployed Agent types ─────────────────────────────────────────────────────
+
+export type AgentStatus = 'stopped' | 'running' | 'paused';
+export type LLMProvider = 'openai' | 'anthropic' | 'groq' | 'gemini';
+
+export const LLM_PROVIDER_MODELS: Record<LLMProvider, string[]> = {
+  openai:    ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'],
+  anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-haiku-20240307'],
+  groq:      ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768'],
+  gemini:    ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+};
+
+export interface DeployedAgent {
+  id: string;
+  ownerAddress: string;
+  name: string;
+  instructions: string;
+  provider: LLMProvider;
+  model: string;
+  apiKey: string; // plaintext for local dev; encrypt at rest in prod
+  capabilities: AgentCapability[];
+  status: AgentStatus;
+  deployedAt: string;
+  storageRef?: string;
+}
+
 export interface TaskForensicRequirement {
   requireFreshPhoto: boolean;
   maxPhotoAgeMs: number;

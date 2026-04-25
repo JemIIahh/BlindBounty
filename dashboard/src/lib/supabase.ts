@@ -8,7 +8,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 console.log('[Supabase] Initializing with URL:', supabaseUrl, 'Key length:', supabaseAnonKey?.length)
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+  console.warn('[Supabase] Missing env vars — running without Supabase')
 }
 
 const noOpLock = async <R>(_name: string, _timeout: number, fn: () => Promise<R>): Promise<R> => {
@@ -20,7 +20,7 @@ const noOpLock = async <R>(_name: string, _timeout: number, fn: () => Promise<R>
 // query builder inference across the app. Re-enable strict DB generics once
 // types are regenerated from the canonical production schema.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const supabase: any = createClient<any>(supabaseUrl, supabaseAnonKey, {
+export const supabase: any = createClient<any>(supabaseUrl || 'http://localhost:54321', supabaseAnonKey || 'placeholder', {
   auth: {
     // Dynamic.xyz handles wallet auth; Supabase session persists the
     // anonymous user + wallet link so users stay logged in across reloads.

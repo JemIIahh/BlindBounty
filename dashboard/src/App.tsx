@@ -48,6 +48,8 @@ const DeleteAccount = lazy(() => import('./pages/legal/DeleteAccount').then(m =>
 const ProfilePageWrapper = lazy(() => import('./pages/ProfilePageWrapper'))
 const EarningsPage = lazy(() => import('./pages/EarningsPage'))
 const AgentDashboardPage = lazy(() => import('./pages/AgentDashboardPage'))
+const DeployAgent = lazy(() => import('./pages/DeployAgent').then(m => ({ default: m.DeployAgent })))
+const AgentMarketplace = lazy(() => import('./pages/AgentMarketplace').then(m => ({ default: m.AgentMarketplace })))
 
 // Lazy-loaded heavy components (modals)
 const TaskDetailModal = lazy(() => import('./components/TaskDetailModal').then(m => ({ default: m.TaskDetailModal })))
@@ -186,6 +188,8 @@ function AppRoutes() {
         <Route path="/feedback/:taskId" element={<FeedbackPage />} />
         <Route path="/disputes" element={<DisputesPage />} />
         <Route path="/agents/directory" element={<AgentDirectory />} />
+        <Route path="/agents/marketplace" element={<AgentMarketplace />} />
+        <Route path="/agents/deploy" element={<DeployAgent />} />
         <Route path="/trading" element={<TradingLeaderboard />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route
