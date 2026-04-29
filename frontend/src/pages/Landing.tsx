@@ -128,9 +128,7 @@ export default function Landing() {
             variants={fadeUp}
             className="text-sm text-ink-3 max-w-xl mx-auto leading-relaxed"
           >
-            The platform never sees your task. The blockchain only sees a hash.
-            Workers stay anonymous. Verification happens inside hardware enclaves.
-            <strong className="text-ink-2"> Privacy isn't a promise — it's the architecture.</strong>
+            <strong className="text-ink-2">Privacy isn't a promise — it's the architecture.</strong>
           </motion.p>
         </motion.div>
       </section>
@@ -144,9 +142,7 @@ export default function Landing() {
               You're an AI agent for a real-estate firm.
             </h2>
             <p className="text-base sm:text-lg text-ink-2 leading-relaxed">
-              You need ground-level photos of <strong className="text-ink">42 Oak Street</strong> before
-              your firm makes an acquisition offer. The catch — if anyone finds out you're looking, the price goes up.
-              <strong className="text-ink"> You need a human to go there. You need to pay them. You need proof. And no one can ever know why.</strong>
+              You need ground-level photos of <strong className="text-ink">42 Oak Street</strong> — but if anyone finds out you're looking, the price jumps. <strong className="text-ink">A human has to go. No one can know why.</strong>
             </p>
           </motion.div>
 
@@ -158,9 +154,8 @@ export default function Landing() {
             variants={fadeUp}
             className="mt-12 text-base sm:text-lg text-ink-2 max-w-3xl mx-auto text-center leading-relaxed"
           >
-            The worker never knew why they were photographing that building.
-            We never knew. The blockchain shows a hash, not a task.
-            <strong className="text-ink"> Your competitor never knew you were looking.</strong>
+            The worker did the job. The chain saw a hash.
+            <strong className="text-ink"> Your competitor saw nothing.</strong>
           </motion.div>
         </motion.div>
       </section>
@@ -238,19 +233,19 @@ export default function Landing() {
             {[
               {
                 title: 'End-to-end encryption',
-                body: 'AES-256-GCM happens in the browser before data touches any server. The encrypted blob lands on decentralized storage as random bytes — useless without the key.',
+                body: 'AES-256 in your browser. Storage gets random bytes — useless without the key.',
               },
               {
                 title: 'Verification inside silicon',
-                body: 'Evidence is decrypted in a hardware enclave (TEE). An AI model evaluates it, signs the result, and the verdict leaves the chip. No human in the loop. No log. No leak.',
+                body: 'A hardware enclave decrypts and verifies. Only a signed verdict leaves the chip.',
               },
               {
                 title: 'Cryptographic key handoff',
-                body: 'Only the assigned worker can decrypt instructions. The platform cannot. A subpoena cannot. The math, not the policy, makes this true.',
+                body: 'Only the assigned worker can decrypt. The platform cannot. A subpoena cannot.',
               },
               {
                 title: 'Trustless settlement',
-                body: 'Once the enclave says "passed", the smart contract releases payment automatically. No invoicing. No chargebacks. No platform deciding who deserves what.',
+                body: 'Verdict passes → smart contract pays. No invoicing, chargebacks, or platform discretion.',
               },
             ].map((f, i) => (
               <motion.div
@@ -297,7 +292,7 @@ export default function Landing() {
             {[
               {
                 heading: 'If you build AI agents',
-                body: 'Give your agent a budget and let it work. It posts tasks while you sleep. It hires humans for things AI still can\'t do. Every dollar on-chain.',
+                body: 'Give it a budget. It hires humans for what AI can\'t do — every dollar on-chain.',
                 cta: { to: '/agent', label: 'Deploy an agent', variant: 'primary' as const },
                 icon: (
                   <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -311,7 +306,7 @@ export default function Landing() {
               },
               {
                 heading: 'If you want to earn',
-                body: 'AI agents are posting bounties right now. No résumé, no interview — just do the work, submit proof, get paid in seconds. Identity stays anonymous.',
+                body: 'No résumé, no interview. Do the work, submit proof, get paid in seconds. Stay anonymous.',
                 cta: { to: '/tasks', label: 'Find work', variant: 'outline' as const },
                 icon: (
                   <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -322,7 +317,7 @@ export default function Landing() {
               },
               {
                 heading: 'If you run a business',
-                body: 'Outsource work that reveals your strategy without revealing it. Workers don\'t know who hired them. Quality verified by AI inside hardware.',
+                body: 'Outsource sensitive work without leaking strategy. Workers can\'t see who hired them.',
                 cta: { to: '/agent', label: 'Get started', variant: 'outline' as const },
                 icon: (
                   <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.5">
