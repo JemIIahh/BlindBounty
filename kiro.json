@@ -1,11 +1,12 @@
 {
   "format": "kiro-session-export-v1",
   "metadata": {
-    "session_id": "21bbce63-1753-4af6-9ea5-00614ef79632",
+    "session_id": "c688ff52-e01a-4c27-8714-cd3161a89d7d",
     "cwd": "/home/emperorsixpacks/GitHub/BlindBounty",
     "created_at": "2026-04-29T11:08:11.413156110Z",
     "updated_at": "2026-04-29T11:36:48.261702507Z",
     "title": "segmrn and comit changes",
+    "imported_from": "/home/emperorsixpacks/GitHub/BlindBounty/kiro.json",
     "session_state": {
       "version": "v1",
       "conversation_metadata": {
@@ -5994,6 +5995,546 @@
       "kind": "AssistantMessage",
       "data": {
         "message_id": "d3cb6162-e9f4-45da-a06e-d9536dd3915c",
+        "content": [
+          {
+            "kind": "text",
+            "data": "Tool uses were interrupted, waiting for the next user prompt"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "Prompt",
+      "data": {
+        "message_id": "f512be62-05c4-41b2-a7e2-7ec2e677a130",
+        "content": [
+          {
+            "kind": "text",
+            "data": "contieun"
+          }
+        ],
+        "meta": {
+          "timestamp": 1777464089
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "6edee9f2-8ebf-4e46-b4b9-bda4b4352643",
+        "content": [
+          {
+            "kind": "text",
+            "data": ""
+          },
+          {
+            "kind": "toolUse",
+            "data": {
+              "toolUseId": "tooluse_26fHCEogZL7DUjC1olhNbn",
+              "name": "shell",
+              "input": {
+                "__tool_use_purpose": "Stage and commit all changes",
+                "command": "cd /home/emperorsixpacks/GitHub/BlindBounty && git add -A && git commit -m \"feat: Redis persistence/pubsub for agents, docker-compose, agent tools system, fixed worker lifecycle\""
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "ToolResults",
+      "data": {
+        "message_id": "ba5fb7a8-67ca-4490-9573-4595f9a55be9",
+        "content": [
+          {
+            "kind": "toolResult",
+            "data": {
+              "toolUseId": "tooluse_26fHCEogZL7DUjC1olhNbn",
+              "content": [
+                {
+                  "kind": "json",
+                  "data": {
+                    "exit_status": "exit status: 0",
+                    "stdout": "[master 58fc093] feat: Redis persistence/pubsub for agents, docker-compose, agent tools system, fixed worker lifecycle\n 1 file changed, 6006 insertions(+)\n create mode 100644 kiro.json\n",
+                    "stderr": ""
+                  }
+                }
+              ],
+              "status": "success"
+            }
+          }
+        ],
+        "results": {
+          "tooluse_26fHCEogZL7DUjC1olhNbn": {
+            "tool": {
+              "tool_use_purpose": "Stage and commit all changes",
+              "kind": {
+                "BuiltIn": {
+                  "ExecuteCmd": {
+                    "command": "cd /home/emperorsixpacks/GitHub/BlindBounty && git add -A && git commit -m \"feat: Redis persistence/pubsub for agents, docker-compose, agent tools system, fixed worker lifecycle\"",
+                    "working_dir": null
+                  }
+                }
+              }
+            },
+            "result": {
+              "Success": {
+                "items": [
+                  {
+                    "Json": {
+                      "exit_status": "exit status: 0",
+                      "stdout": "[master 58fc093] feat: Redis persistence/pubsub for agents, docker-compose, agent tools system, fixed worker lifecycle\n 1 file changed, 6006 insertions(+)\n create mode 100644 kiro.json\n",
+                      "stderr": ""
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "fa1fca5a-1a3a-4f40-b83d-8aee287f41de",
+        "content": [
+          {
+            "kind": "text",
+            "data": "Hmm, only 1 file changed — the previous work wasn't staged. Let me check:"
+          },
+          {
+            "kind": "toolUse",
+            "data": {
+              "toolUseId": "tooluse_tr3wPjEqrNn9AMn8cywFPZ",
+              "name": "shell",
+              "input": {
+                "__tool_use_purpose": "Check git status for unstaged changes",
+                "command": "cd /home/emperorsixpacks/GitHub/BlindBounty && git status"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "ToolResults",
+      "data": {
+        "message_id": "901e421b-82c6-48e7-8b8b-d86165ec325b",
+        "content": [
+          {
+            "kind": "toolResult",
+            "data": {
+              "toolUseId": "tooluse_tr3wPjEqrNn9AMn8cywFPZ",
+              "content": [
+                {
+                  "kind": "json",
+                  "data": {
+                    "exit_status": "exit status: 0",
+                    "stdout": "On branch master\nYour branch is ahead of 'origin/master' by 1 commit.\n  (use \"git push\" to publish your local commits)\n\nnothing to commit, working tree clean\n",
+                    "stderr": ""
+                  }
+                }
+              ],
+              "status": "success"
+            }
+          }
+        ],
+        "results": {
+          "tooluse_tr3wPjEqrNn9AMn8cywFPZ": {
+            "tool": {
+              "tool_use_purpose": "Check git status for unstaged changes",
+              "kind": {
+                "BuiltIn": {
+                  "ExecuteCmd": {
+                    "command": "cd /home/emperorsixpacks/GitHub/BlindBounty && git status",
+                    "working_dir": null
+                  }
+                }
+              }
+            },
+            "result": {
+              "Success": {
+                "items": [
+                  {
+                    "Json": {
+                      "exit_status": "exit status: 0",
+                      "stdout": "On branch master\nYour branch is ahead of 'origin/master' by 1 commit.\n  (use \"git push\" to publish your local commits)\n\nnothing to commit, working tree clean\n",
+                      "stderr": ""
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "22a80ff3-43fd-47de-94ec-a5e9f5c72752",
+        "content": [
+          {
+            "kind": "text",
+            "data": ""
+          },
+          {
+            "kind": "toolUse",
+            "data": {
+              "toolUseId": "tooluse_5jn3zm0NVViEqLraH5vgQu",
+              "name": "shell",
+              "input": {
+                "__tool_use_purpose": "Check what was in the previous commit",
+                "command": "cd /home/emperorsixpacks/GitHub/BlindBounty && git show --stat HEAD~1"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "ToolResults",
+      "data": {
+        "message_id": "c7ef1b4c-a388-48cd-aa43-0c38ee82a7f3",
+        "content": [
+          {
+            "kind": "toolResult",
+            "data": {
+              "toolUseId": "tooluse_5jn3zm0NVViEqLraH5vgQu",
+              "content": [
+                {
+                  "kind": "json",
+                  "data": {
+                    "exit_status": "exit status: 0",
+                    "stdout": "commit 9c6bb3224f769b904e4a00d3151721528e327562\nAuthor: Andrew David <andrewdvd10@gmail.com>\nDate:   Wed Apr 29 12:42:23 2026 +0100\n\n    feat: Redis persistence/pubsub for agents, docker-compose, agent tools system, fixed worker lifecycle\n\n backend/.env.example                |   3 +\n backend/Dockerfile                  |  15 +++\n backend/agents/worker.js            | 225 +++++++++++++++++++++++++++++++-----\n backend/package-lock.json           | 111 ++++++++++++++++++\n backend/package.json                |   1 +\n backend/src/routes/agents.ts        | 131 +++++++++++----------\n backend/src/services/agentRunner.ts | 128 +++++++++++---------\n backend/src/services/redis.ts       |  89 ++++++++++++++\n backend/src/types.ts                |  45 +++++++-\n docker-compose.yml                  |  40 +++++++\n frontend/Dockerfile                 |  12 ++\n frontend/nginx.conf                 |  18 +++\n 12 files changed, 668 insertions(+), 150 deletions(-)\n",
+                    "stderr": ""
+                  }
+                }
+              ],
+              "status": "success"
+            }
+          }
+        ],
+        "results": {
+          "tooluse_5jn3zm0NVViEqLraH5vgQu": {
+            "tool": {
+              "tool_use_purpose": "Check what was in the previous commit",
+              "kind": {
+                "BuiltIn": {
+                  "ExecuteCmd": {
+                    "command": "cd /home/emperorsixpacks/GitHub/BlindBounty && git show --stat HEAD~1",
+                    "working_dir": null
+                  }
+                }
+              }
+            },
+            "result": {
+              "Success": {
+                "items": [
+                  {
+                    "Json": {
+                      "exit_status": "exit status: 0",
+                      "stdout": "commit 9c6bb3224f769b904e4a00d3151721528e327562\nAuthor: Andrew David <andrewdvd10@gmail.com>\nDate:   Wed Apr 29 12:42:23 2026 +0100\n\n    feat: Redis persistence/pubsub for agents, docker-compose, agent tools system, fixed worker lifecycle\n\n backend/.env.example                |   3 +\n backend/Dockerfile                  |  15 +++\n backend/agents/worker.js            | 225 +++++++++++++++++++++++++++++++-----\n backend/package-lock.json           | 111 ++++++++++++++++++\n backend/package.json                |   1 +\n backend/src/routes/agents.ts        | 131 +++++++++++----------\n backend/src/services/agentRunner.ts | 128 +++++++++++---------\n backend/src/services/redis.ts       |  89 ++++++++++++++\n backend/src/types.ts                |  45 +++++++-\n docker-compose.yml                  |  40 +++++++\n frontend/Dockerfile                 |  12 ++\n frontend/nginx.conf                 |  18 +++\n 12 files changed, 668 insertions(+), 150 deletions(-)\n",
+                      "stderr": ""
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "bbb0936e-d08d-42ef-a394-605e513489ac",
+        "content": [
+          {
+            "kind": "text",
+            "data": "All the work was already committed in the previous session. The latest commit just added `kiro.json`. Everything is in order — all 12 files from the Redis/tools/docker-compose work are committed.\n\nNow continuing with the remaining tasks — the frontend tools builder UI and marketplace heartbeat display:"
+          },
+          {
+            "kind": "toolUse",
+            "data": {
+              "toolUseId": "tooluse_PraxZrXnV1mM2THMcZnv9z",
+              "name": "todo_list",
+              "input": {
+                "__tool_use_purpose": "Check remaining tasks",
+                "command": "list"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "ToolResults",
+      "data": {
+        "message_id": "4e782963-7e90-43c5-b858-35953e169c44",
+        "content": [
+          {
+            "kind": "toolResult",
+            "data": {
+              "toolUseId": "tooluse_PraxZrXnV1mM2THMcZnv9z",
+              "content": [
+                {
+                  "kind": "json",
+                  "data": {
+                    "tasks": [],
+                    "description": "",
+                    "context": [],
+                    "modified_files": []
+                  }
+                }
+              ],
+              "status": "success"
+            }
+          }
+        ],
+        "results": {
+          "tooluse_PraxZrXnV1mM2THMcZnv9z": {
+            "tool": {
+              "tool_use_purpose": "Check remaining tasks",
+              "kind": {
+                "BuiltIn": {
+                  "Task": {
+                    "command": "list"
+                  }
+                }
+              }
+            },
+            "result": {
+              "Success": {
+                "items": [
+                  {
+                    "Json": {
+                      "tasks": [],
+                      "description": "",
+                      "context": [],
+                      "modified_files": []
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "8db4c312-aca5-43e3-abd7-7709fe7b623b",
+        "content": [
+          {
+            "kind": "text",
+            "data": "Task list was cleared. Resuming the two remaining frontend tasks:\n\n1. **DeployAgent.tsx** — tools builder UI\n2. **AgentMarketplace.tsx** — show `lastActiveAt` heartbeat and tools count"
+          },
+          {
+            "kind": "toolUse",
+            "data": {
+              "toolUseId": "tooluse_4f1gJfJpZJS9kbH7i6rKPK",
+              "name": "write",
+              "input": {
+                "__tool_use_purpose": "Update DeployAgent.tsx with tools builder UI",
+                "command": "create",
+                "content": "import { useState, useEffect } from 'react';\nimport { useNavigate } from 'react-router-dom';\nimport { useAccount, useWalletClient } from 'wagmi';\nimport { ConnectButton } from '@rainbow-me/rainbowkit';\nimport { SigningKey, hashMessage } from 'ethers';\n\nconst PROVIDERS = {\n  openai:    { label: 'OpenAI',    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'] },\n  anthropic: { label: 'Anthropic', models: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-haiku-20240307'] },\n  groq:      { label: 'Groq',      models: ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768'] },\n  gemini:    { label: 'Gemini',    models: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'] },\n} as const;\n\ntype Provider = keyof typeof PROVIDERS;\ntype ToolType = 'http' | 'mcp' | 'js';\n\ninterface ToolDraft {\n  id: string;\n  type: ToolType;\n  name: string;\n  description: string;\n  // http\n  url: string;\n  method: 'GET' | 'POST' | 'PUT' | 'DELETE';\n  headers: string; // JSON string\n  bodyTemplate: string;\n  // mcp\n  endpointUrl: string;\n  toolName: string;\n  // js\n  code: string;\n}\n\nfunction emptyTool(type: ToolType): ToolDraft {\n  return {\n    id: crypto.randomUUID(),\n    type,\n    name: '',\n    description: '',\n    url: '',\n    method: 'GET',\n    headers: '',\n    bodyTemplate: '',\n    endpointUrl: '',\n    toolName: '',\n    code: 'return input.toUpperCase();',\n  };\n}\n\nfunction toolDraftToPayload(t: ToolDraft) {\n  const base = { type: t.type, name: t.name, description: t.description };\n  if (t.type === 'http') return { ...base, url: t.url, method: t.method, headers: t.headers ? JSON.parse(t.headers) : undefined, bodyTemplate: t.bodyTemplate || undefined };\n  if (t.type === 'mcp') return { ...base, endpointUrl: t.endpointUrl, toolName: t.toolName };\n  return { ...base, code: t.code };\n}\n\nconst INPUT_CLS = 'w-full bg-surface-2 border border-line px-3 py-2 text-sm text-ink focus:outline-none focus:border-[var(--bb-cream)]';\nconst LABEL_CLS = 'block text-xs font-mono text-ink-3 mb-1 uppercase tracking-wider';\n\nexport default function DeployAgent() {\n  const { address, isConnected } = useAccount();\n  const { data: walletClient } = useWalletClient();\n  const navigate = useNavigate();\n\n  const [form, setForm] = useState({ name: '', instructions: '', provider: 'openai' as Provider, model: 'gpt-4o-mini', apiKey: '' });\n  const [tools, setTools] = useState<ToolDraft[]>([]);\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState('');\n\n  useEffect(() => {\n    setForm(f => ({ ...f, model: PROVIDERS[f.provider].models[0] }));\n  }, [form.provider]);\n\n  function addTool(type: ToolType) { setTools(t => [...t, emptyTool(type)]); }\n  function removeTool(id: string) { setTools(t => t.filter(x => x.id !== id)); }\n  function updateTool(id: string, patch: Partial<ToolDraft>) {\n    setTools(t => t.map(x => x.id === id ? { ...x, ...patch } : x));\n  }\n\n  async function handleDeploy(e: React.FormEvent) {\n    e.preventDefault();\n    if (!isConnected || !address || !walletClient) { setError('Connect wallet first'); return; }\n    setLoading(true); setError('');\n    try {\n      const msg = 'BlindBounty: authorize agent deployment';\n      const sig = await walletClient.signMessage({ message: msg });\n      const publicKeyHex = SigningKey.recoverPublicKey(hashMessage(msg), sig);\n      const ownerPublicKey = publicKeyHex.startsWith('04') ? publicKeyHex : `04${publicKeyHex}`;\n\n      const res = await fetch('/api/v1/agents/deploy', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ ...form, ownerAddress: address, ownerPublicKey, tools: tools.map(toolDraftToPayload) }),\n      });\n      const json = await res.json();\n      if (!json.success) throw new Error(json.error?.message ?? 'Deploy failed');\n      navigate('/agents');\n    } catch (err: unknown) {\n      setError((err as Error).message);\n    } finally {\n      setLoading(false);\n    }\n  }\n\n  return (\n    <div className=\"max-w-2xl mx-auto px-4 py-10\">\n      <h1 className=\"heading-display text-2xl mb-1\">Deploy an Agent</h1>\n      <p className=\"text-ink-3 mb-8 text-sm font-mono\">\n        Your agent picks up open tasks, calls your LLM with tools, and submits results automatically.\n      </p>\n\n      {!isConnected && <div className=\"mb-6\"><ConnectButton /></div>}\n\n      <form onSubmit={handleDeploy} className=\"space-y-6\">\n        {/* Basic config */}\n        <div>\n          <label className={LABEL_CLS}>Agent name</label>\n          <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder=\"My Research Agent\" className={INPUT_CLS} />\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>System instructions</label>\n          <textarea required rows={4} value={form.instructions} onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))} placeholder=\"You are a research agent...\" className={`${INPUT_CLS} resize-none`} />\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>LLM provider</label>\n          <div className=\"grid grid-cols-4 gap-2\">\n            {(Object.keys(PROVIDERS) as Provider[]).map(p => (\n              <button key={p} type=\"button\" onClick={() => setForm(f => ({ ...f, provider: p }))}\n                className={`py-2 border text-xs font-mono font-semibold uppercase tracking-wider transition-colors ${form.provider === p ? 'border-[var(--bb-cream)] text-[var(--bb-cream)] bg-surface-2' : 'border-line text-ink-3 hover:border-line-2'}`}>\n                {PROVIDERS[p].label}\n              </button>\n            ))}\n          </div>\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>Model</label>\n          <select value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} className={INPUT_CLS}>\n            {PROVIDERS[form.provider].models.map(m => <option key={m} value={m}>{m}</option>)}\n          </select>\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>{PROVIDERS[form.provider].label} API key</label>\n          <input required type=\"password\" value={form.apiKey} onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))} placeholder=\"sk-...\" className={`${INPUT_CLS} font-mono`} />\n          <p className=\"text-xs text-ink-3 mt-1 font-mono\">Encrypted with your wallet key before storage.</p>\n        </div>\n\n        {/* Tools builder */}\n        <div>\n          <div className=\"section-rule mb-4\">\n            <span className=\"section-num\">§</span> Tools\n          </div>\n\n          {tools.length === 0 && (\n            <p className=\"text-xs text-ink-3 font-mono mb-3\">No tools added. Agents can call HTTP endpoints, MCP servers, or run JS snippets.</p>\n          )}\n\n          <div className=\"space-y-4\">\n            {tools.map(t => (\n              <div key={t.id} className=\"card-dark p-4\">\n                <div className=\"flex items-center justify-between mb-3\">\n                  <span className=\"chip chip-neutral\">{t.type}</span>\n                  <button type=\"button\" onClick={() => removeTool(t.id)} className=\"text-xs text-err font-mono hover:underline\">remove</button>\n                </div>\n\n                <div className=\"grid grid-cols-2 gap-3 mb-3\">\n                  <div>\n                    <label className={LABEL_CLS}>Tool name</label>\n                    <input value={t.name} onChange={e => updateTool(t.id, { name: e.target.value })} placeholder=\"search_web\" className={INPUT_CLS} />\n                  </div>\n                  <div>\n                    <label className={LABEL_CLS}>Description</label>\n                    <input value={t.description} onChange={e => updateTool(t.id, { description: e.target.value })} placeholder=\"Search the web for information\" className={INPUT_CLS} />\n                  </div>\n                </div>\n\n                {t.type === 'http' && (\n                  <div className=\"space-y-3\">\n                    <div className=\"grid grid-cols-3 gap-3\">\n                      <div className=\"col-span-2\">\n                        <label className={LABEL_CLS}>URL</label>\n                        <input value={t.url} onChange={e => updateTool(t.id, { url: e.target.value })} placeholder=\"https://api.example.com/search?q={input}\" className={INPUT_CLS} />\n                      </div>\n                      <div>\n                        <label className={LABEL_CLS}>Method</label>\n                        <select value={t.method} onChange={e => updateTool(t.id, { method: e.target.value as any })} className={INPUT_CLS}>\n                          {['GET','POST','PUT','DELETE'].map(m => <option key={m}>{m}</option>)}\n                        </select>\n                      </div>\n                    </div>\n                    <div>\n                      <label className={LABEL_CLS}>Headers (JSON, optional)</label>\n                      <input value={t.headers} onChange={e => updateTool(t.id, { headers: e.target.value })} placeholder='{\"Authorization\": \"Bearer token\"}' className={`${INPUT_CLS} font-mono text-xs`} />\n                    </div>\n                    {t.method !== 'GET' && (\n                      <div>\n                        <label className={LABEL_CLS}>Body template (optional, use {'{{input}}'})</label>\n                        <input value={t.bodyTemplate} onChange={e => updateTool(t.id, { bodyTemplate: e.target.value })} placeholder='{\"query\": \"{{input}}\"}' className={`${INPUT_CLS} font-mono text-xs`} />\n                      </div>\n                    )}\n                  </div>\n                )}\n\n                {t.type === 'mcp' && (\n                  <div className=\"grid grid-cols-2 gap-3\">\n                    <div>\n                      <label className={LABEL_CLS}>MCP endpoint URL</label>\n                      <input value={t.endpointUrl} onChange={e => updateTool(t.id, { endpointUrl: e.target.value })} placeholder=\"https://mcp.example.com\" className={INPUT_CLS} />\n                    </div>\n                    <div>\n                      <label className={LABEL_CLS}>Tool name on server</label>\n                      <input value={t.toolName} onChange={e => updateTool(t.id, { toolName: e.target.value })} placeholder=\"search\" className={INPUT_CLS} />\n                    </div>\n                  </div>\n                )}\n\n                {t.type === 'js' && (\n                  <div>\n                    <label className={LABEL_CLS}>JS function body — receives <code className=\"text-[var(--bb-cream)]\">input: string</code>, must return a value</label>\n                    <textarea rows={4} value={t.code} onChange={e => updateTool(t.id, { code: e.target.value })} className={`${INPUT_CLS} font-mono text-xs resize-none`} />\n                  </div>\n                )}\n              </div>\n            ))}\n          </div>\n\n          <div className=\"flex gap-2 mt-3\">\n            {(['http', 'mcp', 'js'] as ToolType[]).map(type => (\n              <button key={type} type=\"button\" onClick={() => addTool(type)}\n                className=\"btn-ghost text-xs\">\n                + {type.toUpperCase()} tool\n              </button>\n            ))}\n          </div>\n        </div>\n\n        {error && <p className=\"text-sm text-err font-mono\">{error}</p>}\n\n        <button type=\"submit\" disabled={loading || !isConnected}\n          className=\"btn-bracket-primary w-full justify-center disabled:opacity-50\">\n          {loading ? 'Deploying…' : isConnected ? 'Deploy agent' : 'Connect wallet to deploy'}\n        </button>\n      </form>\n    </div>\n  );\n}\n",
+                "path": "frontend/src/pages/DeployAgent.tsx"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "ToolResults",
+      "data": {
+        "message_id": "eac86d06-855d-4558-a02e-4422f417c785",
+        "content": [
+          {
+            "kind": "toolResult",
+            "data": {
+              "toolUseId": "tooluse_4f1gJfJpZJS9kbH7i6rKPK",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Successfully created /home/emperorsixpacks/GitHub/BlindBounty/frontend/src/pages/DeployAgent.tsx (249 lines)."
+                }
+              ],
+              "status": "success"
+            }
+          }
+        ],
+        "results": {
+          "tooluse_4f1gJfJpZJS9kbH7i6rKPK": {
+            "tool": {
+              "tool_use_purpose": "Update DeployAgent.tsx with tools builder UI",
+              "kind": {
+                "BuiltIn": {
+                  "FileWrite": {
+                    "command": "create",
+                    "path": "frontend/src/pages/DeployAgent.tsx",
+                    "content": "import { useState, useEffect } from 'react';\nimport { useNavigate } from 'react-router-dom';\nimport { useAccount, useWalletClient } from 'wagmi';\nimport { ConnectButton } from '@rainbow-me/rainbowkit';\nimport { SigningKey, hashMessage } from 'ethers';\n\nconst PROVIDERS = {\n  openai:    { label: 'OpenAI',    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'] },\n  anthropic: { label: 'Anthropic', models: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-haiku-20240307'] },\n  groq:      { label: 'Groq',      models: ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768'] },\n  gemini:    { label: 'Gemini',    models: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'] },\n} as const;\n\ntype Provider = keyof typeof PROVIDERS;\ntype ToolType = 'http' | 'mcp' | 'js';\n\ninterface ToolDraft {\n  id: string;\n  type: ToolType;\n  name: string;\n  description: string;\n  // http\n  url: string;\n  method: 'GET' | 'POST' | 'PUT' | 'DELETE';\n  headers: string; // JSON string\n  bodyTemplate: string;\n  // mcp\n  endpointUrl: string;\n  toolName: string;\n  // js\n  code: string;\n}\n\nfunction emptyTool(type: ToolType): ToolDraft {\n  return {\n    id: crypto.randomUUID(),\n    type,\n    name: '',\n    description: '',\n    url: '',\n    method: 'GET',\n    headers: '',\n    bodyTemplate: '',\n    endpointUrl: '',\n    toolName: '',\n    code: 'return input.toUpperCase();',\n  };\n}\n\nfunction toolDraftToPayload(t: ToolDraft) {\n  const base = { type: t.type, name: t.name, description: t.description };\n  if (t.type === 'http') return { ...base, url: t.url, method: t.method, headers: t.headers ? JSON.parse(t.headers) : undefined, bodyTemplate: t.bodyTemplate || undefined };\n  if (t.type === 'mcp') return { ...base, endpointUrl: t.endpointUrl, toolName: t.toolName };\n  return { ...base, code: t.code };\n}\n\nconst INPUT_CLS = 'w-full bg-surface-2 border border-line px-3 py-2 text-sm text-ink focus:outline-none focus:border-[var(--bb-cream)]';\nconst LABEL_CLS = 'block text-xs font-mono text-ink-3 mb-1 uppercase tracking-wider';\n\nexport default function DeployAgent() {\n  const { address, isConnected } = useAccount();\n  const { data: walletClient } = useWalletClient();\n  const navigate = useNavigate();\n\n  const [form, setForm] = useState({ name: '', instructions: '', provider: 'openai' as Provider, model: 'gpt-4o-mini', apiKey: '' });\n  const [tools, setTools] = useState<ToolDraft[]>([]);\n  const [loading, setLoading] = useState(false);\n  const [error, setError] = useState('');\n\n  useEffect(() => {\n    setForm(f => ({ ...f, model: PROVIDERS[f.provider].models[0] }));\n  }, [form.provider]);\n\n  function addTool(type: ToolType) { setTools(t => [...t, emptyTool(type)]); }\n  function removeTool(id: string) { setTools(t => t.filter(x => x.id !== id)); }\n  function updateTool(id: string, patch: Partial<ToolDraft>) {\n    setTools(t => t.map(x => x.id === id ? { ...x, ...patch } : x));\n  }\n\n  async function handleDeploy(e: React.FormEvent) {\n    e.preventDefault();\n    if (!isConnected || !address || !walletClient) { setError('Connect wallet first'); return; }\n    setLoading(true); setError('');\n    try {\n      const msg = 'BlindBounty: authorize agent deployment';\n      const sig = await walletClient.signMessage({ message: msg });\n      const publicKeyHex = SigningKey.recoverPublicKey(hashMessage(msg), sig);\n      const ownerPublicKey = publicKeyHex.startsWith('04') ? publicKeyHex : `04${publicKeyHex}`;\n\n      const res = await fetch('/api/v1/agents/deploy', {\n        method: 'POST',\n        headers: { 'Content-Type': 'application/json' },\n        body: JSON.stringify({ ...form, ownerAddress: address, ownerPublicKey, tools: tools.map(toolDraftToPayload) }),\n      });\n      const json = await res.json();\n      if (!json.success) throw new Error(json.error?.message ?? 'Deploy failed');\n      navigate('/agents');\n    } catch (err: unknown) {\n      setError((err as Error).message);\n    } finally {\n      setLoading(false);\n    }\n  }\n\n  return (\n    <div className=\"max-w-2xl mx-auto px-4 py-10\">\n      <h1 className=\"heading-display text-2xl mb-1\">Deploy an Agent</h1>\n      <p className=\"text-ink-3 mb-8 text-sm font-mono\">\n        Your agent picks up open tasks, calls your LLM with tools, and submits results automatically.\n      </p>\n\n      {!isConnected && <div className=\"mb-6\"><ConnectButton /></div>}\n\n      <form onSubmit={handleDeploy} className=\"space-y-6\">\n        {/* Basic config */}\n        <div>\n          <label className={LABEL_CLS}>Agent name</label>\n          <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder=\"My Research Agent\" className={INPUT_CLS} />\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>System instructions</label>\n          <textarea required rows={4} value={form.instructions} onChange={e => setForm(f => ({ ...f, instructions: e.target.value }))} placeholder=\"You are a research agent...\" className={`${INPUT_CLS} resize-none`} />\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>LLM provider</label>\n          <div className=\"grid grid-cols-4 gap-2\">\n            {(Object.keys(PROVIDERS) as Provider[]).map(p => (\n              <button key={p} type=\"button\" onClick={() => setForm(f => ({ ...f, provider: p }))}\n                className={`py-2 border text-xs font-mono font-semibold uppercase tracking-wider transition-colors ${form.provider === p ? 'border-[var(--bb-cream)] text-[var(--bb-cream)] bg-surface-2' : 'border-line text-ink-3 hover:border-line-2'}`}>\n                {PROVIDERS[p].label}\n              </button>\n            ))}\n          </div>\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>Model</label>\n          <select value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))} className={INPUT_CLS}>\n            {PROVIDERS[form.provider].models.map(m => <option key={m} value={m}>{m}</option>)}\n          </select>\n        </div>\n\n        <div>\n          <label className={LABEL_CLS}>{PROVIDERS[form.provider].label} API key</label>\n          <input required type=\"password\" value={form.apiKey} onChange={e => setForm(f => ({ ...f, apiKey: e.target.value }))} placeholder=\"sk-...\" className={`${INPUT_CLS} font-mono`} />\n          <p className=\"text-xs text-ink-3 mt-1 font-mono\">Encrypted with your wallet key before storage.</p>\n        </div>\n\n        {/* Tools builder */}\n        <div>\n          <div className=\"section-rule mb-4\">\n            <span className=\"section-num\">§</span> Tools\n          </div>\n\n          {tools.length === 0 && (\n            <p className=\"text-xs text-ink-3 font-mono mb-3\">No tools added. Agents can call HTTP endpoints, MCP servers, or run JS snippets.</p>\n          )}\n\n          <div className=\"space-y-4\">\n            {tools.map(t => (\n              <div key={t.id} className=\"card-dark p-4\">\n                <div className=\"flex items-center justify-between mb-3\">\n                  <span className=\"chip chip-neutral\">{t.type}</span>\n                  <button type=\"button\" onClick={() => removeTool(t.id)} className=\"text-xs text-err font-mono hover:underline\">remove</button>\n                </div>\n\n                <div className=\"grid grid-cols-2 gap-3 mb-3\">\n                  <div>\n                    <label className={LABEL_CLS}>Tool name</label>\n                    <input value={t.name} onChange={e => updateTool(t.id, { name: e.target.value })} placeholder=\"search_web\" className={INPUT_CLS} />\n                  </div>\n                  <div>\n                    <label className={LABEL_CLS}>Description</label>\n                    <input value={t.description} onChange={e => updateTool(t.id, { description: e.target.value })} placeholder=\"Search the web for information\" className={INPUT_CLS} />\n                  </div>\n                </div>\n\n                {t.type === 'http' && (\n                  <div className=\"space-y-3\">\n                    <div className=\"grid grid-cols-3 gap-3\">\n                      <div className=\"col-span-2\">\n                        <label className={LABEL_CLS}>URL</label>\n                        <input value={t.url} onChange={e => updateTool(t.id, { url: e.target.value })} placeholder=\"https://api.example.com/search?q={input}\" className={INPUT_CLS} />\n                      </div>\n                      <div>\n                        <label className={LABEL_CLS}>Method</label>\n                        <select value={t.method} onChange={e => updateTool(t.id, { method: e.target.value as any })} className={INPUT_CLS}>\n                          {['GET','POST','PUT','DELETE'].map(m => <option key={m}>{m}</option>)}\n                        </select>\n                      </div>\n                    </div>\n                    <div>\n                      <label className={LABEL_CLS}>Headers (JSON, optional)</label>\n                      <input value={t.headers} onChange={e => updateTool(t.id, { headers: e.target.value })} placeholder='{\"Authorization\": \"Bearer token\"}' className={`${INPUT_CLS} font-mono text-xs`} />\n                    </div>\n                    {t.method !== 'GET' && (\n                      <div>\n                        <label className={LABEL_CLS}>Body template (optional, use {'{{input}}'})</label>\n                        <input value={t.bodyTemplate} onChange={e => updateTool(t.id, { bodyTemplate: e.target.value })} placeholder='{\"query\": \"{{input}}\"}' className={`${INPUT_CLS} font-mono text-xs`} />\n                      </div>\n                    )}\n                  </div>\n                )}\n\n                {t.type === 'mcp' && (\n                  <div className=\"grid grid-cols-2 gap-3\">\n                    <div>\n                      <label className={LABEL_CLS}>MCP endpoint URL</label>\n                      <input value={t.endpointUrl} onChange={e => updateTool(t.id, { endpointUrl: e.target.value })} placeholder=\"https://mcp.example.com\" className={INPUT_CLS} />\n                    </div>\n                    <div>\n                      <label className={LABEL_CLS}>Tool name on server</label>\n                      <input value={t.toolName} onChange={e => updateTool(t.id, { toolName: e.target.value })} placeholder=\"search\" className={INPUT_CLS} />\n                    </div>\n                  </div>\n                )}\n\n                {t.type === 'js' && (\n                  <div>\n                    <label className={LABEL_CLS}>JS function body — receives <code className=\"text-[var(--bb-cream)]\">input: string</code>, must return a value</label>\n                    <textarea rows={4} value={t.code} onChange={e => updateTool(t.id, { code: e.target.value })} className={`${INPUT_CLS} font-mono text-xs resize-none`} />\n                  </div>\n                )}\n              </div>\n            ))}\n          </div>\n\n          <div className=\"flex gap-2 mt-3\">\n            {(['http', 'mcp', 'js'] as ToolType[]).map(type => (\n              <button key={type} type=\"button\" onClick={() => addTool(type)}\n                className=\"btn-ghost text-xs\">\n                + {type.toUpperCase()} tool\n              </button>\n            ))}\n          </div>\n        </div>\n\n        {error && <p className=\"text-sm text-err font-mono\">{error}</p>}\n\n        <button type=\"submit\" disabled={loading || !isConnected}\n          className=\"btn-bracket-primary w-full justify-center disabled:opacity-50\">\n          {loading ? 'Deploying…' : isConnected ? 'Deploy agent' : 'Connect wallet to deploy'}\n        </button>\n      </form>\n    </div>\n  );\n}\n"
+                  }
+                }
+              }
+            },
+            "result": {
+              "Success": {
+                "items": [
+                  {
+                    "Text": "Successfully created /home/emperorsixpacks/GitHub/BlindBounty/frontend/src/pages/DeployAgent.tsx (249 lines)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "08e3cde6-84f1-46a7-bbda-a34a76b71eff",
+        "content": [
+          {
+            "kind": "text",
+            "data": ""
+          },
+          {
+            "kind": "toolUse",
+            "data": {
+              "toolUseId": "tooluse_6wKRKuWJwcPa8ABDkNsb4H",
+              "name": "write",
+              "input": {
+                "__tool_use_purpose": "Update AgentMarketplace.tsx to show lastActiveAt heartbeat and tools count",
+                "command": "create",
+                "content": "import { useState, useEffect, useCallback } from 'react';\nimport { useNavigate } from 'react-router-dom';\nimport { useAccount } from 'wagmi';\n\ntype AgentStatus = 'stopped' | 'running' | 'paused';\n\ninterface DeployedAgent {\n  id: string;\n  ownerAddress: string;\n  name: string;\n  provider: string;\n  model: string;\n  capabilities: string[];\n  tools: { type: string; name: string }[];\n  status: AgentStatus;\n  deployedAt: string;\n  lastActiveAt?: string;\n}\n\nconst STATUS_DOT: Record<AgentStatus, string> = {\n  running: 'bg-[var(--bb-ok)] animate-pulse',\n  paused:  'bg-[var(--bb-warn)]',\n  stopped: 'bg-line-2',\n};\n\nfunction timeAgo(iso: string): string {\n  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);\n  if (s < 60) return `${s}s ago`;\n  if (s < 3600) return `${Math.floor(s / 60)}m ago`;\n  return `${Math.floor(s / 3600)}h ago`;\n}\n\nexport default function AgentMarketplace() {\n  const { address } = useAccount();\n  const navigate = useNavigate();\n  const [agents, setAgents] = useState<DeployedAgent[]>([]);\n  const [loading, setLoading] = useState(true);\n  const [busy, setBusy] = useState<string | null>(null);\n\n  const fetchAgents = useCallback(async () => {\n    try {\n      const res = await fetch('/api/v1/agents');\n      const json = await res.json();\n      if (json.success) setAgents(json.data);\n    } finally {\n      setLoading(false);\n    }\n  }, []);\n\n  useEffect(() => { fetchAgents(); }, [fetchAgents]);\n\n  async function action(id: string, verb: 'start' | 'pause' | 'stop') {\n    setBusy(`${id}:${verb}`);\n    try {\n      const res = await fetch(`/api/v1/agents/${id}/${verb}`, { method: 'POST' });\n      const json = await res.json();\n      if (json.success) setAgents(prev => prev.map(a => a.id === id ? { ...a, ...json.data } : a));\n    } finally {\n      setBusy(null);\n    }\n  }\n\n  return (\n    <div className=\"max-w-5xl mx-auto px-4 py-10\">\n      <div className=\"flex items-center justify-between mb-8\">\n        <div>\n          <h1 className=\"heading-display text-2xl\">Agent Marketplace</h1>\n          <p className=\"text-ink-3 text-sm font-mono mt-1\">All deployed agents on the network</p>\n        </div>\n        <button onClick={() => navigate('/agents/deploy')} className=\"btn-bracket-primary\">\n          + Deploy agent\n        </button>\n      </div>\n\n      {loading ? (\n        <div className=\"text-center py-20 text-ink-3 font-mono text-sm\">Loading agents…</div>\n      ) : agents.length === 0 ? (\n        <div className=\"text-center py-20\">\n          <p className=\"text-ink-3 font-mono text-sm mb-4\">No agents deployed yet.</p>\n          <button onClick={() => navigate('/agents/deploy')} className=\"btn-ghost\">Deploy the first one</button>\n        </div>\n      ) : (\n        <div className=\"grid gap-4 sm:grid-cols-2 lg:grid-cols-3\">\n          {agents.map(agent => {\n            const isOwner = address?.toLowerCase() === agent.ownerAddress?.toLowerCase();\n            const isBusy = busy?.startsWith(agent.id);\n            return (\n              <div key={agent.id} className=\"card-dark p-5 cursor-pointer hover:border-line-2 transition-colors\"\n                onClick={() => navigate(`/agents/${agent.id}`)}>\n\n                {/* Header */}\n                <div className=\"flex items-start justify-between mb-4\">\n                  <div className=\"flex items-center gap-3\">\n                    <div className=\"w-9 h-9 bg-surface-2 border border-line flex items-center justify-center font-mono font-bold text-sm text-ink-2\">\n                      {agent.name.slice(0, 2).toUpperCase()}\n                    </div>\n                    <div>\n                      <h3 className=\"font-semibold text-ink text-sm\">{agent.name}</h3>\n                      <p className=\"text-xs text-ink-3 font-mono mt-0.5\">{agent.provider} · {agent.model}</p>\n                    </div>\n                  </div>\n                  <div className=\"flex items-center gap-1.5\">\n                    <span className={`w-2 h-2 inline-block ${STATUS_DOT[agent.status]}`} />\n                    <span className=\"text-xs font-mono text-ink-3\">{agent.status}</span>\n                  </div>\n                </div>\n\n                {/* Meta row */}\n                <div className=\"flex items-center gap-3 mb-4 text-xs font-mono text-ink-3\">\n                  {agent.tools?.length > 0 && (\n                    <span className=\"chip chip-neutral\">{agent.tools.length} tool{agent.tools.length !== 1 ? 's' : ''}</span>\n                  )}\n                  {agent.capabilities?.length > 0 && (\n                    <span className=\"chip chip-neutral\">{agent.capabilities.length} cap</span>\n                  )}\n                  <span className=\"ml-auto\">\n                    {agent.lastActiveAt\n                      ? <span className=\"text-[var(--bb-ok)]\">active {timeAgo(agent.lastActiveAt)}</span>\n                      : <span>deployed {new Date(agent.deployedAt).toLocaleDateString()}</span>\n                    }\n                  </span>\n                </div>\n\n                {/* Tools preview */}\n                {agent.tools?.length > 0 && (\n                  <div className=\"flex flex-wrap gap-1 mb-4\">\n                    {agent.tools.slice(0, 4).map((t, i) => (\n                      <span key={i} className=\"chip chip-info\">{t.type}: {t.name}</span>\n                    ))}\n                    {agent.tools.length > 4 && <span className=\"chip chip-neutral\">+{agent.tools.length - 4}</span>}\n                  </div>\n                )}\n\n                {/* Owner controls */}\n                {isOwner && (\n                  <div className=\"flex gap-2\" onClick={e => e.stopPropagation()}>\n                    {agent.status !== 'running' && (\n                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'start')}\n                        className=\"flex-1 btn-ghost text-[var(--bb-ok)] border-[var(--bb-ok)]/30 hover:border-[var(--bb-ok)] text-xs py-1.5 disabled:opacity-50\">\n                        {busy === `${agent.id}:start` ? '…' : '▶ Start'}\n                      </button>\n                    )}\n                    {agent.status === 'running' && (\n                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'pause')}\n                        className=\"flex-1 btn-ghost text-[var(--bb-warn)] border-[var(--bb-warn)]/30 hover:border-[var(--bb-warn)] text-xs py-1.5 disabled:opacity-50\">\n                        {busy === `${agent.id}:pause` ? '…' : '⏸ Pause'}\n                      </button>\n                    )}\n                    {agent.status !== 'stopped' && (\n                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'stop')}\n                        className=\"flex-1 btn-ghost text-err border-err/30 hover:border-err text-xs py-1.5 disabled:opacity-50\">\n                        {busy === `${agent.id}:stop` ? '…' : '⏹ Stop'}\n                      </button>\n                    )}\n                  </div>\n                )}\n              </div>\n            );\n          })}\n        </div>\n      )}\n    </div>\n  );\n}\n",
+                "path": "frontend/src/pages/AgentMarketplace.tsx"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "ToolResults",
+      "data": {
+        "message_id": "e4b597e4-442a-4500-9502-99fbe92de2cb",
+        "content": [
+          {
+            "kind": "toolResult",
+            "data": {
+              "toolUseId": "tooluse_6wKRKuWJwcPa8ABDkNsb4H",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Successfully created /home/emperorsixpacks/GitHub/BlindBounty/frontend/src/pages/AgentMarketplace.tsx (164 lines)."
+                }
+              ],
+              "status": "success"
+            }
+          }
+        ],
+        "results": {
+          "tooluse_6wKRKuWJwcPa8ABDkNsb4H": {
+            "tool": {
+              "tool_use_purpose": "Update AgentMarketplace.tsx to show lastActiveAt heartbeat and tools count",
+              "kind": {
+                "BuiltIn": {
+                  "FileWrite": {
+                    "command": "create",
+                    "path": "frontend/src/pages/AgentMarketplace.tsx",
+                    "content": "import { useState, useEffect, useCallback } from 'react';\nimport { useNavigate } from 'react-router-dom';\nimport { useAccount } from 'wagmi';\n\ntype AgentStatus = 'stopped' | 'running' | 'paused';\n\ninterface DeployedAgent {\n  id: string;\n  ownerAddress: string;\n  name: string;\n  provider: string;\n  model: string;\n  capabilities: string[];\n  tools: { type: string; name: string }[];\n  status: AgentStatus;\n  deployedAt: string;\n  lastActiveAt?: string;\n}\n\nconst STATUS_DOT: Record<AgentStatus, string> = {\n  running: 'bg-[var(--bb-ok)] animate-pulse',\n  paused:  'bg-[var(--bb-warn)]',\n  stopped: 'bg-line-2',\n};\n\nfunction timeAgo(iso: string): string {\n  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);\n  if (s < 60) return `${s}s ago`;\n  if (s < 3600) return `${Math.floor(s / 60)}m ago`;\n  return `${Math.floor(s / 3600)}h ago`;\n}\n\nexport default function AgentMarketplace() {\n  const { address } = useAccount();\n  const navigate = useNavigate();\n  const [agents, setAgents] = useState<DeployedAgent[]>([]);\n  const [loading, setLoading] = useState(true);\n  const [busy, setBusy] = useState<string | null>(null);\n\n  const fetchAgents = useCallback(async () => {\n    try {\n      const res = await fetch('/api/v1/agents');\n      const json = await res.json();\n      if (json.success) setAgents(json.data);\n    } finally {\n      setLoading(false);\n    }\n  }, []);\n\n  useEffect(() => { fetchAgents(); }, [fetchAgents]);\n\n  async function action(id: string, verb: 'start' | 'pause' | 'stop') {\n    setBusy(`${id}:${verb}`);\n    try {\n      const res = await fetch(`/api/v1/agents/${id}/${verb}`, { method: 'POST' });\n      const json = await res.json();\n      if (json.success) setAgents(prev => prev.map(a => a.id === id ? { ...a, ...json.data } : a));\n    } finally {\n      setBusy(null);\n    }\n  }\n\n  return (\n    <div className=\"max-w-5xl mx-auto px-4 py-10\">\n      <div className=\"flex items-center justify-between mb-8\">\n        <div>\n          <h1 className=\"heading-display text-2xl\">Agent Marketplace</h1>\n          <p className=\"text-ink-3 text-sm font-mono mt-1\">All deployed agents on the network</p>\n        </div>\n        <button onClick={() => navigate('/agents/deploy')} className=\"btn-bracket-primary\">\n          + Deploy agent\n        </button>\n      </div>\n\n      {loading ? (\n        <div className=\"text-center py-20 text-ink-3 font-mono text-sm\">Loading agents…</div>\n      ) : agents.length === 0 ? (\n        <div className=\"text-center py-20\">\n          <p className=\"text-ink-3 font-mono text-sm mb-4\">No agents deployed yet.</p>\n          <button onClick={() => navigate('/agents/deploy')} className=\"btn-ghost\">Deploy the first one</button>\n        </div>\n      ) : (\n        <div className=\"grid gap-4 sm:grid-cols-2 lg:grid-cols-3\">\n          {agents.map(agent => {\n            const isOwner = address?.toLowerCase() === agent.ownerAddress?.toLowerCase();\n            const isBusy = busy?.startsWith(agent.id);\n            return (\n              <div key={agent.id} className=\"card-dark p-5 cursor-pointer hover:border-line-2 transition-colors\"\n                onClick={() => navigate(`/agents/${agent.id}`)}>\n\n                {/* Header */}\n                <div className=\"flex items-start justify-between mb-4\">\n                  <div className=\"flex items-center gap-3\">\n                    <div className=\"w-9 h-9 bg-surface-2 border border-line flex items-center justify-center font-mono font-bold text-sm text-ink-2\">\n                      {agent.name.slice(0, 2).toUpperCase()}\n                    </div>\n                    <div>\n                      <h3 className=\"font-semibold text-ink text-sm\">{agent.name}</h3>\n                      <p className=\"text-xs text-ink-3 font-mono mt-0.5\">{agent.provider} · {agent.model}</p>\n                    </div>\n                  </div>\n                  <div className=\"flex items-center gap-1.5\">\n                    <span className={`w-2 h-2 inline-block ${STATUS_DOT[agent.status]}`} />\n                    <span className=\"text-xs font-mono text-ink-3\">{agent.status}</span>\n                  </div>\n                </div>\n\n                {/* Meta row */}\n                <div className=\"flex items-center gap-3 mb-4 text-xs font-mono text-ink-3\">\n                  {agent.tools?.length > 0 && (\n                    <span className=\"chip chip-neutral\">{agent.tools.length} tool{agent.tools.length !== 1 ? 's' : ''}</span>\n                  )}\n                  {agent.capabilities?.length > 0 && (\n                    <span className=\"chip chip-neutral\">{agent.capabilities.length} cap</span>\n                  )}\n                  <span className=\"ml-auto\">\n                    {agent.lastActiveAt\n                      ? <span className=\"text-[var(--bb-ok)]\">active {timeAgo(agent.lastActiveAt)}</span>\n                      : <span>deployed {new Date(agent.deployedAt).toLocaleDateString()}</span>\n                    }\n                  </span>\n                </div>\n\n                {/* Tools preview */}\n                {agent.tools?.length > 0 && (\n                  <div className=\"flex flex-wrap gap-1 mb-4\">\n                    {agent.tools.slice(0, 4).map((t, i) => (\n                      <span key={i} className=\"chip chip-info\">{t.type}: {t.name}</span>\n                    ))}\n                    {agent.tools.length > 4 && <span className=\"chip chip-neutral\">+{agent.tools.length - 4}</span>}\n                  </div>\n                )}\n\n                {/* Owner controls */}\n                {isOwner && (\n                  <div className=\"flex gap-2\" onClick={e => e.stopPropagation()}>\n                    {agent.status !== 'running' && (\n                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'start')}\n                        className=\"flex-1 btn-ghost text-[var(--bb-ok)] border-[var(--bb-ok)]/30 hover:border-[var(--bb-ok)] text-xs py-1.5 disabled:opacity-50\">\n                        {busy === `${agent.id}:start` ? '…' : '▶ Start'}\n                      </button>\n                    )}\n                    {agent.status === 'running' && (\n                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'pause')}\n                        className=\"flex-1 btn-ghost text-[var(--bb-warn)] border-[var(--bb-warn)]/30 hover:border-[var(--bb-warn)] text-xs py-1.5 disabled:opacity-50\">\n                        {busy === `${agent.id}:pause` ? '…' : '⏸ Pause'}\n                      </button>\n                    )}\n                    {agent.status !== 'stopped' && (\n                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'stop')}\n                        className=\"flex-1 btn-ghost text-err border-err/30 hover:border-err text-xs py-1.5 disabled:opacity-50\">\n                        {busy === `${agent.id}:stop` ? '…' : '⏹ Stop'}\n                      </button>\n                    )}\n                  </div>\n                )}\n              </div>\n            );\n          })}\n        </div>\n      )}\n    </div>\n  );\n}\n"
+                  }
+                }
+              }
+            },
+            "result": {
+              "Success": {
+                "items": [
+                  {
+                    "Text": "Successfully created /home/emperorsixpacks/GitHub/BlindBounty/frontend/src/pages/AgentMarketplace.tsx (164 lines)."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "092e9e23-1541-41a4-b17e-342f6f1b77e2",
+        "content": [
+          {
+            "kind": "text",
+            "data": "Now verify the frontend builds:"
+          },
+          {
+            "kind": "toolUse",
+            "data": {
+              "toolUseId": "tooluse_thUydS1I76njZffRnizkg7",
+              "name": "shell",
+              "input": {
+                "__tool_use_purpose": "Type check frontend",
+                "command": "cd frontend && npx tsc --noEmit 2>&1 | head -30"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "ToolResults",
+      "data": {
+        "message_id": "84273fee-543b-485c-8db2-248accce90ba",
+        "content": [
+          {
+            "kind": "toolResult",
+            "data": {
+              "toolUseId": "tooluse_thUydS1I76njZffRnizkg7",
+              "content": [
+                {
+                  "kind": "text",
+                  "data": "Tool use was cancelled by the user"
+                }
+              ],
+              "status": "error"
+            }
+          }
+        ],
+        "results": {
+          "tooluse_thUydS1I76njZffRnizkg7": {
+            "tool": null,
+            "result": "Cancelled"
+          }
+        }
+      }
+    },
+    {
+      "version": "v1",
+      "kind": "AssistantMessage",
+      "data": {
+        "message_id": "5663a0f2-0622-4e0c-addf-8c8b2b518937",
         "content": [
           {
             "kind": "text",
