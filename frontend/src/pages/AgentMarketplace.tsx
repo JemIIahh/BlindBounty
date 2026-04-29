@@ -11,22 +11,31 @@ interface DeployedAgent {
   provider: string;
   model: string;
   capabilities: string[];
+  tools: { type: string; name: string }[];
   status: AgentStatus;
   deployedAt: string;
+  lastActiveAt?: string;
 }
 
-const STATUS_STYLES: Record<AgentStatus, string> = {
-  running: 'bg-green-900/40 text-green-400',
-  paused:  'bg-yellow-900/40 text-yellow-400',
-  stopped: 'bg-gray-800 text-gray-500',
+const STATUS_DOT: Record<AgentStatus, string> = {
+  running: 'bg-[var(--bb-ok)] animate-pulse',
+  paused:  'bg-[var(--bb-warn)]',
+  stopped: 'bg-line-2',
 };
+
+function timeAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+}
 
 export default function AgentMarketplace() {
   const { address } = useAccount();
   const navigate = useNavigate();
   const [agents, setAgents] = useState<DeployedAgent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -41,13 +50,13 @@ export default function AgentMarketplace() {
   useEffect(() => { fetchAgents(); }, [fetchAgents]);
 
   async function action(id: string, verb: 'start' | 'pause' | 'stop') {
-    setActionLoading(`${id}:${verb}`);
+    setBusy(`${id}:${verb}`);
     try {
       const res = await fetch(`/api/v1/agents/${id}/${verb}`, { method: 'POST' });
       const json = await res.json();
-      if (json.success) setAgents(prev => prev.map(a => a.id === id ? json.data : a));
+      if (json.success) setAgents(prev => prev.map(a => a.id === id ? { ...a, ...json.data } : a));
     } finally {
-      setActionLoading(null);
+      setBusy(null);
     }
   }
 
@@ -55,87 +64,92 @@ export default function AgentMarketplace() {
     <div className="max-w-5xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-white">Agent Marketplace</h1>
-          <p className="text-gray-400 text-sm mt-1">All deployed agents on the network</p>
+          <h1 className="heading-display text-2xl">Agent Marketplace</h1>
+          <p className="text-ink-3 text-sm font-mono mt-1">All deployed agents on the network</p>
         </div>
-        <button
-          onClick={() => navigate('/agents/deploy')}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
+        <button onClick={() => navigate('/agents/deploy')} className="btn-bracket-primary">
           + Deploy agent
         </button>
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-gray-500">Loading agents…</div>
+        <div className="text-center py-20 text-ink-3 font-mono text-sm">Loading agents…</div>
       ) : agents.length === 0 ? (
         <div className="text-center py-20">
-          <p className="text-gray-500 mb-4">No agents deployed yet.</p>
-          <button onClick={() => navigate('/agents/deploy')} className="text-blue-400 underline text-sm">
-            Deploy the first one
-          </button>
+          <p className="text-ink-3 font-mono text-sm mb-4">No agents deployed yet.</p>
+          <button onClick={() => navigate('/agents/deploy')} className="btn-ghost">Deploy the first one</button>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {agents.map(agent => {
             const isOwner = address?.toLowerCase() === agent.ownerAddress?.toLowerCase();
-            const busy = actionLoading?.startsWith(agent.id);
+            const isBusy = busy?.startsWith(agent.id);
             return (
-              <div
-                key={agent.id}
-                className="border border-gray-800 rounded-xl p-5 bg-gray-950 cursor-pointer hover:border-gray-600 hover:bg-gray-900 transition-all group"
-                onClick={() => navigate(`/agents/${agent.id}`)}
-              >
+              <div key={agent.id} className="card-dark p-5 cursor-pointer hover:border-line-2 transition-colors"
+                onClick={() => navigate(`/agents/${agent.id}`)}>
+
+                {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-blue-900/40 border border-blue-800/50 flex items-center justify-center text-blue-400 font-bold text-sm">
+                    <div className="w-9 h-9 bg-surface-2 border border-line flex items-center justify-center font-mono font-bold text-sm text-ink-2">
                       {agent.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white text-sm">{agent.name}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{agent.provider} · {agent.model}</p>
+                      <h3 className="font-semibold text-ink text-sm">{agent.name}</h3>
+                      <p className="text-xs text-ink-3 font-mono mt-0.5">{agent.provider} · {agent.model}</p>
                     </div>
                   </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${STATUS_STYLES[agent.status]}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      agent.status === 'running' ? 'bg-green-400 animate-pulse' :
-                      agent.status === 'paused' ? 'bg-yellow-400' : 'bg-gray-500'
-                    }`} />
-                    {agent.status}
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-2 h-2 inline-block ${STATUS_DOT[agent.status]}`} />
+                    <span className="text-xs font-mono text-ink-3">{agent.status}</span>
+                  </div>
+                </div>
+
+                {/* Meta row */}
+                <div className="flex items-center gap-3 mb-4 text-xs font-mono text-ink-3">
+                  {agent.tools?.length > 0 && (
+                    <span className="chip chip-neutral">{agent.tools.length} tool{agent.tools.length !== 1 ? 's' : ''}</span>
+                  )}
+                  {agent.capabilities?.length > 0 && (
+                    <span className="chip chip-neutral">{agent.capabilities.length} cap</span>
+                  )}
+                  <span className="ml-auto">
+                    {agent.lastActiveAt
+                      ? <span className="text-[var(--bb-ok)]">active {timeAgo(agent.lastActiveAt)}</span>
+                      : <span>deployed {new Date(agent.deployedAt).toLocaleDateString()}</span>
+                    }
                   </span>
                 </div>
 
-                <p className="text-xs text-gray-600 mb-4">
-                  Deployed {new Date(agent.deployedAt).toLocaleDateString()}
-                </p>
+                {/* Tools preview */}
+                {agent.tools?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-4">
+                    {agent.tools.slice(0, 4).map((t, i) => (
+                      <span key={i} className="chip chip-info">{t.type}: {t.name}</span>
+                    ))}
+                    {agent.tools.length > 4 && <span className="chip chip-neutral">+{agent.tools.length - 4}</span>}
+                  </div>
+                )}
 
+                {/* Owner controls */}
                 {isOwner && (
                   <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                     {agent.status !== 'running' && (
-                      <button
-                        disabled={!!busy}
-                        onClick={() => action(agent.id, 'start')}
-                        className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-green-900/30 text-green-400 hover:bg-green-900/50 disabled:opacity-50 transition-colors"
-                      >
-                        {actionLoading === `${agent.id}:start` ? '…' : '▶ Start'}
+                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'start')}
+                        className="flex-1 btn-ghost text-[var(--bb-ok)] border-[var(--bb-ok)]/30 hover:border-[var(--bb-ok)] text-xs py-1.5 disabled:opacity-50">
+                        {busy === `${agent.id}:start` ? '…' : '▶ Start'}
                       </button>
                     )}
                     {agent.status === 'running' && (
-                      <button
-                        disabled={!!busy}
-                        onClick={() => action(agent.id, 'pause')}
-                        className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 disabled:opacity-50 transition-colors"
-                      >
-                        {actionLoading === `${agent.id}:pause` ? '…' : '⏸ Pause'}
+                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'pause')}
+                        className="flex-1 btn-ghost text-[var(--bb-warn)] border-[var(--bb-warn)]/30 hover:border-[var(--bb-warn)] text-xs py-1.5 disabled:opacity-50">
+                        {busy === `${agent.id}:pause` ? '…' : '⏸ Pause'}
                       </button>
                     )}
                     {agent.status !== 'stopped' && (
-                      <button
-                        disabled={!!busy}
-                        onClick={() => action(agent.id, 'stop')}
-                        className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 disabled:opacity-50 transition-colors"
-                      >
-                        {actionLoading === `${agent.id}:stop` ? '…' : '⏹ Stop'}
+                      <button disabled={!!isBusy} onClick={() => action(agent.id, 'stop')}
+                        className="flex-1 btn-ghost text-err border-err/30 hover:border-err text-xs py-1.5 disabled:opacity-50">
+                        {busy === `${agent.id}:stop` ? '…' : '⏹ Stop'}
                       </button>
                     )}
                   </div>
