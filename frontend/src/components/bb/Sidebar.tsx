@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { LogoMark } from './LogoMark';
 
 const navGroups = [
@@ -51,14 +52,21 @@ export function Sidebar() {
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`block px-6 py-2 text-[13px] font-mono transition-colors duration-150 ${
-                    active
-                      ? 'text-ink border-l-2 border-cream bg-surface-2'
-                      : 'text-ink-2 hover:text-ink hover:bg-surface-2 border-l-2 border-transparent'
+                  className={`relative block px-6 py-2 text-[13px] font-mono transition-colors duration-150 ${
+                    active ? 'text-ink' : 'text-ink-2 hover:text-ink hover:bg-surface-2'
                   }`}
                 >
-                  {active && <span className="text-cream mr-1">&#9656;</span>}
-                  {item.label}
+                  {active && (
+                    <motion.span
+                      layoutId="sidebar-active"
+                      className="absolute inset-0 bg-surface-2 border-l-2 border-cream pointer-events-none"
+                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative flex items-center">
+                    {active && <span className="text-cream mr-1">&#9656;</span>}
+                    {item.label}
+                  </span>
                 </Link>
               );
             })}
