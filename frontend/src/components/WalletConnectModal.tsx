@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { useWallet } from '../context/WalletContext';
 import { useAuth } from '../context/AuthContext';
-import { ethers } from 'ethers';
-
 declare global {
   interface Window {
     phantom?: {
@@ -10,15 +8,6 @@ declare global {
     };
   }
 }
-
-const PROVIDERS = {
-  openai: { label: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'] },
-  anthropic: { label: 'Anthropic', models: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-haiku-20240307'] },
-  groq: { label: 'Groq', models: ['llama-3.3-70b-versatile', 'llama3-8b-8192', 'mixtral-8x7b-32768'] },
-  gemini: { label: 'Gemini', models: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'] },
-} as const;
-
-type Provider = keyof typeof PROVIDERS;
 
 interface WalletConnectModalProps {
   isOpen: boolean;

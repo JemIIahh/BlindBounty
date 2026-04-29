@@ -1,6 +1,5 @@
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
-import { mainnet, polygon, optimism, arbitrum } from 'wagmi/chains';
 import { defineChain } from 'viem';
 
 // Define 0G Galileo Testnet

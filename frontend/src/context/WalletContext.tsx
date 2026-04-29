@@ -26,7 +26,7 @@ function PrivyWalletProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
-  const [connecting, setConnecting] = useState(false);
+  const [connecting] = useState(false);
 
   // Only treat a wallet as "connected" when Privy says we're authenticated.
   // Without this gate, Privy's useWallets() can surface a page-level injected

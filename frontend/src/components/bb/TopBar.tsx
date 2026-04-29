@@ -5,7 +5,6 @@ import { LogoMark } from './LogoMark';
 import { Button } from './Button';
 
 export function TopBar() {
-  const [copied, setCopied] = useState(false);
   const [currentTheme, setCurrentTheme] = useState('light');
 
   // Initialize theme on component mount
@@ -14,17 +13,6 @@ export function TopBar() {
     document.documentElement.setAttribute('data-theme', savedTheme);
     setCurrentTheme(savedTheme);
   }, []);
-
-  const copyAddress = async () => {
-    if (!address) return;
-    try {
-      await navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      // clipboard blocked (iframe, insecure context) — silently ignore
-    }
-  };
 
   const toggleTheme = () => {
     const current = document.documentElement.getAttribute('data-theme') || 'light';
