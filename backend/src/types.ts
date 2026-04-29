@@ -228,6 +228,11 @@ export interface DeployedAgent {
   status: AgentStatus;
   deployedAt: string;
   storageRef?: string;
+  // On-chain identity — generated at deploy time
+  walletAddress: string;        // Ethereum address derived from keypair
+  publicKey: string;            // Uncompressed secp256k1 pubkey (hex)
+  encryptedPrivateKey: string;  // ECIES-encrypted with owner's pubkey (hex) — never returned in normal responses
+  inftTokenId?: number;         // ERC-7857 token ID (undefined if INFT contract not configured)
 }
 
 export interface TaskForensicRequirement {

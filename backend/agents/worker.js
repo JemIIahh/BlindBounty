@@ -74,7 +74,8 @@ async function submitResult(taskId, result) {
 }
 
 function log(msg) {
-  console.log(`[agent:${AGENT_ID.slice(0, 8)}] ${msg}`);
+  const dim = '\x1b[2m', cyan = '\x1b[36m', reset = '\x1b[0m';
+  console.log(`${dim}[agent:${cyan}${AGENT_ID.slice(0, 8)}${reset}${dim}]${reset} ${msg}`);
 }
 
 setInterval(pollAndWork, POLL_INTERVAL_MS);

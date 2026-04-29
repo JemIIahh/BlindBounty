@@ -67,16 +67,13 @@ function PrivyWalletProvider({ children }: { children: ReactNode }) {
    *   (c) authenticated + wallet already linked — nothing to do.
    */
   const connect = useCallback(async () => {
-    setConnecting(true);
-    try {
-      if (!authenticated) {
-        login();
-      } else if (!wallet) {
-        // Cached Privy session but no active wallet: open the wallet picker.
-        connectWallet();
-      }
-    } finally {
-      setConnecting(false);
+    console.log('Connect called, authenticated:', authenticated, 'wallet:', !!wallet);
+    if (!authenticated) {
+      console.log('Calling login...');
+      login();
+    } else if (!wallet) {
+      console.log('Calling connectWallet...');
+      connectWallet();
     }
   }, [authenticated, wallet, login, connectWallet]);
 

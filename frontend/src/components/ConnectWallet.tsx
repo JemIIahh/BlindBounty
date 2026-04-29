@@ -6,7 +6,7 @@ export function ConnectWallet() {
   const { address, connecting, connect, disconnect } = useWallet();
   const { isAuthenticated, authenticating, login } = useAuth();
 
-  // State 1: Not connected — show Connect button (opens Privy modal)
+  // State 1: Not connected — show Connect button
   if (!isAuthenticated) {
     return (
       <button

@@ -30,6 +30,7 @@ export const config = {
   blindEscrowAddress: required('BLIND_ESCROW_ADDRESS'),
   taskRegistryAddress: required('TASK_REGISTRY_ADDRESS'),
   blindReputationAddress: required('BLIND_REPUTATION_ADDRESS'),
+  inftAddress: process.env.INFT_ADDRESS || '',
 
   // Auth
   jwtSecret,

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWallet } from '../context/WalletContext';
+import { useAccount, useWalletClient } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { SigningKey, hashMessage } from 'ethers';
 
 const PROVIDERS = {
   openai:    { label: 'OpenAI',    models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo'] },
@@ -12,7 +14,8 @@ const PROVIDERS = {
 type Provider = keyof typeof PROVIDERS;
 
 export default function DeployAgent() {
-  const { address, connect } = useWallet();
+  const { address, isConnected } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -31,14 +34,27 @@ export default function DeployAgent() {
 
   async function handleDeploy(e: React.FormEvent) {
     e.preventDefault();
-    if (!address) { connect(); return; }
+    if (!isConnected || !address) { 
+      setError('Please connect your wallet first');
+      return; 
+    }
     setLoading(true);
     setError('');
     try {
+      // Derive the owner's real secp256k1 public key by recovering it from a signature
+      if (!walletClient) throw new Error('Wallet client not ready');
+      const msg = 'BlindBounty: authorize agent deployment';
+      const sig = await walletClient.signMessage({ message: msg });
+      const publicKeyHex = SigningKey.recoverPublicKey(hashMessage(msg), sig).slice(2); // remove 0x04 prefix? No — keep full uncompressed
+
       const res = await fetch('/api/v1/agents/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, ownerAddress: address }),
+        body: JSON.stringify({ 
+          ...form, 
+          ownerAddress: address,
+          ownerPublicKey: publicKeyHex.startsWith('04') ? publicKeyHex : `04${publicKeyHex}`,
+        }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error?.message ?? 'Deploy failed');
@@ -57,10 +73,10 @@ export default function DeployAgent() {
         Your agent will pick up open tasks, call your LLM, and submit results automatically.
       </p>
 
-      {!address && (
+      {!isConnected && (
         <div className="mb-6 p-4 bg-yellow-900/30 border border-yellow-700 rounded-lg text-sm text-yellow-300">
           Connect your wallet first.{' '}
-          <button onClick={connect} className="underline font-medium">Connect</button>
+          <ConnectButton />
         </div>
       )}
 
@@ -140,10 +156,10 @@ export default function DeployAgent() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !isConnected}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
         >
-          {loading ? 'Deploying…' : address ? 'Deploy agent' : 'Connect wallet to deploy'}
+          {loading ? 'Deploying…' : isConnected ? 'Deploy agent' : 'Connect wallet to deploy'}
         </button>
       </form>
     </div>

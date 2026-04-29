@@ -1,12 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useWallet } from '../../context/WalletContext';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { LogoMark } from './LogoMark';
 import { Button } from './Button';
 
 export function TopBar() {
-  const { address, connect, disconnect, connecting } = useWallet();
   const [copied, setCopied] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState('light');
+
+  // Initialize theme on component mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('bb.theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    setCurrentTheme(savedTheme);
+  }, []);
 
   const copyAddress = async () => {
     if (!address) return;
@@ -20,15 +27,13 @@ export function TopBar() {
   };
 
   const toggleTheme = () => {
-    const current = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
+    const current = document.documentElement.getAttribute('data-theme') || 'light';
+    const next = current === 'light' ? 'dark' : 'light';
+    console.log('Theme toggle:', current, '->', next);
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('bb.theme', next);
+    setCurrentTheme(next);
   };
-
-  const currentTheme = typeof document !== 'undefined'
-    ? document.documentElement.getAttribute('data-theme') || 'dark'
-    : 'dark';
 
   return (
     <header className="h-16 border-b border-line bg-surface flex items-center px-6 gap-4">
@@ -71,45 +76,15 @@ export function TopBar() {
         className="flex items-center border border-line text-xs font-mono"
       >
         <span className={`px-3 py-2 ${currentTheme === 'light' ? 'text-ink' : 'text-ink-3'}`}>
-          ◌ light
+          {currentTheme === 'light' ? '●' : '◌'} light
         </span>
         <span className={`px-3 py-2 border-l border-line ${currentTheme === 'dark' ? 'text-ink' : 'text-ink-3'}`}>
-          ● dark
+          {currentTheme === 'dark' ? '●' : '◌'} dark
         </span>
       </button>
 
-      {/* Wallet — right. Address click = copy. Disconnect is its own button. */}
-      {address ? (
-        <div className="flex items-center border border-line text-xs font-mono">
-          <button
-            onClick={copyAddress}
-            title={copied ? 'copied!' : `click to copy ${address}`}
-            className="flex items-center gap-2 px-3 py-2 text-ink-2 hover:bg-surface-2 transition-colors"
-          >
-            <span className="w-1.5 h-1.5 bg-ok inline-block" />
-            <span>{address.slice(0, 6)}…{address.slice(-4)}</span>
-            <span className="text-[10px] text-ink-3">
-              {copied ? '✓ copied' : '⧉'}
-            </span>
-          </button>
-          <button
-            onClick={disconnect}
-            title="disconnect wallet"
-            aria-label="disconnect wallet"
-            className="px-2.5 py-2 border-l border-line text-ink-3 hover:text-err hover:bg-surface-2 transition-colors"
-          >
-            ×
-          </button>
-        </div>
-      ) : (
-        <Button
-          variant="outline"
-          label={connecting ? 'connecting…' : 'connect_wallet'}
-          size="sm"
-          onClick={connect}
-          disabled={connecting}
-        />
-      )}
+      {/* Wallet — right */}
+      <ConnectButton />
     </header>
   );
 }

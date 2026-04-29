@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { config } from './config.js';
 import { globalErrorHandler } from './middleware/errorHandler.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
+import { requestLogger } from './middleware/requestLogger.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { tasksRouter } from './routes/tasks.js';
@@ -34,6 +35,9 @@ app.use(createRateLimiter());
 
 // Body parsing
 app.use(express.json({ limit: '15mb' }));
+
+// Request logging
+app.use(requestLogger);
 
 // Routes
 app.use('/health', healthRouter);

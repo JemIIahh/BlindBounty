@@ -11,14 +11,19 @@
   "dependencies": {
     "@blindbounty/sdk": "file:../sdk",
     "@privy-io/react-auth": "^3.22.1",
-    "@tanstack/react-query": "^5.91.3",
+    "@rainbow-me/rainbowkit": "^2.2.10",
+    "@tanstack/react-query": "^5.100.5",
+    "@web3modal/siwe": "^5.1.11",
     "clsx": "^2.1.1",
     "ethers": "^6.13.5",
     "framer-motion": "^11.18.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.28.0",
-    "tailwind-merge": "^2.6.0"
+    "secp256k1": "^5.0.1",
+    "tailwind-merge": "^2.6.0",
+    "viem": "^2.47.4",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.9",

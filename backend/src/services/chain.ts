@@ -14,10 +14,20 @@ function loadAbi(name: string): ethers.InterfaceAbi {
 /** Read-only JSON-RPC provider for 0G Chain */
 export const provider = new ethers.JsonRpcProvider(config.ogRpcUrl, config.ogChainId);
 
+/** Signing wallet for backend-initiated transactions (e.g. INFT mint) */
+export const signer = config.ogStoragePrivateKey
+  ? new ethers.Wallet(config.ogStoragePrivateKey, provider)
+  : null;
+
 /** Read-only contract instances */
 export const escrow = new ethers.Contract(config.blindEscrowAddress, loadAbi('BlindEscrow'), provider);
 export const registry = new ethers.Contract(config.taskRegistryAddress, loadAbi('TaskRegistry'), provider);
 export const reputation = new ethers.Contract(config.blindReputationAddress, loadAbi('BlindReputation'), provider);
+
+/** INFT contract — write-capable when signer is available */
+export const inft = config.inftAddress
+  ? new ethers.Contract(config.inftAddress, loadAbi('INFT'), signer ?? provider)
+  : null;
 
 /** Encode an unsigned transaction for a contract call (frontend signs) */
 export async function buildUnsignedTx(

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -21,12 +21,55 @@ const STATUS_STYLES: Record<AgentStatus, string> = {
   stopped: 'bg-gray-100 text-gray-500',
 }
 
+function AgentLogsPanel({ agent, onClose }: { agent: DeployedAgent; onClose: () => void }) {
+  const [lines, setLines] = useState<string[]>([])
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setLines([])
+    const es = new EventSource(`/api/v1/agents/${agent.id}/logs`)
+    es.onmessage = (e) => {
+      const line: string = JSON.parse(e.data)
+      setLines(prev => [...prev.slice(-199), line])
+    }
+    return () => es.close()
+  }, [agent.id])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [lines])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-2xl bg-gray-950 rounded-xl flex flex-col" style={{ maxHeight: '70vh' }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+          <div>
+            <span className="text-white font-semibold text-sm">{agent.name}</span>
+            <span className="ml-2 text-gray-400 text-xs">logs</span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-lg leading-none">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 font-mono text-xs text-green-400 space-y-0.5">
+          {lines.length === 0
+            ? <span className="text-gray-500">No logs yet. Start the agent to see output.</span>
+            : lines.map((l, i) => (
+                <div key={i} className={l.startsWith('[err]') ? 'text-red-400' : ''}>{l}</div>
+              ))
+          }
+          <div ref={bottomRef} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function AgentMarketplace() {
   const { walletAddress } = useAuth()
   const navigate = useNavigate()
   const [agents, setAgents] = useState<DeployedAgent[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [logsAgent, setLogsAgent] = useState<DeployedAgent | null>(null)
 
   const fetchAgents = useCallback(async () => {
     try {
@@ -55,6 +98,7 @@ export function AgentMarketplace() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
+      {logsAgent && <AgentLogsPanel agent={logsAgent} onClose={() => setLogsAgent(null)} />}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Agent Marketplace</h1>
@@ -113,6 +157,13 @@ export function AgentMarketplace() {
                 <p className="text-xs text-gray-400 mb-4">
                   Deployed {new Date(agent.deployedAt).toLocaleDateString()}
                 </p>
+
+                <button
+                  onClick={() => setLogsAgent(agent)}
+                  className="w-full text-xs font-medium py-1.5 rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors mb-2"
+                >
+                  View logs
+                </button>
 
                 {isOwner && (
                   <div className="flex gap-2">

@@ -273,6 +273,7 @@
     <div id="root"></div>
 
     <!-- Main Application Script -->
+    <script>window.global = window; window.process = window.process || { env: {} };</script>
     <script type="module" src="/src/main.tsx"></script>
 
     <!-- Service Worker Registration -->

@@ -83,7 +83,15 @@ async function main() {
   console.log("  BlindEscrow.allowToken(MockERC20)...");
   await (await escrow.allowToken(usdcAddr)).wait();
 
-  // 6. Mint test USDC to deployer (1,000,000 USDC = 1e12 with 6 decimals)
+  // 6. Deploy INFT (ERC-7857) — deployer is the minter, deployer acts as oracle for now
+  console.log("\n--- Deploying INFT (ERC-7857) ---");
+  const INFT = await ethers.getContractFactory("INFT");
+  const inft = await INFT.deploy(deployer.address); // deployer as oracle placeholder
+  await inft.waitForDeployment();
+  const inftAddr = await inft.getAddress();
+  console.log("INFT:", inftAddr);
+
+  // 7. Mint test USDC to deployer (1,000,000 USDC = 1e12 with 6 decimals)
   console.log("\n--- Minting 1,000,000 test USDC to deployer ---");
   await (await usdc.mint(deployer.address, 1_000_000n * 10n ** 6n)).wait();
   console.log("Done.");
@@ -99,6 +107,7 @@ async function main() {
       BlindReputation: repAddr,
       TaskRegistry: regAddr,
       BlindEscrow: escrowAddr,
+      INFT: inftAddr,
     },
   };
 

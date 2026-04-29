@@ -3,8 +3,58 @@
 @tailwind utilities;
 
 @layer base {
+  /* Theme variables */
+  [data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-surface: #ffffff;
+    --text-primary: #111827;
+    --text-secondary: #374151;
+    --border-color: #d1d5db;
+    --accent-color: #10b981;
+    --bb-surface: #ffffff;
+    --bb-line: #e5e7eb;
+    --bb-ink: #111827;
+    --bb-ink-2: #374151;
+    --bb-ink-3: #6b7280;
+    --bb-cream: #f59e0b;
+    --bb-surface-2: #f9fafb;
+    --bb-ok: #10b981;
+    --bb-err: #ef4444;
+  }
+
+  [data-theme="dark"] {
+    --bg-primary: #0a0a0a;
+    --bg-surface: #111111;
+    --text-primary: #e5e5e5;
+    --text-secondary: #a3a3a3;
+    --border-color: #262626;
+    --accent-color: #10b981;
+    --bb-surface: #111111;
+    --bb-line: #262626;
+    --bb-ink: #e5e5e5;
+    --bb-ink-2: #a3a3a3;
+    --bb-ink-3: #737373;
+    --bb-cream: #f59e0b;
+    --bb-surface-2: #171717;
+    --bb-ok: #10b981;
+    --bb-err: #ef4444;
+  }
+
   body {
-    @apply bg-[#0d0d0d] text-neutral-300 antialiased;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    @apply antialiased;
+  }
+
+  /* Force background on all major containers */
+  html, body, #root {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+  }
+
+  /* Override any hardcoded dark backgrounds */
+  * {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
   }
 
   ::selection {
@@ -19,20 +69,88 @@
     @apply bg-transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-neutral-700 rounded-full;
+    background-color: var(--border-color);
+    @apply rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-neutral-600;
+    background-color: var(--text-secondary);
   }
 }
 
 @layer components {
-  /* Glassmorphic dark cards */
+  /* Theme-aware utility classes */
+  .bg-surface { background-color: var(--bb-surface); }
+  .bg-bg { background-color: var(--bg-primary); }
+  .border-line { border-color: var(--bb-line); }
+  .text-ink { color: var(--bb-ink); }
+  .text-ink-2 { color: var(--bb-ink-2); }
+  .text-ink-3 { color: var(--bb-ink-3); }
+  .bg-surface-2 { background-color: var(--bb-surface-2); }
+  .bg-ok { background-color: var(--bb-ok); }
+  .text-err { color: var(--bb-err); }
+  .hover\\:text-err:hover { color: var(--bb-err); }
+  .hover\\:bg-surface-2:hover { background-color: var(--bb-surface-2); }
+  .hover\\:border-line:hover { border-color: var(--bb-line); }
+  .hover\\:text-ink-2:hover { color: var(--bb-ink-2); }
+
+  /* Override Tailwind classes with theme variables */
+  .bg-neutral-900, .bg-gray-900, .bg-slate-900, .bg-zinc-900 { background-color: var(--bb-surface) !important; }
+  .bg-neutral-800, .bg-gray-800, .bg-slate-800, .bg-zinc-800 { background-color: var(--bb-surface-2) !important; }
+  .bg-neutral-700, .bg-gray-700, .bg-slate-700, .bg-zinc-700 { background-color: var(--bb-surface-2) !important; }
+  .text-neutral-300, .text-gray-300, .text-slate-300, .text-zinc-300 { color: var(--bb-ink) !important; }
+  .text-neutral-400, .text-gray-400, .text-slate-400, .text-zinc-400 { color: var(--bb-ink-2) !important; }
+  .text-neutral-500, .text-gray-500, .text-slate-500, .text-zinc-500 { color: var(--bb-ink-3) !important; }
+  .text-white { color: var(--bb-ink) !important; }
+  .border-neutral-800, .border-gray-800, .border-slate-800, .border-zinc-800 { border-color: var(--bb-line) !important; }
+  .border-neutral-700, .border-gray-700, .border-slate-700, .border-zinc-700 { border-color: var(--bb-line) !important; }
+  
+  /* Override any element with dark background */
+  [class*="bg-neutral-9"], [class*="bg-gray-9"], [class*="bg-slate-9"], [class*="bg-zinc-9"],
+  [class*="bg-neutral-8"], [class*="bg-gray-8"], [class*="bg-slate-8"], [class*="bg-zinc-8"] {
+    background-color: var(--bb-surface) !important;
+  }
+
+  /* Nuclear option - override any dark background */
+  aside, header, nav, .sidebar, .topbar, .navbar {
+    background-color: var(--bb-surface) !important;
+    color: var(--bb-ink) !important;
+  }
+
+  /* Force all fixed/absolute positioned elements */
+  .fixed, .absolute {
+    background-color: var(--bb-surface) !important;
+  }
+
+  /* Form inputs and textareas */
+  input, textarea, select {
+    background-color: var(--bb-surface-2) !important;
+    color: var(--bb-ink) !important;
+    border-color: var(--bb-line) !important;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--accent-color) !important;
+    outline: none !important;
+  }
+
+  /* Override any hardcoded dark colors */
+  [style*="background-color: rgb(31, 41, 55)"],
+  [style*="background-color: rgb(17, 24, 39)"],
+  [style*="background-color: rgb(13, 13, 13)"],
+  [style*="background: rgb(31, 41, 55)"],
+  [style*="background: rgb(17, 24, 39)"],
+  [style*="background: rgb(13, 13, 13)"] {
+    background-color: var(--bb-surface) !important;
+  }
+
+  /* Glassmorphic cards that adapt to theme */
   .card-dark {
-    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-xl transition-all duration-300;
+    background-color: var(--bb-surface-2);
+    border: 1px solid var(--bb-line);
+    @apply backdrop-blur-xl rounded-xl transition-all duration-300;
   }
   .card-dark:hover {
-    @apply border-white/[0.1];
+    border-color: var(--bb-ink-3);
   }
 
   /* Ghost button (Octant style) */

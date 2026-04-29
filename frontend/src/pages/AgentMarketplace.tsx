@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWallet } from '../context/WalletContext';
+import { useAccount } from 'wagmi';
 
 type AgentStatus = 'stopped' | 'running' | 'paused';
 
@@ -22,7 +22,7 @@ const STATUS_STYLES: Record<AgentStatus, string> = {
 };
 
 export default function AgentMarketplace() {
-  const { address } = useWallet();
+  const { address } = useAccount();
   const navigate = useNavigate();
   const [agents, setAgents] = useState<DeployedAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,13 +81,26 @@ export default function AgentMarketplace() {
             const isOwner = address?.toLowerCase() === agent.ownerAddress?.toLowerCase();
             const busy = actionLoading?.startsWith(agent.id);
             return (
-              <div key={agent.id} className="border border-gray-700 rounded-xl p-5 bg-gray-900">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-white text-sm">{agent.name}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{agent.provider} · {agent.model}</p>
+              <div
+                key={agent.id}
+                className="border border-gray-800 rounded-xl p-5 bg-gray-950 cursor-pointer hover:border-gray-600 hover:bg-gray-900 transition-all group"
+                onClick={() => navigate(`/agents/${agent.id}`)}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-blue-900/40 border border-blue-800/50 flex items-center justify-center text-blue-400 font-bold text-sm">
+                      {agent.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white text-sm">{agent.name}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{agent.provider} · {agent.model}</p>
+                    </div>
                   </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[agent.status]}`}>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 ${STATUS_STYLES[agent.status]}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      agent.status === 'running' ? 'bg-green-400 animate-pulse' :
+                      agent.status === 'paused' ? 'bg-yellow-400' : 'bg-gray-500'
+                    }`} />
                     {agent.status}
                   </span>
                 </div>
@@ -97,14 +110,14 @@ export default function AgentMarketplace() {
                 </p>
 
                 {isOwner && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                     {agent.status !== 'running' && (
                       <button
                         disabled={!!busy}
                         onClick={() => action(agent.id, 'start')}
                         className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-green-900/30 text-green-400 hover:bg-green-900/50 disabled:opacity-50 transition-colors"
                       >
-                        {actionLoading === `${agent.id}:start` ? '…' : 'Start'}
+                        {actionLoading === `${agent.id}:start` ? '…' : '▶ Start'}
                       </button>
                     )}
                     {agent.status === 'running' && (
@@ -113,7 +126,7 @@ export default function AgentMarketplace() {
                         onClick={() => action(agent.id, 'pause')}
                         className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 disabled:opacity-50 transition-colors"
                       >
-                        {actionLoading === `${agent.id}:pause` ? '…' : 'Pause'}
+                        {actionLoading === `${agent.id}:pause` ? '…' : '⏸ Pause'}
                       </button>
                     )}
                     {agent.status !== 'stopped' && (
@@ -122,7 +135,7 @@ export default function AgentMarketplace() {
                         onClick={() => action(agent.id, 'stop')}
                         className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 disabled:opacity-50 transition-colors"
                       >
-                        {actionLoading === `${agent.id}:stop` ? '…' : 'Stop'}
+                        {actionLoading === `${agent.id}:stop` ? '…' : '⏹ Stop'}
                       </button>
                     )}
                   </div>
