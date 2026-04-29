@@ -204,6 +204,38 @@ export interface ForensicValidation {
 
 export type TaskForensicCategory = 'physical_presence' | 'location_based' | 'creative' | 'general';
 
+// ── Agent Tool types ─────────────────────────────────────────────────────────
+
+/** HTTP tool — agent calls an external REST endpoint */
+export interface HttpAgentTool {
+  type: 'http';
+  name: string;           // tool name exposed to the LLM
+  description: string;
+  url: string;            // endpoint URL (may include {param} placeholders)
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  bodyTemplate?: string;  // JSON template with {{param}} substitutions
+}
+
+/** MCP tool — agent connects to a Model Context Protocol server */
+export interface McpAgentTool {
+  type: 'mcp';
+  name: string;
+  description: string;
+  endpointUrl: string;    // MCP server URL
+  toolName: string;       // specific tool on the MCP server to invoke
+}
+
+/** JS eval tool — agent runs a sandboxed JS snippet (Node vm module) */
+export interface JsAgentTool {
+  type: 'js';
+  name: string;
+  description: string;
+  code: string;           // JS function body: receives (input: string) => string
+}
+
+export type AgentTool = HttpAgentTool | McpAgentTool | JsAgentTool;
+
 // ── Deployed Agent types ─────────────────────────────────────────────────────
 
 export type AgentStatus = 'stopped' | 'running' | 'paused';
@@ -223,16 +255,19 @@ export interface DeployedAgent {
   instructions: string;
   provider: LLMProvider;
   model: string;
-  apiKey: string; // plaintext for local dev; encrypt at rest in prod
+  apiKey: string;           // ECIES-encrypted at rest; plaintext only in worker env
+  encryptedApiKey: string;  // ECIES blob encrypted to owner pubkey
   capabilities: AgentCapability[];
+  tools: AgentTool[];       // custom tools the agent can call
   status: AgentStatus;
   deployedAt: string;
+  lastActiveAt?: string;    // updated on each heartbeat from worker
   storageRef?: string;
   // On-chain identity — generated at deploy time
-  walletAddress: string;        // Ethereum address derived from keypair
-  publicKey: string;            // Uncompressed secp256k1 pubkey (hex)
-  encryptedPrivateKey: string;  // ECIES-encrypted with owner's pubkey (hex) — never returned in normal responses
-  inftTokenId?: number;         // ERC-7857 token ID (undefined if INFT contract not configured)
+  walletAddress: string;
+  publicKey: string;
+  encryptedPrivateKey: string;
+  inftTokenId?: number;
 }
 
 export interface TaskForensicRequirement {

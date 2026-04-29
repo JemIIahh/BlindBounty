@@ -2,19 +2,38 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { AGENT_CAPABILITIES, LLM_PROVIDER_MODELS } from '../types.js';
 import {
-  deployAgent,
-  startAgent,
-  pauseAgent,
-  stopAgent,
-  getAgent,
-  listAgents,
-  getAgentLogs,
-  subscribeAgentLogs,
+  deployAgent, startAgent, pauseAgent, stopAgent,
+  getAgent, listAgents, getAgentLogs, subscribeAgentLogs,
 } from '../services/agentRunner.js';
 
 export const agentsRouter = Router();
 
 const PROVIDERS = Object.keys(LLM_PROVIDER_MODELS) as [string, ...string[]];
+
+const ToolSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('http'),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    url: z.string().url(),
+    method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
+    headers: z.record(z.string()).optional(),
+    bodyTemplate: z.string().optional(),
+  }),
+  z.object({
+    type: z.literal('mcp'),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    endpointUrl: z.string().url(),
+    toolName: z.string().min(1),
+  }),
+  z.object({
+    type: z.literal('js'),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    code: z.string().min(1),
+  }),
+]);
 
 const DeploySchema = z.object({
   ownerAddress: z.string().min(1),
@@ -25,10 +44,17 @@ const DeploySchema = z.object({
   model: z.string().min(1),
   apiKey: z.string().min(1),
   capabilities: z.array(z.string()).default([]),
+  tools: z.array(ToolSchema).default([]),
   storageRef: z.string().optional(),
 });
 
-// GET /api/v1/agents/providers — list supported providers + models
+function strip(agent: Awaited<ReturnType<typeof getAgent>>) {
+  if (!agent) return null;
+  const { encryptedPrivateKey: _a, encryptedApiKey: _b, apiKey: _c, ...safe } = agent;
+  return safe;
+}
+
+// GET /api/v1/agents/providers
 agentsRouter.get('/providers', (_req, res) => {
   res.json({ success: true, data: LLM_PROVIDER_MODELS });
 });
@@ -36,25 +62,20 @@ agentsRouter.get('/providers', (_req, res) => {
 // POST /api/v1/agents/deploy
 agentsRouter.post('/deploy', async (req, res) => {
   const parsed = DeploySchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ success: false, error: parsed.error.flatten() });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ success: false, error: parsed.error.flatten() }); return; }
   const agent = await deployAgent(parsed.data as Parameters<typeof deployAgent>[0]);
-  // Never return encryptedPrivateKey in the deploy response — use /export-key for that
-  const { encryptedPrivateKey: _omit, ...safe } = agent;
-  res.status(201).json({ success: true, data: safe });
+  res.status(201).json({ success: true, data: strip(agent) });
 });
 
 // GET /api/v1/agents
-agentsRouter.get('/', (req, res) => {
+agentsRouter.get('/', async (req, res) => {
   const owner = req.query.owner as string | undefined;
-  const agents = listAgents(owner).map(({ encryptedPrivateKey: _omit, ...safe }) => safe);
+  const agents = (await listAgents(owner)).map(strip);
   res.json({ success: true, data: agents });
 });
 
-// GET /api/v1/agents/:id/logs — SSE stream of agent logs (must be before /:id)
-agentsRouter.get('/:id/logs', (req, res) => {
+// GET /api/v1/agents/:id/logs — SSE stream
+agentsRouter.get('/:id/logs', async (req, res) => {
   const { id } = req.params;
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -62,82 +83,64 @@ agentsRouter.get('/:id/logs', (req, res) => {
   res.flushHeaders();
 
   // Send buffered history first
-  getAgentLogs(id).forEach(line => res.write(`data: ${JSON.stringify(line)}\n\n`));
+  const history = await getAgentLogs(id);
+  history.forEach(line => res.write(`data: ${JSON.stringify(line)}\n\n`));
 
-  // Then stream live
-  const unsub = subscribeAgentLogs(id, line => res.write(`data: ${JSON.stringify(line)}\n\n`));
-  req.on('close', unsub);
+  // Stream live via Redis pub/sub
+  const unsub = await subscribeAgentLogs(id, line => res.write(`data: ${JSON.stringify(line)}\n\n`));
+  req.on('close', () => unsub());
 });
 
-// GET /api/v1/agents/:id/wallet — public identity (address + pubkey, no private key)
-agentsRouter.get('/:id/wallet', (req, res) => {
-  const agent = getAgent(req.params.id);
+// GET /api/v1/agents/:id/wallet
+agentsRouter.get('/:id/wallet', async (req, res) => {
+  const agent = await getAgent(req.params.id);
   if (!agent) { res.status(404).json({ success: false, error: 'Not found' }); return; }
-  res.json({
-    success: true,
-    data: { walletAddress: agent.walletAddress, publicKey: agent.publicKey },
-  });
+  res.json({ success: true, data: { walletAddress: agent.walletAddress, publicKey: agent.publicKey } });
 });
 
-// POST /api/v1/agents/:id/export-key — return ECIES-encrypted private key to owner
-// The blob is already encrypted to the owner's pubkey — only they can decrypt it
-agentsRouter.post('/:id/export-key', (req, res) => {
-  const agent = getAgent(req.params.id);
+// POST /api/v1/agents/:id/export-key
+agentsRouter.post('/:id/export-key', async (req, res) => {
+  const agent = await getAgent(req.params.id);
   if (!agent) { res.status(404).json({ success: false, error: 'Not found' }); return; }
-
-  // Caller must prove they are the owner by providing the ownerAddress
   const { ownerAddress } = req.body as { ownerAddress?: string };
   if (!ownerAddress || ownerAddress.toLowerCase() !== agent.ownerAddress.toLowerCase()) {
-    res.status(403).json({ success: false, error: 'Forbidden' });
-    return;
+    res.status(403).json({ success: false, error: 'Forbidden' }); return;
   }
-
-  res.json({
-    success: true,
-    data: {
-      agentId: agent.id,
-      walletAddress: agent.walletAddress,
-      encryptedPrivateKey: agent.encryptedPrivateKey, // ECIES blob — only owner can decrypt
-    },
-  });
+  res.json({ success: true, data: { agentId: agent.id, walletAddress: agent.walletAddress, encryptedPrivateKey: agent.encryptedPrivateKey } });
 });
 
 // GET /api/v1/agents/:id
-agentsRouter.get('/:id', (req, res) => {
-  const agent = getAgent(req.params.id);
+agentsRouter.get('/:id', async (req, res) => {
+  const agent = await getAgent(req.params.id);
   if (!agent) { res.status(404).json({ success: false, error: 'Not found' }); return; }
-  const { encryptedPrivateKey: _omit, ...safe } = agent;
-  res.json({ success: true, data: safe });
+  res.json({ success: true, data: strip(agent) });
 });
 
 // POST /api/v1/agents/:id/start
-agentsRouter.post('/:id/start', (req, res) => {
+agentsRouter.post('/:id/start', async (req, res) => {
   try {
-    startAgent(req.params.id);
-    const { encryptedPrivateKey: _omit, ...safe } = getAgent(req.params.id)!;
-    res.json({ success: true, data: safe });
+    await startAgent(req.params.id);
+    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
   } catch (e: unknown) {
     res.status(400).json({ success: false, error: (e as Error).message });
   }
 });
 
 // POST /api/v1/agents/:id/pause
-agentsRouter.post('/:id/pause', (req, res) => {
+agentsRouter.post('/:id/pause', async (req, res) => {
   try {
-    pauseAgent(req.params.id);
-    const { encryptedPrivateKey: _omit, ...safe } = getAgent(req.params.id)!;
-    res.json({ success: true, data: safe });
+    await pauseAgent(req.params.id);
+    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
   } catch (e: unknown) {
     res.status(400).json({ success: false, error: (e as Error).message });
   }
 });
 
 // POST /api/v1/agents/:id/stop
-agentsRouter.post('/:id/stop', (req, res) => {
+agentsRouter.post('/:id/stop', async (req, res) => {
   try {
-    stopAgent(req.params.id);
-    const { encryptedPrivateKey: _omit, ...safe } = getAgent(req.params.id)!;
-    res.json({ success: true, data: safe });
+    await stopAgent(req.params.id);
+    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
   } catch (e: unknown) {
     res.status(400).json({ success: false, error: (e as Error).message });
   }

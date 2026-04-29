@@ -5,69 +5,65 @@ import { join, dirname } from 'path';
 import { Wallet } from 'ethers';
 import { eciesEncrypt, generateKeyPair } from './crypto.js';
 import { inft } from './chain.js';
-import type { DeployedAgent, AgentCapability, AgentStatus, LLMProvider } from '../types.js';
+import {
+  saveAgent, loadAgent, loadAllAgents,
+  appendLog, getLogs, subscribeAgentLogs as redisSubscribe,
+  touchHeartbeat,
+} from './redis.js';
+import type { DeployedAgent, AgentCapability, AgentStatus, LLMProvider, AgentTool } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKER_PATH = join(__dirname, '../../agents/worker.js');
 
-// In-memory store (swap for DB in prod)
-const agents = new Map<string, DeployedAgent>();
+// Running child processes (in-memory only — processes don't survive restarts)
 const processes = new Map<string, ChildProcess>();
 
-// Log ring buffer (last 200 lines per agent)
-const LOG_LIMIT = 200;
-const logBuffers = new Map<string, string[]>();
-const logSubscribers = new Map<string, Set<(line: string) => void>>();
+// ── Logs ─────────────────────────────────────────────────────────────────────
 
-function appendLog(id: string, line: string) {
-  if (!logBuffers.has(id)) logBuffers.set(id, []);
-  const buf = logBuffers.get(id)!;
-  buf.push(line);
-  if (buf.length > LOG_LIMIT) buf.shift();
-  logSubscribers.get(id)?.forEach(cb => cb(line));
+export async function getAgentLogs(id: string): Promise<string[]> {
+  return getLogs(id);
 }
 
-export function getAgentLogs(id: string): string[] {
-  return logBuffers.get(id) ?? [];
+export async function subscribeAgentLogs(
+  id: string,
+  cb: (line: string) => void,
+): Promise<() => void> {
+  return redisSubscribe(id, cb);
 }
 
-export function subscribeAgentLogs(id: string, cb: (line: string) => void): () => void {
-  if (!logSubscribers.has(id)) logSubscribers.set(id, new Set());
-  logSubscribers.get(id)!.add(cb);
-  return () => logSubscribers.get(id)?.delete(cb);
-}
+// ── Deploy ────────────────────────────────────────────────────────────────────
 
 export async function deployAgent(params: {
   ownerAddress: string;
-  ownerPublicKey: string; // uncompressed secp256k1 hex — used to ECIES-encrypt the agent's private key
+  ownerPublicKey: string;
   name: string;
   instructions: string;
   provider: LLMProvider;
   model: string;
   apiKey: string;
   capabilities: AgentCapability[];
+  tools?: AgentTool[];
   storageRef?: string;
 }): Promise<DeployedAgent> {
-  // Generate a fresh secp256k1 keypair for this agent's on-chain identity
   const { privateKey, publicKey } = generateKeyPair();
-  // Derive Ethereum address from the private key
   const walletAddress = new Wallet(`0x${privateKey}`).address;
-  // ECIES-encrypt the private key to the owner's pubkey — only they can recover it
+
   const encryptedPrivateKey = eciesEncrypt(
     Buffer.from(privateKey, 'hex'),
     params.ownerPublicKey,
   ).toString('hex');
 
-  // Mint an INFT for this agent (ERC-7857)
-  // encryptedURI is empty at mint time — set after agent metadata is uploaded to 0G Storage
-  // metadataHash is keccak256 of the agent's public identity
+  const encryptedApiKey = eciesEncrypt(
+    Buffer.from(params.apiKey, 'utf8'),
+    params.ownerPublicKey,
+  ).toString('hex');
+
   let inftTokenId: number | undefined;
   if (inft) {
     try {
       const metadataHash = `0x${createHash('sha256').update(walletAddress + publicKey).digest('hex')}` as `0x${string}`;
       const tx = await (inft as any).mint(params.ownerAddress, '', metadataHash);
       const receipt = await tx.wait();
-      // INFTMinted event: tokenId is first indexed arg
       const event = receipt?.logs?.find((l: any) => {
         try { return (inft as any).interface.parseLog(l)?.name === 'INFTMinted'; } catch { return false; }
       });
@@ -79,25 +75,36 @@ export async function deployAgent(params: {
     }
   }
 
-  const { ownerPublicKey: _omit, ...rest } = params;
   const agent: DeployedAgent = {
     id: randomUUID(),
+    ownerAddress: params.ownerAddress,
+    name: params.name,
+    instructions: params.instructions,
+    provider: params.provider,
+    model: params.model,
+    apiKey: params.apiKey,       // kept in memory for worker env; not persisted to Redis
+    encryptedApiKey,
+    capabilities: params.capabilities,
+    tools: params.tools ?? [],
     status: 'stopped',
     deployedAt: new Date().toISOString(),
     walletAddress,
     publicKey,
     encryptedPrivateKey,
     inftTokenId,
-    ...rest,
+    storageRef: params.storageRef,
   };
-  agents.set(agent.id, agent);
+
+  await saveAgent(agent);
   return agent;
 }
 
-export function startAgent(id: string): void {
-  const agent = agents.get(id);
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
+
+export async function startAgent(id: string): Promise<void> {
+  const agent = await loadAgent(id);
   if (!agent) throw new Error(`Agent ${id} not found`);
-  if (processes.has(id)) return; // already running
+  if (processes.has(id)) return;
 
   const child = fork(WORKER_PATH, [], {
     env: {
@@ -108,8 +115,9 @@ export function startAgent(id: string): void {
       AGENT_PROVIDER: agent.provider,
       AGENT_MODEL: agent.model,
       AGENT_API_KEY: agent.apiKey,
+      AGENT_TOOLS: JSON.stringify(agent.tools ?? []),
     },
-    silent: true, // capture stdout/stderr
+    silent: true,
   });
 
   child.stdout?.on('data', (chunk: Buffer) => {
@@ -119,39 +127,51 @@ export function startAgent(id: string): void {
     chunk.toString().split('\n').filter(Boolean).forEach(line => appendLog(id, `[err] ${line}`));
   });
 
-  child.on('exit', () => {
+  child.on('message', async (msg: unknown) => {
+    if (typeof msg === 'object' && msg !== null && (msg as any).type === 'heartbeat') {
+      await touchHeartbeat(id);
+      const a = await loadAgent(id);
+      if (a) {
+        a.lastActiveAt = new Date().toISOString();
+        await saveAgent(a);
+      }
+    }
+  });
+
+  child.on('exit', async () => {
     processes.delete(id);
-    const a = agents.get(id);
-    if (a && a.status === 'running') a.status = 'stopped';
+    const a = await loadAgent(id);
+    if (a && a.status === 'running') {
+      a.status = 'stopped';
+      await saveAgent(a);
+    }
   });
 
   processes.set(id, child);
   agent.status = 'running';
+  await saveAgent(agent);
 }
 
-export function pauseAgent(id: string): void {
+export async function pauseAgent(id: string): Promise<void> {
   const child = processes.get(id);
   if (!child) throw new Error(`Agent ${id} is not running`);
   child.kill('SIGSTOP');
-  const agent = agents.get(id)!;
-  agent.status = 'paused';
+  const agent = await loadAgent(id);
+  if (agent) { agent.status = 'paused'; await saveAgent(agent); }
 }
 
-export function stopAgent(id: string): void {
+export async function stopAgent(id: string): Promise<void> {
   const child = processes.get(id);
-  if (child) {
-    child.kill('SIGTERM');
-    processes.delete(id);
-  }
-  const agent = agents.get(id);
-  if (agent) agent.status = 'stopped';
+  if (child) { child.kill('SIGTERM'); processes.delete(id); }
+  const agent = await loadAgent(id);
+  if (agent) { agent.status = 'stopped'; await saveAgent(agent); }
 }
 
-export function getAgent(id: string): DeployedAgent | undefined {
-  return agents.get(id);
+export async function getAgent(id: string): Promise<DeployedAgent | undefined> {
+  return (await loadAgent(id)) ?? undefined;
 }
 
-export function listAgents(ownerAddress?: string): DeployedAgent[] {
-  const all = Array.from(agents.values());
-  return ownerAddress ? all.filter((a) => a.ownerAddress === ownerAddress) : all;
+export async function listAgents(ownerAddress?: string): Promise<DeployedAgent[]> {
+  const all = await loadAllAgents();
+  return ownerAddress ? all.filter(a => a.ownerAddress === ownerAddress) : all;
 }
