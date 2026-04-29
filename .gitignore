@@ -32,3 +32,4 @@ backend/data/
 
 # Git worktrees
 .worktrees/
+kiro.json
