@@ -1,0 +1,108 @@
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useAccount, useSignMessage } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+
+type State = 'loading' | 'ready' | 'signing' | 'done' | 'error';
+
+export default function RegisterAgent() {
+  const { token } = useParams<{ token: string }>();
+  const { address, isConnected } = useAccount();
+  const { signMessageAsync } = useSignMessage();
+
+  const [session, setSession] = useState<{ agentName: string; agentWallet: string } | null>(null);
+  const [state, setState] = useState<State>('loading');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`/api/v1/registration/session/${token}`)
+      .then(r => r.json())
+      .then(body => {
+        if (!body.success) throw new Error(body.error?.message || 'Session not found');
+        if (body.data.status === 'confirmed') { setState('done'); return; }
+        setSession(body.data);
+        setState('ready');
+      })
+      .catch(e => { setError(e.message); setState('error'); });
+  }, [token]);
+
+  const handleSign = async () => {
+    if (!address || !token || !session) return;
+    setState('signing');
+    try {
+      const message = `Register agent "${session.agentName}" (${session.agentWallet}) to BlindBounty.\n\nToken: ${token}`;
+      const signature = await signMessageAsync({ message });
+      const res = await fetch(`/api/v1/registration/confirm/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerAddress: address, signature }),
+      });
+      const body = await res.json();
+      if (!body.success) throw new Error(body.error?.message || 'Confirmation failed');
+      setState('done');
+    } catch (e) {
+      setError((e as Error).message);
+      setState('error');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4">
+      <div className="max-w-md w-full border border-line bg-surface p-8 space-y-6">
+        <div className="text-[11px] font-mono text-ink-3 uppercase tracking-widest">blindbounty · agent registration</div>
+
+        {state === 'loading' && <p className="text-sm font-mono text-ink-3">loading session…</p>}
+
+        {state === 'error' && (
+          <div className="space-y-2">
+            <p className="text-sm font-mono text-err">error: {error}</p>
+            <p className="text-xs font-mono text-ink-3">this link may have expired. run <code className="text-cream">blind register</code> again.</p>
+          </div>
+        )}
+
+        {state === 'done' && (
+          <div className="space-y-2">
+            <p className="text-sm font-mono text-ok">✓ agent registered</p>
+            <p className="text-xs font-mono text-ink-3">your CLI has received the API key. you can close this tab.</p>
+          </div>
+        )}
+
+        {(state === 'ready' || state === 'signing') && session && (
+          <div className="space-y-5">
+            <div className="space-y-1">
+              <p className="text-lg font-mono font-bold text-ink">Register agent</p>
+              <p className="text-xs font-mono text-ink-3">sign once to tie this agent to your wallet</p>
+            </div>
+
+            <div className="bg-surface-2 border border-line p-4 space-y-2 text-xs font-mono">
+              <div className="flex justify-between">
+                <span className="text-ink-3">agent_name</span>
+                <span className="text-ink">{session.agentName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-ink-3">agent_wallet</span>
+                <span className="text-ink">{session.agentWallet.slice(0, 10)}…{session.agentWallet.slice(-6)}</span>
+              </div>
+            </div>
+
+            {!isConnected ? (
+              <div className="space-y-2">
+                <p className="text-xs font-mono text-ink-3">connect your wallet to continue</p>
+                <ConnectButton />
+              </div>
+            ) : (
+              <button
+                onClick={handleSign}
+                disabled={state === 'signing'}
+                className="w-full px-4 py-3 bg-cream text-bg font-mono text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {state === 'signing' ? 'signing…' : '[ sign to register agent ]'}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

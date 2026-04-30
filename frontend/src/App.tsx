@@ -19,6 +19,7 @@ import HowItWorks from './pages/HowItWorks';
 import Earnings from './pages/Earnings';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
+import RegisterAgent from './pages/RegisterAgent';
 import DeployAgent from './pages/DeployAgent';
 import AgentDetail from './pages/AgentDetail';
 import AgentMarketplace from './pages/AgentMarketplace';
@@ -72,6 +73,7 @@ export default function App() {
               <AuthProvider>
                 <Routes>
                   <Route path="/" element={<Landing />} />
+                  <Route path="/register/:token" element={<RegisterAgent />} />
                   <Route element={<DashboardLayout />}>
                     <Route path="/how-it-works" element={<HowItWorks />} />
                     <Route path="/tasks" element={<TaskFeed />} />
