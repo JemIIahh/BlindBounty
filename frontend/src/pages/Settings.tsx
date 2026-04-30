@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAccount } from 'wagmi';
 import {
   Breadcrumb,
   PageHeader,
@@ -8,7 +9,6 @@ import {
   FormField,
 } from '../components/bb';
 import { useWallet } from '../context/WalletContext';
-import { useAuth } from '../context/AuthContext';
 import { useReputation } from '../hooks/useReputation';
 import { OG_CHAIN_ID } from '../config/constants';
 
@@ -30,9 +30,9 @@ function saveBool(key: string, v: boolean) {
 }
 
 export default function Settings() {
-  const { address, chainId, isCorrectChain, switchChain } = useWallet();
-  const { isAuthenticated } = useAuth();
-  const { data: reputation } = useReputation(address);
+  const { chainId, isCorrectChain, switchChain } = useWallet();
+  const { address, isConnected } = useAccount();
+  const { data: reputation } = useReputation(address ?? null);
 
   const [notifyPayouts, setNotifyPayouts] = useState(() => loadBool(NOTIF_KEYS.payout, true));
   const [notifyAssignments, setNotifyAssignments] = useState(() => loadBool(NOTIF_KEYS.assignment, true));
@@ -65,7 +65,7 @@ export default function Settings() {
             <FormField label="wallet_address">
               <div className="px-3 py-2.5 bg-surface-2 border border-line text-ink-3 text-sm font-mono flex items-center gap-2">
                 <span>{walletDisplay}</span>
-                {isAuthenticated ? <Tag tone="ok">connected</Tag> : <Tag tone="warn">disconnected</Tag>}
+                {isConnected ? <Tag tone="ok">connected</Tag> : <Tag tone="warn">disconnected</Tag>}
               </div>
             </FormField>
 
@@ -143,7 +143,7 @@ export default function Settings() {
 
             <div className="space-y-2">
               {[
-                { label: 'wallet', value: isAuthenticated ? '● connected' : '○ disconnected', color: isAuthenticated ? 'text-ok' : 'text-ink-3' },
+                { label: 'wallet', value: isConnected ? '● connected' : '○ disconnected', color: isConnected ? 'text-ok' : 'text-ink-3' },
                 { label: 'chain_id', value: chainId != null ? String(chainId) : '—', color: isCorrectChain ? 'text-ok' : 'text-warn' },
                 { label: 'rpc', value: 'evmrpc-testnet.0g.ai', color: 'text-ink-3' },
               ].map((item) => (
