@@ -4,18 +4,14 @@ import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import * as escrowService from '../services/escrow.js';
 import * as registryService from '../services/registry.js';
-import type { AuthRequest, ApiResponse, Application, AgentCapability, ExecutorType, VerificationMode } from '../types.js';
+import type { AuthRequest, ApiResponse, AgentCapability } from '../types.js';
 import { AGENT_CAPABILITIES } from '../types.js';
 import * as a2aStore from '../services/a2aStore.js';
 import { randomUUID } from 'crypto';
 import * as accountingService from '../services/accountingService.js';
+import { getDb } from '../services/database.js';
 
 export const tasksRouter = Router();
-
-// In-memory applications store (backed by JSON file in production)
-const applications: Application[] = [];
-const MAX_APPLICATIONS = 10_000;
-const MAX_APPLICATIONS_PER_TASK = 100;
 
 // --- Schemas ---
 const createTaskSchema = z.object({
@@ -186,40 +182,15 @@ tasksRouter.post('/:id/apply', requireAuth, async (req: AuthRequest, res, next) 
     const taskId = req.params.id as string;
     const { message } = applySchema.parse(req.body);
     const applicant = req.user!.address;
+    const db = getDb();
 
-    // Global cap to prevent unbounded memory growth
-    if (applications.length >= MAX_APPLICATIONS) {
-      throw new AppError(429, 'TOO_MANY_REQUESTS', 'Application limit reached');
-    }
+    const existing = db.prepare('SELECT id FROM applications WHERE task_id = ? AND applicant = ?').get(taskId, applicant);
+    if (existing) throw new AppError(409, 'ALREADY_APPLIED', 'Already applied to this task');
 
-    // Check for duplicate application
-    const existing = applications.find(
-      (a) => a.taskId === taskId && a.applicant === applicant,
-    );
-    if (existing) {
-      throw new AppError(409, 'ALREADY_APPLIED', 'Already applied to this task');
-    }
+    const id = randomUUID();
+    db.prepare('INSERT INTO applications (id, task_id, applicant, message) VALUES (?, ?, ?, ?)').run(id, taskId, applicant, message ?? null);
 
-    // Per-task cap
-    const taskAppCount = applications.filter((a) => a.taskId === taskId).length;
-    if (taskAppCount >= MAX_APPLICATIONS_PER_TASK) {
-      throw new AppError(429, 'TASK_FULL', 'This task has reached its application limit');
-    }
-
-    const application: Application = {
-      id: randomUUID(),
-      taskId,
-      applicant,
-      message,
-      createdAt: new Date().toISOString(),
-    };
-    applications.push(application);
-
-    const body: ApiResponse = {
-      success: true,
-      data: { application_id: application.id },
-    };
-    res.status(201).json(body);
+    res.status(201).json({ success: true, data: { application_id: id } } satisfies ApiResponse);
   } catch (err) {
     next(err);
   }
@@ -232,13 +203,9 @@ tasksRouter.post('/:id/apply', requireAuth, async (req: AuthRequest, res, next) 
 tasksRouter.get('/:id/applications', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const taskId = req.params.id;
-    const taskApps = applications.filter((a) => a.taskId === taskId);
-
-    const body: ApiResponse = {
-      success: true,
-      data: { applications: taskApps },
-    };
-    res.json(body);
+    const db = getDb();
+    const taskApps = db.prepare('SELECT * FROM applications WHERE task_id = ? ORDER BY created_at ASC').all(taskId);
+    res.json({ success: true, data: { applications: taskApps } } satisfies ApiResponse);
   } catch (err) {
     next(err);
   }

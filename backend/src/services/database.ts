@@ -119,6 +119,22 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_tx_created ON transactions(created_at);
     `,
   },
+  {
+    id: 5,
+    name: 'applications',
+    sql: `
+      CREATE TABLE IF NOT EXISTS applications (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        applicant TEXT NOT NULL,
+        message TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(task_id, applicant)
+      );
+      CREATE INDEX IF NOT EXISTS idx_applications_task ON applications(task_id);
+      CREATE INDEX IF NOT EXISTS idx_applications_applicant ON applications(applicant);
+    `,
+  },
 ];
 
 function runMigrations(database: Database.Database): void {
