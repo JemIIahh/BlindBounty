@@ -114,7 +114,6 @@ export default function AgentDashboard() {
         category,
         locationZone: locationZone || 'global',
         duration,
-        ...(targetExecutor ? { targetExecutorType: 'agent' as const } : {}),
       });
       const receipt = await txSend.mutateAsync(unsignedTx);
 
@@ -221,16 +220,6 @@ export default function AgentDashboard() {
                 />
               </FormField>
             </div>
-
-            <SectionRule num="02" title="a2a options" />
-
-            <FormField label="target_executor" hint="leave blank for open marketplace">
-              <FormInput
-                placeholder="0x... or agent card url"
-                value={targetExecutor}
-                onChange={(e) => setTargetExecutor(e.target.value)}
-              />
-            </FormField>
 
             {/* Sealed payload preview */}
             <div>

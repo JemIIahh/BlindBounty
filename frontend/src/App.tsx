@@ -16,7 +16,6 @@ import AgentDashboard from './pages/AgentDashboard';
 import WorkerView from './pages/WorkerView';
 import VerificationStatus from './pages/VerificationStatus';
 import HowItWorks from './pages/HowItWorks';
-import A2ADashboard from './pages/A2ADashboard';
 import Earnings from './pages/Earnings';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
@@ -80,7 +79,6 @@ export default function App() {
                     <Route path="/agent" element={<AgentDashboard />} />
                     <Route path="/worker" element={<WorkerView />} />
                     <Route path="/verification" element={<VerificationStatus />} />
-                    <Route path="/a2a" element={<A2ADashboard />} />
                     <Route path="/earnings" element={<Earnings />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/agents" element={<AgentMarketplace />} />
