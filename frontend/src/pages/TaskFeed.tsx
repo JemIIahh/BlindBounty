@@ -13,8 +13,8 @@ function formatBounty(amountWei: string): string {
     const frac = Number(n % 10n ** 18n) / 1e18;
     const total = Number(whole) + frac;
     return total >= 1
-      ? `${total.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-      : total.toFixed(4);
+      ? `$${total.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC`
+      : `$${total.toFixed(4)} USDC`;
   } catch {
     return amountWei;
   }
