@@ -33,3 +33,9 @@ backend/data/
 # Git worktrees
 .worktrees/
 kiro.json
+
+# Design system zip (use design_handoff_blindbounty/ instead)
+BlindBounty Design System.zip
+
+# TypeScript incremental build cache
+*.tsbuildinfo

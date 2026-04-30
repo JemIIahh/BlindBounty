@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { LogoMark } from './LogoMark';
 import { Button } from './Button';
+
+function shortenAddress(addr: string) {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
 
 export function TopBar() {
   const [currentTheme, setCurrentTheme] = useState('light');
 
-  // Initialize theme on component mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('bb.theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -17,42 +19,13 @@ export function TopBar() {
   const toggleTheme = () => {
     const current = document.documentElement.getAttribute('data-theme') || 'light';
     const next = current === 'light' ? 'dark' : 'light';
-    console.log('Theme toggle:', current, '->', next);
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('bb.theme', next);
     setCurrentTheme(next);
   };
 
   return (
-    <header className="h-16 border-b border-line bg-surface flex items-center px-6 gap-4">
-      {/* Logo — left */}
-      <Link to="/" className="flex items-center gap-2 mr-4">
-        <LogoMark size={22} blade="var(--bb-cream)" slit="var(--bb-surface)" />
-        <span className="text-sm font-mono font-bold text-ink uppercase tracking-wider">blindbounty</span>
-      </Link>
-
-      {/* Primary nav — center/left */}
-      <div className="flex-1 flex items-center gap-1 text-xs font-mono">
-        <Link
-          to="/tasks"
-          className="px-3 py-2 text-ink-3 hover:text-ink-2 border border-transparent hover:border-line transition-colors"
-        >
-          tasks
-        </Link>
-        <Link
-          to="/worker"
-          className="px-3 py-2 text-ink-3 hover:text-ink-2 border border-transparent hover:border-line transition-colors"
-        >
-          worker
-        </Link>
-        <Link
-          to="/verification"
-          className="px-3 py-2 text-ink-3 hover:text-ink-2 border border-transparent hover:border-line transition-colors"
-        >
-          verification
-        </Link>
-      </div>
-
+    <header className="h-16 border-b border-line bg-surface flex items-center justify-end px-6 gap-3">
       {/* Post task */}
       <Link to="/agent">
         <Button variant="outline" label="post_task" size="sm" />
@@ -61,18 +34,67 @@ export function TopBar() {
       {/* Theme toggle */}
       <button
         onClick={toggleTheme}
-        className="flex items-center border border-line text-xs font-mono"
+        className="flex items-center border border-line text-[11px] font-mono"
       >
-        <span className={`px-3 py-2 ${currentTheme === 'light' ? 'text-ink' : 'text-ink-3'}`}>
+        <span className={`px-3 py-1.5 ${currentTheme === 'light' ? 'text-ink' : 'text-ink-3'}`}>
           {currentTheme === 'light' ? '●' : '◌'} light
         </span>
-        <span className={`px-3 py-2 border-l border-line ${currentTheme === 'dark' ? 'text-ink' : 'text-ink-3'}`}>
+        <span className={`px-3 py-1.5 border-l border-line ${currentTheme === 'dark' ? 'text-ink' : 'text-ink-3'}`}>
           {currentTheme === 'dark' ? '●' : '◌'} dark
         </span>
       </button>
 
-      {/* Wallet — right */}
-      <ConnectButton />
+      {/* Wallet — custom-styled rainbowkit button */}
+      <ConnectButton.Custom>
+        {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
+          const ready = mounted;
+          const connected = ready && account && chain;
+
+          if (!ready) {
+            return <div aria-hidden className="opacity-0 pointer-events-none select-none" />;
+          }
+
+          if (!connected) {
+            return (
+              <button
+                onClick={openConnectModal}
+                className="px-3 py-1.5 border border-line text-[11px] font-mono text-ink hover:bg-surface-2 transition-colors"
+              >
+                <span className="opacity-40">[</span> connect_wallet <span className="opacity-40">]</span>
+              </button>
+            );
+          }
+
+          if (chain.unsupported) {
+            return (
+              <button
+                onClick={openChainModal}
+                className="px-3 py-1.5 border border-err text-[11px] font-mono text-err hover:bg-surface-2 transition-colors"
+              >
+                wrong_network
+              </button>
+            );
+          }
+
+          return (
+            <div className="flex items-center border border-line text-[11px] font-mono">
+              <button
+                onClick={openChainModal}
+                className="px-3 py-1.5 text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors flex items-center gap-1.5"
+              >
+                <span className="w-1.5 h-1.5 bg-ok inline-block" />
+                {chain.name}
+              </button>
+              <button
+                onClick={openAccountModal}
+                className="px-3 py-1.5 border-l border-line text-ink hover:bg-surface-2 transition-colors"
+              >
+                {shortenAddress(account.address)}
+              </button>
+            </div>
+          );
+        }}
+      </ConnectButton.Custom>
     </header>
   );
 }

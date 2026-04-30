@@ -1,258 +1,382 @@
-import { type ReactNode } from 'react';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { Breadcrumb, PageHeader, Button } from '../components/bb';
+import { EncryptedFlow } from '../components/landing/EncryptedFlow';
 
-const fade = {
-  hidden: { opacity: 0, y: 24 },
-  visible: (d: number = 0) => ({
-    opacity: 1, y: 0,
-    transition: { duration: 0.5, delay: d * 0.08, ease: [0.25, 0.46, 0.45, 0.94] },
-  }),
-};
-const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
+type Persona = 'poster' | 'worker';
 
-/* ── Types ─────────────────────────────────────────────────────── */
-interface Step {
-  n: string;
-  title: string;
-  short: string;
-  icon: ReactNode;
-  tags: string[];
-  color: string;
-}
+export default function HowItWorks() {
+  const [persona, setPersona] = useState<Persona>('poster');
 
-interface ColorScheme {
-  bg: string;
-  border: string;
-  text: string;
-  glow: string;
-  tagBg: string;
-  tagText: string;
-  line: string;
-  dotBg: string;
-}
-
-/* ── Step Data ─────────────────────────────────────────────────── */
-const steps: Step[] = [
-  {
-    n: '01', title: 'Post Bounty',
-    short: 'Agent encrypts instructions, locks payment in escrow',
-    icon: <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-    tags: ['AES-256', '0G Storage', 'Escrow Lock'], color: 'amber',
-  },
-  {
-    n: '02', title: 'Browse & Apply',
-    short: 'Workers see metadata only — instructions stay hidden',
-    icon: <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
-    tags: ['Metadata Only', 'Reputation Score', 'No PII'], color: 'blue',
-  },
-  {
-    n: '03', title: 'Assign Worker',
-    short: 'Key wrapped with ECIES — only assignee can decrypt',
-    icon: <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>,
-    tags: ['ECIES Wrap', 'On-Chain', 'Deadline Set'], color: 'purple',
-  },
-  {
-    n: '04', title: 'Execute Blind',
-    short: 'Worker decrypts locally, completes task, uploads evidence',
-    icon: <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
-    tags: ['Local Decrypt', 'Real-World Task', 'Encrypted Upload'], color: 'emerald',
-  },
-  {
-    n: '05', title: 'TEE Verify',
-    short: 'AI verifies evidence inside hardware enclave — data never leaves',
-    icon: <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>,
-    tags: ['Intel TDX', 'Zero Exposure', 'Attested Result'], color: 'cyan',
-  },
-  {
-    n: '06', title: 'Release Payment',
-    short: 'Escrow auto-splits: 85% worker, 15% platform',
-    icon: <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
-    tags: ['Auto-Split', '3 Retries', 'Dispute Path'], color: 'amber',
-  },
-];
-
-const colorMap: Record<string, ColorScheme> = {
-  amber:   { bg: 'bg-amber-500/10',   border: 'border-amber-500/20',   text: 'text-amber-400',   glow: 'shadow-[0_0_24px_rgba(245,158,11,0.06)]', tagBg: 'bg-amber-500/10',   tagText: 'text-amber-400/80',   line: 'from-amber-500/20',   dotBg: 'bg-amber-400' },
-  blue:    { bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    text: 'text-blue-400',    glow: 'shadow-[0_0_24px_rgba(59,130,246,0.06)]',  tagBg: 'bg-blue-500/10',    tagText: 'text-blue-400/80',    line: 'from-blue-500/20',    dotBg: 'bg-blue-400' },
-  purple:  { bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  text: 'text-purple-400',  glow: 'shadow-[0_0_24px_rgba(168,85,247,0.06)]',  tagBg: 'bg-purple-500/10',  tagText: 'text-purple-400/80',  line: 'from-purple-500/20',  dotBg: 'bg-purple-400' },
-  emerald: { bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', text: 'text-emerald-400', glow: 'shadow-[0_0_24px_rgba(16,185,129,0.06)]',  tagBg: 'bg-emerald-500/10', tagText: 'text-emerald-400/80', line: 'from-emerald-500/20', dotBg: 'bg-emerald-400' },
-  cyan:    { bg: 'bg-cyan-500/10',    border: 'border-cyan-500/20',    text: 'text-cyan-400',    glow: 'shadow-[0_0_24px_rgba(6,182,212,0.06)]',   tagBg: 'bg-cyan-500/10',    tagText: 'text-cyan-400/80',    line: 'from-cyan-500/20',    dotBg: 'bg-cyan-400' },
-};
-
-/* ── Step Card (reusable) ──────────────────────────────────────── */
-function StepCard({ step, c }: { step: Step; c: ColorScheme }) {
   return (
-    <div className={`card-dark p-5 ${c.border} ${c.glow}`}>
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-10 h-10 rounded-lg ${c.bg} ${c.border} border flex items-center justify-center ${c.text}`}>
-          {step.icon}
+    <div className="max-w-5xl">
+      <Breadcrumb items={['docs', 'how_it_works']} />
+      <PageHeader
+        title="How BlindBounty works"
+        description="A walkthrough of what happens when you post a task or accept one — and why neither the platform, the chain, nor anyone except the assigned worker can see what's being done."
+      />
+
+      {/* ── 60-second pitch ──────────────────────────────────── */}
+      <section className="mt-10 mb-16">
+        <SectionTitle num="01" title="The 60-second version" />
+        <div className="rounded-2xl border border-line bg-surface p-7 mb-10">
+          <p className="text-base text-ink-2 leading-relaxed">
+            BlindBounty is a marketplace where <strong className="text-ink">someone with a task</strong> (an AI agent, a business, or another human) hires <strong className="text-ink">someone to do it</strong>. The unusual part: <strong className="text-ink">the task itself is encrypted end-to-end</strong>. Workers see only the category, payout, and rough location until they're picked. The platform — us — never sees the task content at all. When the worker submits proof, an AI verifies it inside a hardware enclave and the smart contract releases payment automatically.
+          </p>
         </div>
-        <div>
-          <span className={`font-mono text-[11px] font-bold ${c.text} opacity-60`}>STEP {step.n}</span>
-          <h3 className="text-white font-semibold text-base leading-tight">{step.title}</h3>
+
+        <div className="rounded-2xl border border-line bg-surface p-8">
+          <div className="text-xs font-mono uppercase tracking-widest text-ink-3 mb-6 text-center">
+            the four-step lifecycle
+          </div>
+          <EncryptedFlow />
         </div>
-      </div>
-      <p className="text-neutral-400 text-sm leading-relaxed mb-3">{step.short}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {step.tags.map((tag) => (
-          <span key={tag} className={`px-2 py-0.5 rounded text-[10px] font-medium tracking-wide ${c.tagBg} ${c.tagText} border ${c.border}`}>
-            {tag}
-          </span>
-        ))}
-      </div>
+      </section>
+
+      {/* ── Prereqs ──────────────────────────────────────────── */}
+      <section className="mb-16">
+        <SectionTitle num="02" title="What you'll need" />
+        <div className="grid md:grid-cols-3 gap-4">
+          {[
+            {
+              t: 'A crypto wallet',
+              b: 'MetaMask, Rabby, or any EVM-compatible wallet. We use it for identity and payment — no email, no signup.',
+            },
+            {
+              t: 'Testnet 0G tokens',
+              b: 'We\'re live on 0G Galileo testnet. Tokens are free from the official faucet — they have no real value but are needed for gas + escrow.',
+            },
+            {
+              t: 'That\'s it',
+              b: 'No KYC. No identity check. No application. Connect your wallet, pick a side (post or work), and you\'re in.',
+            },
+          ].map((item, i) => (
+            <motion.div
+              key={item.t}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.4, delay: i * 0.08 }}
+              className="rounded-2xl border border-line bg-surface p-5"
+            >
+              <div className="text-[10px] font-mono uppercase tracking-widest text-ink-3 mb-2">prereq 0{i + 1}</div>
+              <h3 className="text-base font-semibold text-ink mb-2">{item.t}</h3>
+              <p className="text-sm text-ink-2 leading-relaxed">{item.b}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Persona toggle ───────────────────────────────────── */}
+      <section className="mb-16">
+        <SectionTitle num="03" title="Step by step" />
+
+        <div className="inline-flex items-center border border-line rounded-full p-1 mb-8 text-xs font-mono">
+          <PersonaButton active={persona === 'poster'} onClick={() => setPersona('poster')}>
+            I'm posting a task
+          </PersonaButton>
+          <PersonaButton active={persona === 'worker'} onClick={() => setPersona('worker')}>
+            I want to earn
+          </PersonaButton>
+        </div>
+
+        {persona === 'poster' ? <PosterFlow /> : <WorkerFlow />}
+      </section>
+
+      {/* ── Privacy guarantees ───────────────────────────────── */}
+      <section className="mb-16">
+        <SectionTitle num="04" title="What stays private" />
+        <div className="rounded-2xl border border-line overflow-hidden">
+          <div className="grid grid-cols-[1fr_2fr_1fr] gap-0 bg-surface px-6 py-3 border-b border-line text-[10px] font-mono uppercase tracking-widest text-ink-3">
+            <div>thing</div>
+            <div>what we keep secret</div>
+            <div>who can see it</div>
+          </div>
+          {[
+            {
+              thing: 'Task instructions',
+              keep: 'Encrypted with AES-256 in your browser before upload. Stored on 0G Storage as random bytes.',
+              who: 'Only the assigned worker',
+            },
+            {
+              thing: 'Worker identity',
+              keep: 'Wallet address only. No name, no email, no KYC. Reputation is tied to the wallet.',
+              who: 'Public (the wallet, not the human)',
+            },
+            {
+              thing: 'Submitted evidence',
+              keep: 'Encrypted before upload. Decrypted only inside an Intel TDX hardware enclave.',
+              who: 'Only the AI verifier inside the TEE',
+            },
+            {
+              thing: 'Verification verdict',
+              keep: 'Pass / fail signed by the enclave. Written on-chain.',
+              who: 'Public (just the result, not the data)',
+            },
+            {
+              thing: 'Payment + escrow',
+              keep: 'Visible on the chain explorer. No way around that — it\'s how trustless settlement works.',
+              who: 'Public (amounts, not parties\' names)',
+            },
+          ].map((row, i, arr) => (
+            <div
+              key={row.thing}
+              className={`grid grid-cols-[1fr_2fr_1fr] gap-0 px-6 py-4 text-sm ${i < arr.length - 1 ? 'border-b border-line' : ''}`}
+            >
+              <div className="font-semibold text-ink">{row.thing}</div>
+              <div className="text-ink-2 leading-relaxed pr-4">{row.keep}</div>
+              <div className="text-ink-3 leading-relaxed">{row.who}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 0G stack ─────────────────────────────────────────── */}
+      <section className="mb-16">
+        <SectionTitle num="05" title="What it's built on" />
+        <p className="text-sm text-ink-2 leading-relaxed mb-6 max-w-3xl">
+          BlindBounty runs entirely on the <strong className="text-ink">0G stack</strong> — a decentralized network purpose-built for AI workloads. Each piece does one thing:
+        </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          {[
+            {
+              k: '0G Chain',
+              v: 'EVM-compatible L1 where our smart contracts live: task registry, escrow, reputation. This is where bounties get locked and released.',
+            },
+            {
+              k: '0G Storage',
+              v: 'Decentralized blob storage. Encrypted task instructions and encrypted evidence land here. No one — including 0G — can decrypt them.',
+            },
+            {
+              k: '0G Compute (Sealed Inference)',
+              v: 'GPU TEEs (Intel TDX + NVIDIA H100) that run the verification AI. Evidence is decrypted inside the chip; raw data never leaves.',
+            },
+            {
+              k: '0G DA',
+              v: 'Data availability proofs for task metadata — guarantees someone can\'t just pretend a bounty never existed.',
+            },
+          ].map((row) => (
+            <div key={row.k} className="rounded-2xl border border-line bg-surface p-5">
+              <div className="font-mono text-sm font-semibold text-cream mb-2">{row.k}</div>
+              <p className="text-sm text-ink-2 leading-relaxed">{row.v}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FAQ ──────────────────────────────────────────────── */}
+      <section className="mb-16">
+        <SectionTitle num="06" title="Common questions" />
+        <div className="space-y-2">
+          {[
+            {
+              q: 'Can BlindBounty read my task instructions?',
+              a: 'No. Encryption happens in your browser before upload, with AES-256-GCM. Only the worker you assign can decrypt — the AES key is wrapped to their public key using ECIES. Even if our servers were seized, the ciphertext is useless.',
+            },
+            {
+              q: 'How does the AI verify evidence without seeing it?',
+              a: 'It does see it — but only inside a hardware enclave (Intel TDX with an NVIDIA H100 TEE). Memory inside the enclave is encrypted; nothing leaves except a signed verdict (PASS/FAIL). The signature proves the AI ran correctly without exposing the data.',
+            },
+            {
+              q: 'What happens if a worker doesn\'t submit on time?',
+              a: 'Each task has a deadline. If it expires, you can reclaim the escrowed funds. If a worker submits and the verifier returns FAIL, the task can be re-assigned or refunded depending on the rules you set when posting.',
+            },
+            {
+              q: 'How are workers selected?',
+              a: 'Workers browse the marketplace and apply (they only see metadata: category, location zone, payout, deadline). The poster picks one based on their reputation score and prior completion record. Identity stays anonymous — only the wallet is visible.',
+            },
+            {
+              q: 'What\'s the fee?',
+              a: 'On successful verification, 85% of the escrow goes to the worker and 15% to the platform treasury. Released atomically by the smart contract — no manual payouts.',
+            },
+            {
+              q: 'Is this on mainnet?',
+              a: 'Not yet. We\'re live on the 0G Galileo testnet (chain id 16602). Mainnet is on the post-hackathon roadmap.',
+            },
+          ].map((item) => (
+            <FAQItem key={item.q} q={item.q} a={item.a} />
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA ──────────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-line bg-surface p-8 mb-10">
+        <div className="text-xs font-mono uppercase tracking-widest text-cream mb-3">Ready?</div>
+        <h2 className="text-2xl font-bold text-ink mb-3">Pick a side and try it.</h2>
+        <p className="text-sm text-ink-2 leading-relaxed mb-6 max-w-2xl">
+          Connect your wallet, grab some testnet 0G from the faucet, and either post a bounty or browse open ones. The whole loop — post, assign, verify, pay — runs on testnet so there's nothing to lose.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Link to="/agent">
+            <Button variant="primary" label="Post a bounty" size="md" />
+          </Link>
+          <Link to="/tasks">
+            <Button variant="outline" label="Browse open tasks" size="md" />
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }
 
-/* ── Bottom section data ───────────────────────────────────────── */
-const privacyItems = [
-  { label: 'Instructions', note: 'AES-256 encrypted', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> },
-  { label: 'Evidence', note: 'TEE-verified, never exposed', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> },
-  { label: 'Identity', note: 'Wallet + reputation only', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
-  { label: 'Platform', note: 'Cannot read any content', icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg> },
-];
-
-const outcomes = [
-  { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>, label: 'Auto Release', note: '85/15 split on pass', color: 'text-emerald-400' },
-  { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>, label: 'Retry', note: 'Up to 3 resubmits', color: 'text-blue-400' },
-  { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>, label: 'Cancel', note: 'Full refund pre-assign', color: 'text-neutral-400' },
-  { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, label: 'Timeout', note: 'Agent reclaims funds', color: 'text-amber-400' },
-  { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>, label: 'Dispute', note: 'Admin arbitration', color: 'text-purple-400' },
-  { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>, label: 'Worker Wins', note: 'Full payout on appeal', color: 'text-cyan-400' },
-];
-
-const techStack = [
-  { name: '0G Chain', role: 'Smart Contracts' },
-  { name: '0G Storage', role: 'Encrypted Blobs' },
-  { name: '0G Compute', role: 'TEE Inference' },
-  { name: '0G DA', role: 'Data Availability' },
-];
-
-/* ── Page ──────────────────────────────────────────────────────── */
-export default function HowItWorks() {
+// ── Subcomponents ────────────────────────────────────────────
+function SectionTitle({ num, title }: { num: string; title: string }) {
   return (
-    <div className="max-w-5xl mx-auto px-4 py-12">
-      {/* Header */}
-      <motion.div initial="hidden" animate="visible" variants={stagger} className="text-center mb-20">
-        <motion.span variants={fade} className="section-label">How It Works</motion.span>
-        <motion.h1 variants={fade} custom={1} className="heading-display text-4xl sm:text-5xl mt-3 mb-4">
-          From Bounty to Payout
-        </motion.h1>
-        <motion.p variants={fade} custom={2} className="text-neutral-500 max-w-xl mx-auto text-sm leading-relaxed">
-          Six steps. Fully encrypted. The platform never sees task content.
-        </motion.p>
-      </motion.div>
+    <div className="flex items-center gap-3 mb-6">
+      <span className="text-[10px] font-mono uppercase tracking-widest text-cream">§{num}</span>
+      <span className="text-[10px] font-mono uppercase tracking-widest text-ink">{title}</span>
+      <span className="flex-1 h-px bg-line" />
+    </div>
+  );
+}
 
-      {/* Flow Steps — alternating timeline */}
-      <motion.div
-        initial="hidden" animate="visible" variants={stagger}
-        className="relative"
+function PersonaButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-4 py-1.5 rounded-full transition-colors ${
+        active ? 'bg-cream text-bg' : 'text-ink-2 hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function StepCard({
+  n,
+  title,
+  body,
+  whatYouSee,
+}: {
+  n: string;
+  title: string;
+  body: string;
+  whatYouSee: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.4 }}
+      className="rounded-2xl border border-line bg-surface p-6"
+    >
+      <div className="flex items-baseline gap-3 mb-2">
+        <span className="text-cream font-mono text-lg font-bold">{n}</span>
+        <h3 className="text-base font-semibold text-ink">{title}</h3>
+      </div>
+      <p className="text-sm text-ink-2 leading-relaxed mb-4">{body}</p>
+      <div className="border-t border-line pt-3 mt-3">
+        <div className="text-[10px] font-mono uppercase tracking-widest text-ink-3 mb-1">What you'll see</div>
+        <p className="text-xs text-ink-3 leading-relaxed">{whatYouSee}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+function PosterFlow() {
+  const steps = [
+    {
+      n: '01',
+      title: 'Write your task and lock the bounty',
+      body: 'Type the instructions like you\'re briefing a freelancer. Set a payout, deadline, category, and rough location zone. When you submit, your browser encrypts the instructions with AES-256 before they leave — the platform never sees the plaintext. The bounty amount gets locked in a smart-contract escrow.',
+      whatYouSee: 'A simple form on /agent. After confirming the wallet transaction, your task appears in the marketplace as encrypted metadata only.',
+    },
+    {
+      n: '02',
+      title: 'Workers apply — you pick one',
+      body: 'Anonymous workers (just wallet + reputation) apply to your task. They see the metadata you posted but not the instructions yet. You pick one based on their reputation and history. The moment you assign, the AES key gets wrapped to the worker\'s public key — they\'re now the only one who can read the task.',
+      whatYouSee: 'A list of applicants with their reputation score and completed-job count. One click assigns.',
+    },
+    {
+      n: '03',
+      title: 'Worker does the work, submits encrypted evidence',
+      body: 'The worker decrypts the instructions locally, completes the task, and uploads encrypted evidence. You don\'t need to review it manually — verification is automated.',
+      whatYouSee: 'A status badge moves from "assigned" → "in progress" → "submitted". You don\'t see what they uploaded.',
+    },
+    {
+      n: '04',
+      title: 'TEE verifies, escrow releases',
+      body: 'The encrypted evidence is sent to a hardware enclave (Intel TDX + NVIDIA H100) where an AI model decrypts and evaluates it. The chip signs a PASS or FAIL verdict. On PASS, the smart contract automatically sends 85% to the worker and 15% to the platform treasury.',
+      whatYouSee: 'A "verified" badge with a TEE attestation hash, and a payment confirmation. Total time: usually under 60 seconds.',
+    },
+  ];
+  return (
+    <div className="grid md:grid-cols-2 gap-4">
+      {steps.map((s) => (
+        <StepCard key={s.n} {...s} />
+      ))}
+    </div>
+  );
+}
+
+function WorkerFlow() {
+  const steps = [
+    {
+      n: '01',
+      title: 'Browse open tasks anonymously',
+      body: 'Connect your wallet and look through the marketplace. You see each task\'s category, payout, deadline, and rough location zone — but the actual instructions stay encrypted until you\'re assigned. Filter by anything that fits your skills or location.',
+      whatYouSee: 'A grid on /tasks with filterable cards. Each card shows: $X bounty, category tag, deadline, location zone. No instructions yet.',
+    },
+    {
+      n: '02',
+      title: 'Apply — get assigned',
+      body: 'Tap "Apply" on a task you can do. The poster reviews applicants by reputation and picks one. If picked, you receive the AES key (wrapped to your public key — only your wallet can unwrap it). At that moment, instructions decrypt in your browser.',
+      whatYouSee: 'Status flips from "applied" to "assigned". The full task instructions become readable.',
+    },
+    {
+      n: '03',
+      title: 'Do the work, upload evidence',
+      body: 'Complete the task. Upload your evidence (a photo, file, video, whatever the task asked for) — your browser encrypts it before upload, so even we can\'t see what you did.',
+      whatYouSee: 'A drag-and-drop submission form. After upload, the task moves to "submitted" and you wait for verification.',
+    },
+    {
+      n: '04',
+      title: 'Get paid',
+      body: 'The AI verifier inside the hardware enclave checks your evidence. If it passes, the smart contract sends 85% of the escrow straight to your wallet — no invoicing, no waiting for the poster to approve. Reputation goes up.',
+      whatYouSee: 'A "paid" notification on /earnings with the on-chain payment hash, and your reputation score ticks up.',
+    },
+  ];
+  return (
+    <div className="grid md:grid-cols-2 gap-4">
+      {steps.map((s) => (
+        <StepCard key={s.n} {...s} />
+      ))}
+    </div>
+  );
+}
+
+function FAQItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-line bg-surface overflow-hidden">
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-bg/30 transition-colors"
       >
-        {/* Vertical line (desktop) */}
-        <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-neutral-800 via-neutral-700/50 to-neutral-800 -translate-x-px" />
-
-        {steps.map((step, i) => {
-          const c = colorMap[step.color];
-          const isLeft = i % 2 === 0;
-
-          return (
-            <motion.div key={step.n} variants={fade} custom={i} className="relative mb-6 last:mb-0">
-              {/* Desktop layout */}
-              <div className="hidden md:grid md:grid-cols-[1fr_32px_1fr] items-center">
-                <div className={isLeft ? 'pr-8' : ''}>
-                  {isLeft && <StepCard step={step} c={c} />}
-                </div>
-                <div className="flex justify-center relative z-10">
-                  <div className={`w-4 h-4 rounded-full border-2 ${c.border} ${c.bg}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${c.dotBg} mx-auto mt-[3px]`} />
-                  </div>
-                </div>
-                <div className={!isLeft ? 'pl-8' : ''}>
-                  {!isLeft && <StepCard step={step} c={c} />}
-                </div>
-              </div>
-
-              {/* Mobile layout — simple stack */}
-              <div className="md:hidden">
-                <StepCard step={step} c={c} />
-              </div>
-
-              {/* Mobile connector line */}
-              {i < steps.length - 1 && (
-                <div className="md:hidden flex justify-center py-2">
-                  <div className={`w-px h-8 bg-gradient-to-b ${c.line} to-transparent`} />
-                </div>
-              )}
-            </motion.div>
-          );
-        })}
-      </motion.div>
-
-      {/* Privacy Guarantees */}
-      <motion.div
-        initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
-        className="mt-24"
-      >
-        <motion.div variants={fade} className="text-center mb-8">
-          <span className="section-label">Privacy Guarantees</span>
-          <h2 className="heading-display text-2xl sm:text-3xl mt-2">What Stays Hidden</h2>
+        <span className="text-sm font-medium text-ink">{q}</span>
+        <span className={`text-cream font-mono text-xs ml-4 transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          transition={{ duration: 0.2 }}
+          className="px-5 pb-4 text-sm text-ink-2 leading-relaxed border-t border-line pt-3"
+        >
+          {a}
         </motion.div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {privacyItems.map((item, i) => (
-            <motion.div key={item.label} variants={fade} custom={i} className="card-dark p-4 text-center">
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-2.5 text-amber-400">
-                {item.icon}
-              </div>
-              <p className="text-white text-sm font-medium mb-0.5">{item.label}</p>
-              <p className="text-neutral-500 text-[11px] leading-snug">{item.note}</p>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Escrow Outcomes */}
-      <motion.div
-        initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
-        className="mt-20"
-      >
-        <motion.div variants={fade} className="text-center mb-8">
-          <span className="section-label">On-Chain Logic</span>
-          <h2 className="heading-display text-2xl sm:text-3xl mt-2">6 Escrow Outcomes</h2>
-        </motion.div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {outcomes.map((o, i) => (
-            <motion.div key={o.label} variants={fade} custom={i} className="card-dark p-4 flex items-start gap-3">
-              <span className={`${o.color} mt-0.5`}>{o.icon}</span>
-              <div>
-                <p className="text-white text-sm font-medium">{o.label}</p>
-                <p className="text-neutral-500 text-[11px]">{o.note}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* Tech Stack */}
-      <motion.div
-        initial="hidden" whileInView="visible" viewport={{ once: true }} variants={stagger}
-        className="mt-20 mb-8"
-      >
-        <motion.div variants={fade} className="text-center mb-6">
-          <span className="section-label">Infrastructure</span>
-          <h2 className="heading-display text-2xl sm:text-3xl mt-2">Built on 0G</h2>
-        </motion.div>
-        <div className="flex flex-wrap justify-center gap-3">
-          {techStack.map((t, i) => (
-            <motion.div key={t.name} variants={fade} custom={i} className="card-dark px-5 py-3 flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-amber-500/60" />
-              <div>
-                <p className="text-white text-sm font-medium">{t.name}</p>
-                <p className="text-neutral-500 text-[10px] tracking-wide uppercase">{t.role}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
+      )}
     </div>
   );
 }

@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>BlindBounty — Dashboard UI Kit</title>
+<link rel="icon" href="../../assets/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html { --bb-bg: #f4f4f5; --bb-surface: #ffffff; --bb-surface-2: #fafafa;
+         --bb-ink: #09090b; --bb-ink-2: #52525b; --bb-ink-3: #71717a; --bb-ink-4: #a1a1aa;
+         --bb-line: #e4e4e7; --bb-line-2: #d4d4d8;
+         --bb-invert: #09090b; --bb-invert-ink: #ffffff;
+         --bb-grid: rgba(0,0,0,0.04);
+         --bb-selected: #f4f4f5; }
+  html[data-theme="dark"] {
+    --bb-bg: #0a0a0a; --bb-surface: #141414; --bb-surface-2: #0d0d0d;
+    --bb-ink: #fafafa; --bb-ink-2: #d4d4d8; --bb-ink-3: #a1a1aa; --bb-ink-4: #71717a;
+    --bb-line: #262626; --bb-line-2: #404040;
+    --bb-invert: #fafafa; --bb-invert-ink: #09090b;
+    --bb-grid: rgba(255,255,255,0.04);
+    --bb-selected: #1c1c1c;
+  }
+  html, body { margin:0; padding:0; background:var(--bb-bg); color:var(--bb-ink);
+    font-family:'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    background-image: linear-gradient(to right, var(--bb-grid) 1px, transparent 1px),
+                      linear-gradient(to bottom, var(--bb-grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+    transition: background-color .16s linear, color .16s linear;
+  }
+  @keyframes bbBlink { 50% { opacity: 0; } }
+  @keyframes bbPulse { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+  input::placeholder, textarea::placeholder { color:var(--bb-ink-4); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="primitives.jsx"></script>
+<script type="text/babel" src="screens.jsx"></script>
+<script type="text/babel" src="extra_screens.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+
+const MOCK_TASKS = [
+  { id: 1847, title: 'Translate 40pp legal contract → FR',     bounty: 420, type: 'A2H', status: 'OPEN',      time: '4m' },
+  { id: 1846, title: 'Label 500 bird call spectrograms',       bounty: 180, type: 'A2H', status: 'OPEN',      time: '11m' },
+  { id: 1845, title: 'Summarize sealed court docs → JSON',     bounty: 240, type: 'A2A', status: 'VERIFYING', time: '1h' },
+  { id: 1844, title: 'Resolve 3 failing CI jobs in repo X',    bounty: 600, type: 'H2A', status: 'ASSIGNED',  time: '2h' },
+  { id: 1843, title: 'Annotate medical images · cohort 22',    bounty: 320, type: 'A2H', status: 'PASSED',    time: '4h' },
+  { id: 1842, title: 'Extract line items from 2k PDFs',        bounty: 450, type: 'A2A', status: 'PASSED',    time: '6h' },
+  { id: 1841, title: 'Reproduce a flaky integration test',     bounty: 150, type: 'H2A', status: 'FAILED',    time: '9h' },
+];
+
+const ROUTES = [
+  { key:'how_it_works', label:'HOW IT WORKS', group:'DOCS' },
+  { key:'tasks',        label:'TASKS',        group:'MARKETPLACE' },
+  { key:'agent',        label:'AGENT',        group:'MARKETPLACE' },
+  { key:'worker',       label:'WORKER',       group:'MARKETPLACE' },
+  { key:'a2a',          label:'A2A',          group:'MARKETPLACE' },
+  { key:'earnings',     label:'EARNINGS',     group:'ACCOUNT' },
+  { key:'verification', label:'VERIFICATION', group:'ACCOUNT' },
+  { key:'settings',     label:'SETTINGS',     group:'ACCOUNT' },
+];
+
+function DashSidebar({ active, onNav }) {
+  const groups = {};
+  ROUTES.forEach(r => { groups[r.group] = groups[r.group] || []; groups[r.group].push(r); });
+  return (
+    <aside style={{
+      width:220, background:'var(--bb-surface-2)', borderRight:'1px solid var(--bb-line)',
+      padding:'20px 0', fontFamily:MONO, display:'flex', flexDirection:'column', flexShrink:0
+    }}>
+      <div style={{padding:'0 20px 20px', borderBottom:'1px solid var(--bb-line)', display:'flex', alignItems:'center', gap:10}}>
+        <svg width={26} height={26} viewBox="0 0 44 44" style={{flexShrink:0}}>
+          <rect width="44" height="44" fill="var(--bb-invert)"/>
+          <g transform="translate(22 22)" fill="#f5efe0">
+            <path d="M 0 -15 L 12.5 -7.5 L 0 -1.5 Z"/>
+            <path d="M 0 -15 L 12.5 -7.5 L 0 -1.5 Z" transform="rotate(60)"/>
+            <path d="M 0 -15 L 12.5 -7.5 L 0 -1.5 Z" transform="rotate(120)"/>
+            <path d="M 0 -15 L 12.5 -7.5 L 0 -1.5 Z" transform="rotate(180)"/>
+            <path d="M 0 -15 L 12.5 -7.5 L 0 -1.5 Z" transform="rotate(240)"/>
+            <path d="M 0 -15 L 12.5 -7.5 L 0 -1.5 Z" transform="rotate(300)"/>
+          </g>
+          <circle cx="22" cy="22" r="3.8" fill="#f5efe0"/>
+          <rect x="17" y="21" width="10" height="2" fill="var(--bb-invert)" rx=".5"/>
+        </svg>
+        <span style={{fontSize:12, fontWeight:700, letterSpacing:'.1em', color:'var(--bb-ink)'}}>BLINDBOUNTY</span>
+      </div>
+      <div style={{padding:'16px 0', flex:1, overflowY:'auto'}}>
+        {Object.entries(groups).map(([g, rs]) => (
+          <div key={g} style={{marginBottom:16}}>
+            <div style={{padding:'0 20px 8px', fontSize:10, color:'var(--bb-ink-4)', letterSpacing:'.15em'}}>{g}</div>
+            {rs.map(r => (
+              <div key={r.key} onClick={()=>onNav(r.key)} style={{
+                padding:'9px 20px', fontSize:12, letterSpacing:'.05em',
+                color: active===r.key ? 'var(--bb-ink)' : 'var(--bb-ink-2)',
+                background: active===r.key ? 'var(--bb-line)' : 'transparent',
+                borderLeft: active===r.key ? '2px solid var(--bb-ink)' : '2px solid transparent',
+                cursor:'pointer'
+              }}>{r.label}</div>
+            ))}
+          </div>
+        ))}
+      </div>
+      <div style={{padding:'16px 20px', borderTop:'1px solid var(--bb-line)', fontSize:10, color:'var(--bb-ink-3)', letterSpacing:'.1em'}}>
+        <div>v0.4.2 · TESTNET</div>
+        <div style={{marginTop:6, display:'flex', alignItems:'center', gap:6}}>
+          <span style={{width:6, height:6, background:'#10b981'}}/>TEE ONLINE
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function ThemeToggle({ theme, setTheme }) {
+  return (
+    <div style={{
+      display:'inline-flex', border:'1px solid var(--bb-line)', fontFamily:MONO, fontSize:10,
+      letterSpacing:'.16em', height:30, alignSelf:'center'
+    }}>
+      {['light','dark'].map(t => (
+        <button key={t} onClick={()=>setTheme(t)} style={{
+          padding:'0 10px', border:'none', cursor:'pointer',
+          background: theme === t ? 'var(--bb-invert)' : 'transparent',
+          color: theme === t ? 'var(--bb-invert-ink)' : 'var(--bb-ink-3)',
+          fontFamily:MONO, fontSize:10, letterSpacing:'.16em'
+        }}>
+          {t === 'light' ? '◌ LIGHT' : '● DARK'}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function App() {
+  const [active, setActive] = useState('tasks');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(1847);
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('bb-theme') || 'light'; } catch(e) { return 'light'; }
+  });
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('bb-theme', theme); } catch(e) {}
+  }, [theme]);
+
+  return (
+    <div style={{display:'flex', height:'100vh'}}>
+      <DashSidebar active={active} onNav={setActive} />
+      <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
+        <div style={{display:'flex', alignItems:'stretch', borderBottom:'1px solid var(--bb-line)', background:'var(--bb-surface)'}}>
+          <div style={{flex:1, minWidth:0}}>
+            <TopBar search={search} setSearch={setSearch} />
+          </div>
+          <div style={{display:'flex', alignItems:'center', padding:'0 16px', gap:10, borderLeft:'1px solid var(--bb-line)'}}>
+            <ThemeToggle theme={theme} setTheme={setTheme}/>
+          </div>
+        </div>
+        <div style={{flex:1, overflow:'auto', padding:24, background:'var(--bb-bg)'}}>
+          {active === 'how_it_works' && <HowItWorksScreen/>}
+          {active === 'tasks'        && <TasksScreen tasks={MOCK_TASKS} selected={selected} onSelect={setSelected} search={search}/>}
+          {active === 'agent'        && <AgentScreen/>}
+          {active === 'worker'       && <WorkerScreen/>}
+          {active === 'a2a'          && <A2AScreen/>}
+          {active === 'earnings'     && <EarningsScreen/>}
+          {active === 'verification' && <VerificationScreen/>}
+          {active === 'settings'     && <SettingsScreen/>}
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('app')).render(<App />);
+</script>
+</body>
+</html>
