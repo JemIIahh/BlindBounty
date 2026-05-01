@@ -1,11 +1,13 @@
 /**
  * Deploy all BlindBounty contracts to 0G Testnet (Galileo).
  *
- * Deploys:
+ * Deploys via UUPS proxies:
  *   1. MockERC20 (test USDC, 6 decimals)
  *   2. BlindReputation
  *   3. TaskRegistry
  *   4. BlindEscrow (needs treasury + verifier addresses)
+ *   5. INFT (ERC-7857)
+ *   6. ValidatorPool (stakeToken = MockERC20)
  *
  * Then wires them together:
  *   - BlindEscrow.setReputationContract(BlindReputation)
@@ -18,7 +20,7 @@
  *   npx hardhat run scripts/deploy-testnet.ts --network 0g-testnet
  */
 
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -44,7 +46,7 @@ async function main() {
   // 2. Deploy BlindReputation
   console.log("\n--- Deploying BlindReputation ---");
   const BlindReputation = await ethers.getContractFactory("BlindReputation");
-  const reputation = await BlindReputation.deploy();
+  const reputation = await upgrades.deployProxy(BlindReputation, [], { kind: "uups" });
   await reputation.waitForDeployment();
   const repAddr = await reputation.getAddress();
   console.log("BlindReputation:", repAddr);
@@ -52,7 +54,7 @@ async function main() {
   // 3. Deploy TaskRegistry
   console.log("\n--- Deploying TaskRegistry ---");
   const TaskRegistry = await ethers.getContractFactory("TaskRegistry");
-  const registry = await TaskRegistry.deploy();
+  const registry = await upgrades.deployProxy(TaskRegistry, [], { kind: "uups" });
   await registry.waitForDeployment();
   const regAddr = await registry.getAddress();
   console.log("TaskRegistry:", regAddr);
@@ -60,7 +62,7 @@ async function main() {
   // 4. Deploy BlindEscrow (treasury = deployer, verifier = deployer for now)
   console.log("\n--- Deploying BlindEscrow ---");
   const BlindEscrow = await ethers.getContractFactory("BlindEscrow");
-  const escrow = await BlindEscrow.deploy(deployer.address, deployer.address);
+  const escrow = await upgrades.deployProxy(BlindEscrow, [deployer.address, deployer.address], { kind: "uups" });
   await escrow.waitForDeployment();
   const escrowAddr = await escrow.getAddress();
   console.log("BlindEscrow:", escrowAddr);
@@ -91,6 +93,14 @@ async function main() {
   const inftAddr = await inft.getAddress();
   console.log("INFT:", inftAddr);
 
+  // 7. Deploy ValidatorPool (stakeToken = MockERC20)
+  console.log("\n--- Deploying ValidatorPool ---");
+  const ValidatorPool = await ethers.getContractFactory("ValidatorPool");
+  const validatorPool = await ValidatorPool.deploy(usdcAddr);
+  await validatorPool.waitForDeployment();
+  const validatorPoolAddr = await validatorPool.getAddress();
+  console.log("ValidatorPool:", validatorPoolAddr);
+
   // 7. Mint test USDC to deployer (1,000,000 USDC = 1e12 with 6 decimals)
   console.log("\n--- Minting 1,000,000 test USDC to deployer ---");
   await (await usdc.mint(deployer.address, 1_000_000n * 10n ** 6n)).wait();
@@ -108,6 +118,7 @@ async function main() {
       TaskRegistry: regAddr,
       BlindEscrow: escrowAddr,
       INFT: inftAddr,
+      ValidatorPool: validatorPoolAddr,
     },
   };
 
