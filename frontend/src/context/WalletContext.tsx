@@ -91,7 +91,7 @@ function PrivyWalletProvider({ children }: { children: ReactNode }) {
     try {
       await privyLogout();
     } catch (err) {
-      console.warn('[BlindBounty/Privy] logout rejected by server (likely stale session):', err);
+      console.warn('[BlindMarket/Privy] logout rejected by server (likely stale session):', err);
     }
     // Belt-and-suspenders: wipe any Privy tokens Vite dev HMR might be holding.
     if (typeof window !== 'undefined') {
@@ -108,7 +108,7 @@ function PrivyWalletProvider({ children }: { children: ReactNode }) {
   // actually mounted with the expected config at runtime.
   useEffect(() => {
     if (!ready) return;
-    console.log('[BlindBounty/Privy]', {
+    console.log('[BlindMarket/Privy]', {
       ready,
       authenticated,
       userId: user?.id,

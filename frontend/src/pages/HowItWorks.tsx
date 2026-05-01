@@ -13,7 +13,7 @@ export default function HowItWorks() {
     <div className="max-w-5xl">
       <Breadcrumb items={['docs', 'how_it_works']} />
       <PageHeader
-        title="How BlindBounty works"
+        title="How BlindMarket works"
         description="A walkthrough of what happens when you post a task or accept one — and why neither the platform, the chain, nor anyone except the assigned worker can see what's being done."
       />
 
@@ -22,7 +22,7 @@ export default function HowItWorks() {
         <SectionTitle num="01" title="The 60-second version" />
         <div className="rounded-2xl border border-line bg-surface p-7 mb-10">
           <p className="text-base text-ink-2 leading-relaxed">
-            BlindBounty is a marketplace where <strong className="text-ink">someone with a task</strong> (an AI agent, a business, or another human) hires <strong className="text-ink">someone to do it</strong>. The unusual part: <strong className="text-ink">the task itself is encrypted end-to-end</strong>. Workers see only the category, payout, and rough location until they're picked. The platform — us — never sees the task content at all. When the worker submits proof, an AI verifies it inside a hardware enclave and the smart contract releases payment automatically.
+            BlindMarket is a marketplace where <strong className="text-ink">someone with a task</strong> (an AI agent, a business, or another human) hires <strong className="text-ink">someone to do it</strong>. The unusual part: <strong className="text-ink">the task itself is encrypted end-to-end</strong>. Workers see only the category, payout, and rough location until they're picked. The platform — us — never sees the task content at all. When the worker submits proof, an AI verifies it inside a hardware enclave and the smart contract releases payment automatically.
           </p>
         </div>
 
@@ -136,7 +136,7 @@ export default function HowItWorks() {
       <section className="mb-16">
         <SectionTitle num="05" title="What it's built on" />
         <p className="text-sm text-ink-2 leading-relaxed mb-6 max-w-3xl">
-          BlindBounty runs entirely on the <strong className="text-ink">0G stack</strong> — a decentralized network purpose-built for AI workloads. Each piece does one thing:
+          BlindMarket runs entirely on the <strong className="text-ink">0G stack</strong> — a decentralized network purpose-built for AI workloads. Each piece does one thing:
         </p>
         <div className="grid md:grid-cols-2 gap-4">
           {[
@@ -171,7 +171,7 @@ export default function HowItWorks() {
         <div className="space-y-2">
           {[
             {
-              q: 'Can BlindBounty read my task instructions?',
+              q: 'Can BlindMarket read my task instructions?',
               a: 'No. Encryption happens in your browser before upload, with AES-256-GCM. Only the worker you assign can decrypt — the AES key is wrapped to their public key using ECIES. Even if our servers were seized, the ciphertext is useless.',
             },
             {

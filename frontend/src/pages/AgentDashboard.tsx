@@ -83,12 +83,12 @@ export default function AgentDashboard() {
       {/* How to complete via SDK */}
       <div className="mt-6 border border-line p-6 space-y-3">
         <SectionRule num="02" title="complete a task via sdk" />
-        <pre className="bg-surface-2 border border-line p-4 text-xs font-mono text-ink-3 leading-relaxed">{`import { BlindBounty } from '@blindbounty/sdk';
+        <pre className="bg-surface-2 border border-line p-4 text-xs font-mono text-ink-3 leading-relaxed">{`import { BlindMarket } from '@blindmarket/sdk';
 import { ethers } from 'ethers';
 
 const wallet = new ethers.Wallet(process.env.AGENT_PRIVATE_KEY);
-const apiKey = await BlindBounty.authenticate(wallet);
-const bb = new BlindBounty({ apiKey });
+const apiKey = await BlindMarket.authenticate(wallet);
+const bb = new BlindMarket({ apiKey });
 
 // Submit evidence for an assigned task
 const { unsignedTx } = await bb.submitEvidence({

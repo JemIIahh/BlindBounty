@@ -43,7 +43,7 @@ export function Sidebar() {
       {/* Logo */}
       <Link to="/" className="flex items-center gap-3 px-6 h-16 border-b border-line">
         <LogoMark size={26} blade="var(--bb-cream)" slit="var(--bb-surface)" />
-        <span className="text-sm font-mono font-bold text-ink uppercase tracking-wider">blindbounty</span>
+        <span className="text-sm font-mono font-bold text-ink uppercase tracking-wider">blindmarket</span>
       </Link>
 
       {/* Nav groups */}

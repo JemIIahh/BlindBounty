@@ -26,7 +26,7 @@ const ogGalileoTestnet = defineChain({
 });
 
 export const config = getDefaultConfig({
-  appName: 'BlindBounty',
+  appName: 'BlindMarket',
   projectId: 'YOUR_PROJECT_ID', // Get from https://cloud.walletconnect.com
   chains: [ogGalileoTestnet],
   ssr: false,

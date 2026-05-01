@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const { nonce } = await post<{ nonce: string }>('/api/v1/auth/nonce', { address });
-        const message = `Sign this message to authenticate with BlindBounty.\n\nNonce: ${nonce}`;
+        const message = `Sign this message to authenticate with BlindMarket.\n\nNonce: ${nonce}`;
         const signature = await signMessageAsync({ message });
         const { token } = await post<{ token: string }>('/api/v1/auth/verify', { address, signature });
         localStorage.setItem(JWT_KEY, token);

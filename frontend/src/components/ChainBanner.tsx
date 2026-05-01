@@ -20,7 +20,7 @@ export function ChainBanner() {
       <div className="flex items-center gap-3">
         <span className="inline-block h-2 w-2 rounded-full bg-amber-400" aria-hidden />
         <span>
-          Wrong network — you're on chain <span className="font-mono">{chainId}</span>. BlindBounty runs on 0G Galileo (16602).
+          Wrong network — you're on chain <span className="font-mono">{chainId}</span>. BlindMarket runs on 0G Galileo (16602).
         </span>
       </div>
       <button

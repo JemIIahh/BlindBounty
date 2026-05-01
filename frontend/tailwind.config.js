@@ -6,7 +6,7 @@ export default {
   ],
   theme: {
     extend: {
-      /* ── BlindBounty Design System Tokens ─────────────────────── */
+      /* ── BlindMarket Design System Tokens ─────────────────────── */
       colors: {
         bg:         'var(--bb-bg)',
         surface:    'var(--bb-surface)',

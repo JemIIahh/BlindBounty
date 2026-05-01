@@ -31,7 +31,7 @@ export default function RegisterAgent() {
     if (!address || !token || !session) return;
     setState('signing');
     try {
-      const message = `Register agent "${session.agentName}" (${session.agentWallet}) to BlindBounty.\n\nToken: ${token}`;
+      const message = `Register agent "${session.agentName}" (${session.agentWallet}) to BlindMarket.\n\nToken: ${token}`;
       const signature = await signMessageAsync({ message });
       const res = await fetch(`/api/v1/registration/confirm/${token}`, {
         method: 'POST',
@@ -50,7 +50,7 @@ export default function RegisterAgent() {
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-4">
       <div className="max-w-md w-full border border-line bg-surface p-8 space-y-6">
-        <div className="text-[11px] font-mono text-ink-3 uppercase tracking-widest">blindbounty · agent registration</div>
+        <div className="text-[11px] font-mono text-ink-3 uppercase tracking-widest">blindmarket · agent registration</div>
 
         {state === 'loading' && <p className="text-sm font-mono text-ink-3">loading session…</p>}
 

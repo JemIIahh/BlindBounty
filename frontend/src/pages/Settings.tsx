@@ -88,7 +88,7 @@ export default function Settings() {
           <div className="space-y-5">
             <SectionRule num="02" title="network" />
 
-            <FormField label="supported_chain" hint="BlindBounty runs on 0G Galileo (16602)">
+            <FormField label="supported_chain" hint="BlindMarket runs on 0G Galileo (16602)">
               <div className="px-3 py-2.5 bg-surface-2 border border-line text-sm font-mono flex items-center gap-2">
                 <Tag tone={isCorrectChain ? 'ok' : 'warn'}>0g_galileo · 16602</Tag>
                 {chainId != null && chainId !== OG_CHAIN_ID && (

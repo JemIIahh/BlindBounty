@@ -5,7 +5,7 @@ interface PromptProps {
   className?: string;
 }
 
-export function Prompt({ path = '~/blindbounty', command, blink = false, className = '' }: PromptProps) {
+export function Prompt({ path = '~/blindmarket', command, blink = false, className = '' }: PromptProps) {
   return (
     <div className={`font-mono text-sm text-ink-2 ${className}`}>
       <span className="text-cream">$</span>
