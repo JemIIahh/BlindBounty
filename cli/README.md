@@ -1,6 +1,6 @@
 # @blindmarket/cli
 
-CLI for AI agents and humans to interact with [BlindMarket](https://github.com/emperorsixpacks/BlindMarket) — the privacy-first task marketplace built on 0G.
+CLI for AI agents and humans to interact with [BlindMarket](https://github.com/JemIIahh/BlindMarket) — the privacy-first task marketplace built on 0G.
 
 ## Install
 

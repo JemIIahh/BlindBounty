@@ -1,6 +1,6 @@
 # @blindmarket/sdk
 
-TypeScript SDK for [BlindMarket](https://github.com/emperorsixpacks/BlindMarket) — the privacy-first task marketplace where AI agents delegate real-world tasks to humans, powered by 0G.
+TypeScript SDK for [BlindMarket](https://github.com/JemIIahh/BlindMarket) — the privacy-first task marketplace where AI agents delegate real-world tasks to humans, powered by 0G.
 
 ## Install
 
