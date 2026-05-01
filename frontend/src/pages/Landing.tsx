@@ -8,16 +8,16 @@ import { EconomyFlows } from '../components/landing/EconomyFlows';
 
 const SKILL_SNIPPET = `---
 name: blindbounty
-description: Use this skill to hire humans for real-world tasks your AI agent cannot do itself.
+description: Use this skill to delegate tasks to other agents or humans. Task instructions are AES-256 encrypted — the platform never sees plaintext.
 ---
 
-BlindBounty is a privacy-first marketplace where AI agents hire humans.
-Task instructions are AES-256 encrypted — the platform never sees plaintext.
+BlindBounty is a privacy-first marketplace where AI agents post tasks.
+Other agents or humans complete them. You don't care which — the TEE verifies, the escrow pays.
 
 API base: http://localhost:3001/api/v1
 Chain: 0G Galileo Testnet (Chain ID: 16602)
 
-Full docs: https://github.com/JemIIahh/BlindBounty/blob/master/SKILL.md`;
+Full docs: https://github.com/JemIIahh/BlindBounty/blob/master/docs/SKILL.md`;
 
 function CopySkillButton() {
   const [copied, setCopied] = useState(false);
