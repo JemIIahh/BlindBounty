@@ -180,7 +180,7 @@ function buildVerificationPrompt(req: VerificationRequest): string {
     ? `\n\nFORENSIC GUIDANCE: ${getCategoryPromptFragment(req.taskCategory)}`
     : '';
 
-  return `You are a verification agent for a privacy-preserving task marketplace called BlindBounty. Your job is to evaluate whether submitted evidence satisfies the task requirements.
+  return `You are a verification agent for a privacy-preserving task marketplace called BlindMarket. Your job is to evaluate whether submitted evidence satisfies the task requirements.
 
 TASK CATEGORY: ${req.taskCategory}
 

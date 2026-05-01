@@ -91,7 +91,7 @@ registrationRouter.post('/confirm/:token', async (req, res) => {
   }
 
   // Verify the owner signed the registration message
-  const message = `Register agent "${session.agentName}" (${session.agentWallet}) to BlindBounty.\n\nToken: ${session.token}`;
+  const message = `Register agent "${session.agentName}" (${session.agentWallet}) to BlindMarket.\n\nToken: ${session.token}`;
   const recovered = ethers.verifyMessage(message, signature).toLowerCase();
   if (recovered !== ownerAddress.toLowerCase()) {
     res.status(401).json({ success: false, error: { code: 'INVALID_SIGNATURE', message: 'Signature does not match address' } });

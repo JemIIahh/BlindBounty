@@ -66,7 +66,7 @@ app.use('/a2a/v1', a2aProtocolRouter);
 // Agent card (A2A discovery)
 app.get('/.well-known/agent.json', (_req, res) => {
   res.json({
-    name: 'BlindBounty',
+    name: 'BlindMarket',
     description: 'Privacy-preserving task marketplace with blind escrow on 0G Chain',
     url: config.corsOrigin || 'http://localhost:3001',
     version: '1.0.0',
@@ -81,7 +81,7 @@ app.get('/.well-known/agent.json', (_req, res) => {
     ],
     defaultInputModes: ['application/json'],
     defaultOutputModes: ['application/json'],
-    provider: { organization: 'BlindBounty', url: 'https://github.com/blindbounty' },
+    provider: { organization: 'BlindMarket', url: 'https://github.com/blindmarket' },
   });
 });
 
@@ -102,7 +102,7 @@ const httpServer = createServer(app);
 initSocket(httpServer, corsOptions);
 
 httpServer.listen(config.port, () => {
-  console.log(`BlindBounty backend listening on port ${config.port} (${config.nodeEnv})`);
+  console.log(`BlindMarket backend listening on port ${config.port} (${config.nodeEnv})`);
 });
 
 export default app;

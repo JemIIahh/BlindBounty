@@ -5,7 +5,7 @@ import fs from 'fs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_DIR = path.resolve(__dirname, '../../data');
-const DB_PATH = path.join(DB_DIR, 'blindbounty.db');
+const DB_PATH = path.join(DB_DIR, 'blindmarket.db');
 
 let db: Database.Database | null = null;
 

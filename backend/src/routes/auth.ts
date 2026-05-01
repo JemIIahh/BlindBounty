@@ -78,7 +78,7 @@ authRouter.post('/verify', (req, res, next) => {
     }
 
     // Build the message the user signed
-    const message = `Sign this message to authenticate with BlindBounty.\n\nNonce: ${entry.nonce}`;
+    const message = `Sign this message to authenticate with BlindMarket.\n\nNonce: ${entry.nonce}`;
 
     // Recover signer
     const recovered = ethers.verifyMessage(message, signature).toLowerCase();

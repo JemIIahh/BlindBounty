@@ -1,7 +1,7 @@
 import { randomBytes, createCipheriv, createDecipheriv, createHash, createECDH, hkdfSync } from 'crypto';
 
 /**
- * Encryption utilities for BlindBounty.
+ * Encryption utilities for BlindMarket.
  *
  * The backend NEVER decrypts task content or evidence.
  * These utilities exist so the SDK/frontend can:
@@ -32,7 +32,7 @@ const ECIES_MIN_BLOB = ECIES_PUBKEY_LENGTH + IV_LENGTH + TAG_LENGTH + 1; // 94 b
 const AES_MIN_BLOB = IV_LENGTH + TAG_LENGTH + 1; // 29 bytes minimum
 
 // Domain separation string for ECIES key derivation (prevents cross-protocol reuse)
-const ECIES_HKDF_INFO = 'BlindBounty-ECIES-v1';
+const ECIES_HKDF_INFO = 'BlindMarket-ECIES-v1';
 
 // ── AES-256-GCM (symmetric) ──
 
