@@ -1,19 +1,19 @@
-# BlindBounty SDK Implementation Plan
+# BlindMarket SDK Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build `@blindbounty/sdk` — a production-grade, isomorphic, TDD-developed TypeScript SDK for the BlindBounty privacy-first task marketplace, covering the full 10-step lifecycle and reserved extension points for not-yet-built features.
+**Goal:** Build `@blindmarket/sdk` — a production-grade, isomorphic, TDD-developed TypeScript SDK for the BlindMarket privacy-first task marketplace, covering the full 10-step lifecycle and reserved extension points for not-yet-built features.
 
-**Architecture:** Single npm package with subpath exports. Three layers: primitives (`crypto`, `chain`, `storage`, `compute`, `api`), roles (`Agent`, `Worker`, `Verifier`), umbrella (`BlindBounty`). Isomorphic (Web Crypto on browser, Node crypto in Node) with byte-for-byte identical wire formats. Pluggable `Signer` and `KeyStore` abstractions. Typed error hierarchy with stable string codes.
+**Architecture:** Single npm package with subpath exports. Three layers: primitives (`crypto`, `chain`, `storage`, `compute`, `api`), roles (`Agent`, `Worker`, `Verifier`), umbrella (`BlindMarket`). Isomorphic (Web Crypto on browser, Node crypto in Node) with byte-for-byte identical wire formats. Pluggable `Signer` and `KeyStore` abstractions. Typed error hierarchy with stable string codes.
 
 **Tech Stack:** TypeScript 5.7 strict, `tsup` (dual ESM/CJS build), `vitest` (unit + integration), `fast-check` (property-based), `playwright` (browser), `ethers` v6, `@0gfoundation/0g-ts-sdk`, `@0glabs/0g-serving-broker`, `biome` (lint/format), `changesets` (release), `typedoc` (docs).
 
-**Design reference:** `docs/plans/2026-04-18-blindbounty-sdk-design.md`.
+**Design reference:** `docs/plans/2026-04-18-blindmarket-sdk-design.md`.
 
 **Wire-format compatibility (do not deviate):**
 - AES blob: `[12 IV][16 tag][ciphertext]`
 - ECIES blob: `[65 ephemeral pubkey][AES blob]`
-- HKDF info: `'BlindBounty-ECIES-v1'`
+- HKDF info: `'BlindMarket-ECIES-v1'`
 
 **Deployed testnet (0G Galileo, chainId 16602):**
 - `BlindEscrow` — `0xFd4F93F5A7BE144c405D1D8fbEC63Fb776207681`
@@ -21,7 +21,7 @@
 - `BlindReputation` — `0x4A6374Fae37E19E69ba43E7cf6994AC15F63256e`
 - `MockERC20` (USDC substitute) — `0x317227efcA18D004E12CA8046AEf7E1597458F25`
 
-**Work location:** `/Users/ram/Desktop/BlindBounty/sdk/`
+**Work location:** `/Users/ram/Desktop/BlindMarket/sdk/`
 
 **Commit discipline:** one commit per phase boundary (minimum). Conventional commits: `feat:`, `test:`, `fix:`, `docs:`, `chore:`. Co-Authored-By trailer on every SDK commit.
 
@@ -40,9 +40,9 @@
 
 ```json
 {
-  "name": "@blindbounty/sdk",
+  "name": "@blindmarket/sdk",
   "version": "0.1.0",
-  "description": "TypeScript SDK for BlindBounty — privacy-first task marketplace on 0G.",
+  "description": "TypeScript SDK for BlindMarket — privacy-first task marketplace on 0G.",
   "type": "module",
   "license": "MIT",
   "sideEffects": false,
@@ -94,8 +94,8 @@
     "vitest": "^2.1.9"
   },
   "engines": { "node": ">=18.0.0" },
-  "keywords": ["blindbounty", "0g", "sdk", "privacy", "ecies", "tee", "sealed-inference", "task-marketplace"],
-  "repository": { "type": "git", "url": "https://github.com/JemIIahh/BlindBounty", "directory": "sdk" }
+  "keywords": ["blindmarket", "0g", "sdk", "privacy", "ecies", "tee", "sealed-inference", "task-marketplace"],
+  "repository": { "type": "git", "url": "https://github.com/JemIIahh/BlindMarket", "directory": "sdk" }
 }
 ```
 
@@ -104,7 +104,7 @@
 
 **Step 3:** Commit.
 ```bash
-cd /Users/ram/Desktop/BlindBounty
+cd /Users/ram/Desktop/BlindMarket
 git add sdk/package.json sdk/package-lock.json
 git commit -m "chore(sdk): initialize package.json with subpath exports"
 ```
@@ -303,7 +303,7 @@ git commit -m "chore(sdk): scaffold build, test, lint tooling + subpath layout"
 
 ## Phase 1 — Error hierarchy
 
-**Outcome:** `src/errors/` exports `BlindBountyError`, typed subclasses, and a frozen `ErrorCode` string enum. Tests verify code stability, `retriable` flag, and `cause` chaining.
+**Outcome:** `src/errors/` exports `BlindMarketError`, typed subclasses, and a frozen `ErrorCode` string enum. Tests verify code stability, `retriable` flag, and `cause` chaining.
 
 ### Task 1.1 — Write error hierarchy test
 
@@ -315,7 +315,7 @@ git commit -m "chore(sdk): scaffold build, test, lint tooling + subpath layout"
 ```ts
 import { describe, expect, it } from 'vitest';
 import {
-  BlindBountyError,
+  BlindMarketError,
   ConfigError,
   CryptoError,
   StorageError,
@@ -326,7 +326,7 @@ import {
   TimeoutError,
 } from '../src/errors';
 
-describe('BlindBountyError', () => {
+describe('BlindMarketError', () => {
   it('preserves code, message, retriable, context, cause', () => {
     const cause = new Error('root');
     const err = new StorageError('STORAGE/UPLOAD_FAILED', 'upload blew up', {
@@ -334,7 +334,7 @@ describe('BlindBountyError', () => {
       context: { attempt: 1 },
       cause,
     });
-    expect(err).toBeInstanceOf(BlindBountyError);
+    expect(err).toBeInstanceOf(BlindMarketError);
     expect(err.name).toBe('StorageError');
     expect(err.code).toBe('STORAGE/UPLOAD_FAILED');
     expect(err.message).toBe('upload blew up');
@@ -373,7 +373,7 @@ describe('BlindBountyError', () => {
   ])('subclass %p accepts its canonical code', (Ctor, code) => {
     const err = new (Ctor as any)(code, 'msg');
     expect(err.code).toBe(code);
-    expect(err).toBeInstanceOf(BlindBountyError);
+    expect(err).toBeInstanceOf(BlindMarketError);
   });
 });
 ```
@@ -387,7 +387,7 @@ describe('BlindBountyError', () => {
 
 **Files:**
 - Create: `sdk/src/errors/codes.ts`
-- Create: `sdk/src/errors/BlindBountyError.ts`
+- Create: `sdk/src/errors/BlindMarketError.ts`
 - Create: `sdk/src/errors/subclasses.ts`
 - Overwrite: `sdk/src/errors/index.ts`
 
@@ -419,7 +419,7 @@ export type ErrorCode =
   | ComputeCode | ApiCode | LifecycleCode | TimeoutCode;
 ```
 
-**Step 2:** `src/errors/BlindBountyError.ts`:
+**Step 2:** `src/errors/BlindMarketError.ts`:
 
 ```ts
 import type { ErrorCode } from './codes.js';
@@ -430,7 +430,7 @@ export interface ErrorOptions {
   cause?: unknown;
 }
 
-export abstract class BlindBountyError extends Error {
+export abstract class BlindMarketError extends Error {
   readonly code: ErrorCode;
   readonly retriable: boolean;
   readonly context?: Record<string, unknown>;
@@ -462,27 +462,27 @@ export abstract class BlindBountyError extends Error {
 **Step 3:** `src/errors/subclasses.ts`:
 
 ```ts
-import { BlindBountyError, type ErrorOptions } from './BlindBountyError.js';
+import { BlindMarketError, type ErrorOptions } from './BlindMarketError.js';
 import type {
   ConfigCode, CryptoCode, StorageCode, ChainCode,
   ComputeCode, ApiCode, LifecycleCode, TimeoutCode,
 } from './codes.js';
 
-export class ConfigError    extends BlindBountyError { constructor(code: ConfigCode,    msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
-export class CryptoError    extends BlindBountyError { constructor(code: CryptoCode,    msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
-export class StorageError   extends BlindBountyError { constructor(code: StorageCode,   msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
-export class ChainError     extends BlindBountyError { constructor(code: ChainCode,     msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
-export class ComputeError   extends BlindBountyError { constructor(code: ComputeCode,   msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
-export class ApiError       extends BlindBountyError { constructor(code: ApiCode,       msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
-export class LifecycleError extends BlindBountyError { constructor(code: LifecycleCode, msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
-export class TimeoutError   extends BlindBountyError { constructor(code: TimeoutCode,   msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class ConfigError    extends BlindMarketError { constructor(code: ConfigCode,    msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class CryptoError    extends BlindMarketError { constructor(code: CryptoCode,    msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class StorageError   extends BlindMarketError { constructor(code: StorageCode,   msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class ChainError     extends BlindMarketError { constructor(code: ChainCode,     msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class ComputeError   extends BlindMarketError { constructor(code: ComputeCode,   msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class ApiError       extends BlindMarketError { constructor(code: ApiCode,       msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class LifecycleError extends BlindMarketError { constructor(code: LifecycleCode, msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
+export class TimeoutError   extends BlindMarketError { constructor(code: TimeoutCode,   msg: string, opts?: ErrorOptions) { super(code, msg, opts); } }
 ```
 
 **Step 4:** `src/errors/index.ts` (overwrite):
 
 ```ts
 export * from './codes.js';
-export * from './BlindBountyError.js';
+export * from './BlindMarketError.js';
 export * from './subclasses.js';
 ```
 
@@ -725,7 +725,7 @@ export * from './types.js';
 **Wire formats (never change these):**
 - AES blob: `[12 IV][16 tag][ciphertext]`
 - ECIES blob: `[65 ephemeral pubkey uncompressed][AES blob]`
-- HKDF info: `'BlindBounty-ECIES-v1'`
+- HKDF info: `'BlindMarket-ECIES-v1'`
 
 ### Task 4.1 — AES-256-GCM round-trip test + property test
 
@@ -785,7 +785,7 @@ export const IV_LENGTH = 12;
 export const TAG_LENGTH = 16;
 export const KEY_LENGTH = 32;
 export const ECIES_PUBKEY_LENGTH = 65;   // uncompressed secp256k1
-export const ECIES_HKDF_INFO = new TextEncoder().encode('BlindBounty-ECIES-v1');
+export const ECIES_HKDF_INFO = new TextEncoder().encode('BlindMarket-ECIES-v1');
 export const AES_MIN_BLOB = IV_LENGTH + TAG_LENGTH;       // 28 bytes (zero-length ct OK)
 export const ECIES_MIN_BLOB = ECIES_PUBKEY_LENGTH + AES_MIN_BLOB;
 ```
@@ -1485,12 +1485,12 @@ TDD with mocked `Compute`. **Commit:** `feat(sdk/verifier): Verifier role`.
 
 ---
 
-## Phase 15 — Umbrella `BlindBounty` class
+## Phase 15 — Umbrella `BlindMarket` class
 
-**Outcome:** `src/BlindBounty.ts` wires every module together with a single constructor. Primitives exposed as properties; roles composed from primitives.
+**Outcome:** `src/BlindMarket.ts` wires every module together with a single constructor. Primitives exposed as properties; roles composed from primitives.
 
 ```ts
-export class BlindBounty {
+export class BlindMarket {
   readonly chain: ChainClient;
   readonly storage: Storage;
   readonly compute: Compute;
@@ -1501,15 +1501,15 @@ export class BlindBounty {
   readonly worker: Worker;
   readonly verifier: Verifier;
 
-  constructor(opts: BlindBountyOptions) { /* resolve network, wire deps, install plugins */ }
+  constructor(opts: BlindMarketOptions) { /* resolve network, wire deps, install plugins */ }
 }
 ```
 
-`src/index.ts` re-exports `BlindBounty` + types.
+`src/index.ts` re-exports `BlindMarket` + types.
 
 Single integration test (`test/lifecycle.test.ts`) runs the 10-step flow end-to-end against hardhat + MemoryStorage + MockCompute + fetch-mocked API. This is the SDK's headline integration test — if this passes, the wiring is correct.
 
-**Commit:** `feat(sdk): umbrella BlindBounty class + full-lifecycle integration test`.
+**Commit:** `feat(sdk): umbrella BlindMarket class + full-lifecycle integration test`.
 
 ---
 
@@ -1592,11 +1592,11 @@ Wire the backend and frontend to consume the SDK internally (via `workspace:*` o
 
 ### Task 18.1 — Replace backend crypto with SDK crypto
 
-`backend/src/services/crypto.ts` → shim that re-exports from `@blindbounty/sdk/crypto`. Run backend tests. Expect pass (bytes are identical).
+`backend/src/services/crypto.ts` → shim that re-exports from `@blindmarket/sdk/crypto`. Run backend tests. Expect pass (bytes are identical).
 
 ### Task 18.2 — Replace frontend crypto with SDK crypto
 
-`frontend/src/lib/crypto.ts` → shim that re-exports from `@blindbounty/sdk/crypto`. Run frontend build + smoke test.
+`frontend/src/lib/crypto.ts` → shim that re-exports from `@blindmarket/sdk/crypto`. Run frontend build + smoke test.
 
 ### Task 18.3 — Replace frontend services with SDK API client
 
@@ -1604,7 +1604,7 @@ One service at a time: `frontend/src/services/tasks.ts` → use `new Api({...}).
 
 This is the **proof of battle-testing**: the SDK passes dogfooding against the same production code that the hackathon demo runs on.
 
-**Commit:** `refactor: monorepo now consumes @blindbounty/sdk as internal dependency`.
+**Commit:** `refactor: monorepo now consumes @blindmarket/sdk as internal dependency`.
 
 ---
 
@@ -1621,7 +1621,7 @@ This is the **proof of battle-testing**: the SDK passes dogfooding against the s
 - [ ] Backend + frontend refactored to use SDK, monorepo tests green
 - [ ] TypeDoc site generated
 - [ ] CHANGELOG entry for 0.1.0
-- [ ] `docs/plans/2026-04-18-blindbounty-sdk-design.md` unchanged (source of truth)
+- [ ] `docs/plans/2026-04-18-blindmarket-sdk-design.md` unchanged (source of truth)
 - [ ] ROADMAP.md updated with SDK phase as ✅
 
 ## Execution order / parallelism

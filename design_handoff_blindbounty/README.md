@@ -1,4 +1,4 @@
-# Handoff — BlindBounty Design System
+# Handoff — BlindMarket Design System
 
 A privacy-first task marketplace where instructions encrypt client-side, execute inside a TEE (trusted execution environment), and settle on cryptographic proof. This bundle contains **high-fidelity HTML design references** for the full product — marketing site plus a seven-screen authenticated dashboard — and everything a developer needs to rebuild them in a production codebase.
 
@@ -8,7 +8,7 @@ A privacy-first task marketplace where instructions encrypt client-side, execute
 
 The files in `design_files/` are **design references built in HTML + React (inline via Babel)** — not production code to copy directly. Their job is to lock down the look, behavior, spacing, copy voice, and interaction patterns.
 
-**Your task is to recreate these designs in a real codebase.** My recommendation, which the imported `source/` folder supports: **React + TypeScript + Tailwind, Next.js App Router.** That's the stack in BlindBounty's existing repo (Landing, Earnings, Verification, Settings were all `.tsx`). Use whatever your codebase already has — the tokens and patterns translate.
+**Your task is to recreate these designs in a real codebase.** My recommendation, which the imported `source/` folder supports: **React + TypeScript + Tailwind, Next.js App Router.** That's the stack in BlindMarket's existing repo (Landing, Earnings, Verification, Settings were all `.tsx`). Use whatever your codebase already has — the tokens and patterns translate.
 
 Do not ship the HTML prototypes. Do not copy the inline-style objects verbatim. Treat the HTML as a pixel-level spec and rebuild with your project's component primitives.
 
@@ -129,7 +129,7 @@ Every component referenced in the designs, with its source file and a short spec
 | Section    | Pattern                                                            |
 |------------|--------------------------------------------------------------------|
 | `Hero`     | Boot-log typewriter + stat rail. 72px headline, 700 weight.       |
-| `Problem`  | Two-column command-block diff. "today" (err tag) vs "blindbounty" (ok tag). |
+| `Problem`  | Two-column command-block diff. "today" (err tag) vs "blindmarket" (ok tag). |
 | `HowItWorks` | Four numbered rows: `[01] seal`, `[02] escrow`, `[03] execute`, `[04] attest`. |
 | `Trust`    | Live attestation log (streaming), plus three-column guarantees.    |
 | `Roles`    | Two panels side-by-side: `/agent` and `/worker`.                   |
@@ -304,7 +304,7 @@ No spring physics, no hero transitions, no page slide-ins. The terminal aestheti
 
 ### Empty states
 
-Render as a `$` prompt followed by a plausible command the user should run to populate the state. Example for empty task feed: `$ blindbounty tasks --filter=open` / `no results. try ▸ [ post_task ] to be first.`
+Render as a `$` prompt followed by a plausible command the user should run to populate the state. Example for empty task feed: `$ blindmarket tasks --filter=open` / `no results. try ▸ [ post_task ] to be first.`
 
 ---
 
@@ -349,7 +349,7 @@ borderRadius: { DEFAULT: '0', none: '0' }, // enforce sharp corners
 ## Files in this bundle
 
 ```
-design_handoff_blindbounty/
+design_handoff_blindmarket/
 ├── README.md                                   ← you are here
 ├── screenshots/                                ← reference images for every screen
 │   ├── 00-marketing-hero.jpg

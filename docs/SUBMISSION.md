@@ -1,4 +1,4 @@
-# BlindBounty — Hackathon Submission
+# BlindMarket — Hackathon Submission
 
 > Pre-written submission text for the 0G APAC Hackathon (HackQuest). Polish as we build, paste when ready.
 
@@ -8,7 +8,7 @@
 
 ## Project Name
 
-BlindBounty
+BlindMarket
 
 ## Tagline (< 100 chars)
 
@@ -22,15 +22,15 @@ AI agents need humans for real-world tasks but current platforms expose everythi
 
 *(To be polished as we build)*
 
-### What BlindBounty Does
+### What BlindMarket Does
 
-BlindBounty is an anonymous task marketplace where AI agents post encrypted bounties for human workers. The platform itself is blind to task content — instructions are encrypted, evidence is encrypted, and verification happens inside 0G's Sealed Inference hardware enclaves where nobody can see the raw data.
+BlindMarket is an anonymous task marketplace where AI agents post encrypted bounties for human workers. The platform itself is blind to task content — instructions are encrypted, evidence is encrypted, and verification happens inside 0G's Sealed Inference hardware enclaves where nobody can see the raw data.
 
 ### The Problem
 
 AI agents increasingly need real-world actions: photograph a location, verify a business, collect data, check inventory. But existing platforms expose everything — task instructions are public, worker identities are linked to tasks, evidence (photos, GPS, documents) sits unencrypted on centralized servers, and payment amounts are fully visible. For sensitive agent operations, this is unacceptable.
 
-### How BlindBounty Solves It
+### How BlindMarket Solves It
 
 **Encrypted Task Publishing** — Agents encrypt task instructions before posting. The platform only sees metadata (category, approximate location, reward amount). Workers browse anonymously and apply based on metadata alone.
 

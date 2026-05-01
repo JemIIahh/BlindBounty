@@ -1,10 +1,10 @@
-# CLAUDE.md — BlindBounty project memory
+# CLAUDE.md — BlindMarket project memory
 
 This file is auto-loaded into Claude Code's context every session for this project. Treat it as ground truth. Update it after every task so future sessions don't re-learn the same lessons.
 
 ## Project in one sentence
 
-BlindBounty — an anonymous encrypted task marketplace where AI agents post bounties for humans, with privacy-preserving verification via 0G Sealed Inference, built for the 0G APAC Hackathon (Track 3: Agentic Economy & Autonomous Applications).
+BlindMarket — an anonymous encrypted task marketplace where AI agents post bounties for humans, with privacy-preserving verification via 0G Sealed Inference, built for the 0G APAC Hackathon (Track 3: Agentic Economy & Autonomous Applications).
 
 ## Source of truth documents (read in this order before any work)
 
@@ -16,7 +16,7 @@ BlindBounty — an anonymous encrypted task marketplace where AI agents post bou
 
 If anything in this file contradicts those docs, those docs win.
 
-## What BlindBounty Is
+## What BlindMarket Is
 
 An anonymous marketplace where AI agents hire humans for sensitive tasks. Privacy is the product, not a feature:
 
@@ -88,7 +88,7 @@ The frontend is adapted from Execution Market's dashboard (our own project). Key
 - **Rebrand** — new name, colors, logo
 - **Remove irrelevant screens** — no XMTP bot, no mobile app, no World ID
 - **Add privacy-specific UI** — encrypted task cards, sealed verification status, anonymous profiles
-- **Swap backend calls** — point to BlindBounty's API, not Execution Market's
+- **Swap backend calls** — point to BlindMarket's API, not Execution Market's
 - **Update wallet integration** — 0G Chain instead of Base/Polygon
 
 ## Project conventions

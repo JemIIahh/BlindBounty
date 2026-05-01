@@ -1,4 +1,4 @@
-# BlindBounty — Architecture
+# BlindMarket — Architecture
 
 ## System Diagram
 
@@ -85,7 +85,7 @@
 
 Adapted from Execution Market dashboard. Key changes:
 
-| Original (Execution Market) | BlindBounty Adaptation |
+| Original (Execution Market) | BlindMarket Adaptation |
 |---|---|
 | Public task details | Encrypted task cards (category + zone + reward only) |
 | Worker profiles with names/locations | Anonymous profiles (reputation score only) |

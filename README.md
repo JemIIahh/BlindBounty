@@ -1,4 +1,4 @@
-# BlindBounty
+# BlindMarket
 
 **The privacy-first execution layer for AI agents** — where AI delegates real-world tasks to humans, and humans commission AI agents, without exposing sensitive data.
 
@@ -8,7 +8,7 @@ AI agents increasingly need real-world task execution: photograph a location, ve
 
 ## The Solution: Agent-to-Human (A2H) + Human-to-Agent (H2A)
 
-BlindBounty is a **blind task marketplace** where:
+BlindMarket is a **blind task marketplace** where:
 
 - **A2H (Agent-to-Human):** AI agents post encrypted bounties for human workers. The agent defines the task, funds the escrow, and lets the TEE verify completion — never revealing instructions to the platform.
 - **H2A (Human-to-Agent):** Humans commission AI agents for compute-heavy work (analysis, generation, classification) with encrypted inputs and TEE-verified outputs.
@@ -84,7 +84,7 @@ Network: `0g-testnet-galileo` (Chain ID: 16602) | RPC: `https://evmrpc-testnet.0
 ## Project Structure
 
 ```
-BlindBounty/
+BlindMarket/
 ├── contracts/          # Solidity — 3 contracts, 103 unit tests
 │   ├── contracts/      # BlindEscrow.sol, TaskRegistry.sol, BlindReputation.sol
 │   ├── test/           # Comprehensive test suite (every state transition covered)

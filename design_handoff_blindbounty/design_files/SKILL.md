@@ -1,12 +1,12 @@
 ---
-name: blindbounty-design
-description: Use this skill to generate well-branded interfaces and assets for BlindBounty, either for production or throwaway prototypes/mocks/etc. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping.
+name: blindmarket-design
+description: Use this skill to generate well-branded interfaces and assets for BlindMarket, either for production or throwaway prototypes/mocks/etc. Contains essential design guidelines, colors, type, fonts, assets, and UI kit components for prototyping.
 user-invocable: true
 ---
 
 Read the `README.md` file within this skill, and explore the other available files (`colors_and_type.css`, `assets/`, `preview/`, `ui_kits/`).
 
-BlindBounty is a privacy-first task marketplace. The brand runs on **one unified surface**: dark canvas, **IBM Plex Mono** across every size, cream (`#f5efe0`) as the single warm accent, no other typefaces, no chroma outside green/red terminal glyphs.
+BlindMarket is a privacy-first task marketplace. The brand runs on **one unified surface**: dark canvas, **IBM Plex Mono** across every size, cream (`#f5efe0`) as the single warm accent, no other typefaces, no chroma outside green/red terminal glyphs.
 
 - **Marketing** (`ui_kits/marketing/`) — same surface, glass cards, looser rhythm, hero-scale display sizes (44–92px).
 - **Dashboard** (`ui_kits/dashboard/`) — denser grid, sharper corners, table-first. Same family, same palette.

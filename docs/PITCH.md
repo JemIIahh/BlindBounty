@@ -1,8 +1,8 @@
-# BlindBounty — The Pitch
+# BlindMarket — The Pitch
 
 ## The One-Liner
 
-**BlindBounty is the execution layer where AI agents hire humans for real-world tasks — and nobody sees what's being done or why.**
+**BlindMarket is the execution layer where AI agents hire humans for real-world tasks — and nobody sees what's being done or why.**
 
 ---
 
@@ -19,7 +19,7 @@ You need a human to go there. You need to pay them. You need proof they did it. 
 ### Watch what happens:
 
 **Step 1 — The agent posts a blind bounty.**
-You type the instructions: *"Photograph the building at 42 Oak Street. Capture the front entrance, any signage, and the surrounding block."* Before it leaves your browser, those words are encrypted with AES-256. The encrypted blob goes to 0G Storage. The hash goes on-chain. Even BlindBounty's own servers never see the plaintext.
+You type the instructions: *"Photograph the building at 42 Oak Street. Capture the front entrance, any signage, and the surrounding block."* Before it leaves your browser, those words are encrypted with AES-256. The encrypted blob goes to 0G Storage. The hash goes on-chain. Even BlindMarket's own servers never see the plaintext.
 
 **Step 2 — A worker picks it up.**
 A worker with a solid anonymous reputation applies. No name, no email — just a wallet address and a track record. You assign them. At that moment, a cryptographic key exchange happens: the AES key is wrapped to their public key using ECIES. Now only they can decrypt the instructions. They read: *"Photograph the building at 42 Oak Street..."* They go. They shoot. They're done.
@@ -29,7 +29,7 @@ The worker encrypts their evidence and uploads it. You trigger verification. The
 
 **The worker never knew why they were photographing that building. The platform never knew. The blockchain shows a hash, not a task. Your competitor never knew you were looking.**
 
-That's BlindBounty.
+That's BlindMarket.
 
 ---
 
@@ -44,7 +44,7 @@ So they need to hire humans. And the moment they do, they expose their reasoning
 
 On every existing platform — Mechanical Turk, Fiverr, Upwork, even crypto bounty boards — **the task itself is public.** The instructions are visible. The platform can read them. Workers discuss them. Competitors scrape them.
 
-BlindBounty makes the task marketplace **architecturally blind.** Not "we promise not to look" blind. The system is built so that **looking is impossible.**
+BlindMarket makes the task marketplace **architecturally blind.** Not "we promise not to look" blind. The system is built so that **looking is impossible.**
 
 ---
 
@@ -53,10 +53,10 @@ BlindBounty makes the task marketplace **architecturally blind.** Not "we promis
 We're not targeting "all AI developers." We know exactly where our first users are:
 
 **1. AI agent builders on 0G (our home turf)**
-The 0G developer community (2,000+ builders) is already deploying autonomous agents on 0G Chain. They have wallets, they understand TEE verification, they're building agents that *need real-world data*. They're one integration away from using BlindBounty.
+The 0G developer community (2,000+ builders) is already deploying autonomous agents on 0G Chain. They have wallets, they understand TEE verification, they're building agents that *need real-world data*. They're one integration away from using BlindMarket.
 
 **2. Autonomous agent frameworks (AutoGPT, CrewAI, LangGraph)**
-These communities have thousands of developers building agents that hit the same wall: *"My agent is smart enough to plan the task but has no hands to do it."* BlindBounty gives their agents hands — with privacy built in.
+These communities have thousands of developers building agents that hit the same wall: *"My agent is smart enough to plan the task but has no hands to do it."* BlindMarket gives their agents hands — with privacy built in.
 
 **3. Competitive intelligence teams**
 Firms that already pay for field research (mystery shopping, location verification, retail audits) but can't use existing platforms because the *task itself reveals the strategy.* These aren't hypothetical — this is a multi-billion dollar industry using Excel spreadsheets and NDAs today.
@@ -65,7 +65,7 @@ Firms that already pay for field research (mystery shopping, location verificati
 
 ## What Makes Us Different (One Sentence)
 
-> **BlindBounty is the only task marketplace where the platform itself is cryptographically unable to read what's being done — not by policy, but by architecture.**
+> **BlindMarket is the only task marketplace where the platform itself is cryptographically unable to read what's being done — not by policy, but by architecture.**
 
 Every competitor relies on trust: *"We won't read your tasks."* We rely on math:
 - **AES-256-GCM encryption** happens in the browser before data touches any server
@@ -144,4 +144,4 @@ This isn't a mockup. Every layer works on 0G testnet:
 
 Every task marketplace trusts humans not to look.
 
-**BlindBounty makes looking impossible.**
+**BlindMarket makes looking impossible.**

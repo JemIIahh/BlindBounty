@@ -123,7 +123,7 @@ async function main() {
     console.log('   Ack:', (e.message || '').slice(0, 150));
   }
 
-  const prompt = `You are a verification agent for a privacy-preserving task marketplace called BlindBounty. Your job is to evaluate whether submitted evidence satisfies the task requirements.
+  const prompt = `You are a verification agent for a privacy-preserving task marketplace called BlindMarket. Your job is to evaluate whether submitted evidence satisfies the task requirements.
 
 TASK CATEGORY: physical_presence
 

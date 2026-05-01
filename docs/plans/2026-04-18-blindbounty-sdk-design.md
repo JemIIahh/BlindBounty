@@ -1,9 +1,9 @@
-# BlindBounty SDK — Design
+# BlindMarket SDK — Design
 
 **Date:** 2026-04-18
 **Status:** Approved (pre-implementation)
-**Target package:** `@blindbounty/sdk`
-**Scope:** Production-grade TypeScript SDK for the BlindBounty privacy-first task marketplace. Covers everything in today's codebase (contracts, backend API, 0G Storage, 0G Sealed Inference, encryption) plus reserved extension points for features not yet built (staking, a2a, custody, forensics, accounting).
+**Target package:** `@blindmarket/sdk`
+**Scope:** Production-grade TypeScript SDK for the BlindMarket privacy-first task marketplace. Covers everything in today's codebase (contracts, backend API, 0G Storage, 0G Sealed Inference, encryption) plus reserved extension points for features not yet built (staking, a2a, custody, forensics, accounting).
 
 ---
 
@@ -14,7 +14,7 @@
 1. **One idiomatic TypeScript entry point** for every consumer class (AI agents, workers, verifiers, third-party integrators).
 2. **Battle-tested**: fuzzed crypto, simulated failure modes (reorgs, indexer outages, broker exhaustion), multi-runtime matrix (Node 18/20/22, Bun, Deno, Chrome/Firefox/Safari).
 3. **Isomorphic**: same codebase works server-side and in the browser.
-4. **Decentralized by default**: SDK can operate without the BlindBounty backend (chain + 0G Storage + compute broker only); backend is an optional convenience.
+4. **Decentralized by default**: SDK can operate without the BlindMarket backend (chain + 0G Storage + compute broker only); backend is an optional convenience.
 5. **Future-proof**: plugins, adapters, and reserved namespaces let us add features without breaking consumers.
 
 ### Non-goals (v0)
@@ -30,11 +30,11 @@
 
 ### Single package, subpath exports
 
-Ship as `@blindbounty/sdk` (npm). Multiple entry points declared in `package.json#exports`:
+Ship as `@blindmarket/sdk` (npm). Multiple entry points declared in `package.json#exports`:
 
 ```
-@blindbounty/sdk
-├── /              → high-level BlindBounty class (batteries-included)
+@blindmarket/sdk
+├── /              → high-level BlindMarket class (batteries-included)
 ├── /agent         → Agent role
 ├── /worker        → Worker role
 ├── /verifier      → Verifier role
@@ -42,7 +42,7 @@ Ship as `@blindbounty/sdk` (npm). Multiple entry points declared in `package.jso
 ├── /storage       → 0G Storage wrapper
 ├── /compute       → 0G Sealed Inference wrapper
 ├── /crypto        → ECIES, AES-256-GCM, SHA-256, key derivation (isomorphic)
-├── /api           → REST client for BlindBounty backend
+├── /api           → REST client for BlindMarket backend
 ├── /signer        → Signer adapters
 ├── /keystore      → KeyStore interface + adapters
 ├── /events        → typed event bus
@@ -53,14 +53,14 @@ Ship as `@blindbounty/sdk` (npm). Multiple entry points declared in `package.jso
 
 ### Why single package first, monorepo later
 
-A monorepo split (`@blindbounty/crypto`, `@blindbounty/chain`, …) pays off when (a) consumers want only a slice or (b) internal teams ship on different cadences. Neither is true today. A single package with subpath exports gives ~90% of the same ergonomics at ~20% of the tooling cost.
+A monorepo split (`@blindmarket/crypto`, `@blindmarket/chain`, …) pays off when (a) consumers want only a slice or (b) internal teams ship on different cadences. Neither is true today. A single package with subpath exports gives ~90% of the same ergonomics at ~20% of the tooling cost.
 
 **Migration path to monorepo** (execute when first consumer asks for a slice):
 1. `git mv src/<area>/ packages/<area>/src/` per subpath.
-2. Add `packages/*/package.json` with identical public names (`@blindbounty/crypto`, etc.).
+2. Add `packages/*/package.json` with identical public names (`@blindmarket/crypto`, etc.).
 3. Configure pnpm workspaces + Turborepo.
-4. `@blindbounty/sdk` becomes an umbrella that re-exports from the sibling packages.
-5. Consumer import paths stay identical (`@blindbounty/sdk/crypto` still works via re-export).
+4. `@blindmarket/sdk` becomes an umbrella that re-exports from the sibling packages.
+5. Consumer import paths stay identical (`@blindmarket/sdk/crypto` still works via re-export).
 
 ### Build & tooling
 
@@ -85,7 +85,7 @@ A monorepo split (`@blindbounty/crypto`, `@blindbounty/chain`, …) pays off whe
 Low-level access to every boundary. Use when the role APIs don't fit.
 
 ```ts
-import { Crypto, Chain, Storage, Compute, Api } from '@blindbounty/sdk'
+import { Crypto, Chain, Storage, Compute, Api } from '@blindmarket/sdk'
 
 await chain.escrow.createTask({ taskHash, token, amount, category, locationZone })
 await storage.upload(bytes)           // → { rootHash, txHash }
@@ -101,7 +101,7 @@ await api.tasks.list({ category, cursor })
 One class per actor. Handles encryption + upload + chain + receipt in one call.
 
 ```ts
-import { Agent, Worker, Verifier } from '@blindbounty/sdk'
+import { Agent, Worker, Verifier } from '@blindmarket/sdk'
 
 const agent = new Agent({ network, signer, keystore })
 const worker = new Worker({ network, signer, keystore })
@@ -112,9 +112,9 @@ const worker = new Worker({ network, signer, keystore })
 What most consumers use.
 
 ```ts
-import { BlindBounty } from '@blindbounty/sdk'
+import { BlindMarket } from '@blindmarket/sdk'
 
-const bb = new BlindBounty({
+const bb = new BlindMarket({
   network: 'testnet',                 // or 'mainnet' | CustomNetwork
   signer,                             // Signer adapter
   keystore,                           // defaults to InMemory
@@ -246,7 +246,7 @@ Adapters:
 Every error extends a single base with a **stable string code** and a built-in retry flag.
 
 ```ts
-class BlindBountyError extends Error {
+class BlindMarketError extends Error {
   code: ErrorCode              // e.g. 'CRYPTO/DECRYPT_FAILED'
   retriable: boolean
   context?: Record<string, unknown>
@@ -324,11 +324,11 @@ interface Plugin {
   onDownload?: (hash: Hex, next: Next) => Promise<Uint8Array>
   onApi?: (req: ApiRequest, next: Next) => Promise<ApiResponse>
   onEvent?: (event: SdkEvent) => void
-  onError?: (err: BlindBountyError) => void
-  install?: (sdk: BlindBounty) => void
+  onError?: (err: BlindMarketError) => void
+  install?: (sdk: BlindMarket) => void
 }
 
-new BlindBounty({ plugins: [logger(pino), retry({...}), cache({...}), telemetry(otel), policyGuard(rules)] })
+new BlindMarket({ plugins: [logger(pino), retry({...}), cache({...}), telemetry(otel), policyGuard(rules)] })
 ```
 
 Deterministic order: first registered = outermost.
@@ -381,7 +381,7 @@ Baked into each SDK version. `CustomNetwork` for forks/local. Consumers never pa
 
 ## 8. Recap
 
-- **1 package** (`@blindbounty/sdk`) with subpath exports; migrate to monorepo when a consumer asks.
+- **1 package** (`@blindmarket/sdk`) with subpath exports; migrate to monorepo when a consumer asks.
 - **3 layers**: primitives → roles → umbrella.
 - **Signer + KeyStore** separate, pluggable, encrypted-at-rest.
 - **Typed error hierarchy** with stable string codes and built-in retry.

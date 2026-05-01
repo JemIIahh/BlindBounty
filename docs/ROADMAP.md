@@ -1,4 +1,4 @@
-# BlindBounty — Roadmap
+# BlindMarket — Roadmap
 
 > Single-page status tracker. Read this first every session.
 
@@ -15,7 +15,7 @@
 | 4 | 0G Sealed Inference | ✅ | TEE verification live on testnet (qwen-2.5-7b-instruct) |
 | 5 | Frontend | ✅ (mostly) | Fresh build, 7 pages, crypto, auth — needs rebrand + reputation UI |
 | 6 | Polish & Edge Cases | IN PROGRESS | Rebrand, reputation display, edge case testing |
-| 6.5 | SDK (hackathon slice) | ✅ | `@blindbounty/sdk` 0.1.0 — crypto, chain, storage, Agent/Worker roles, 97 tests |
+| 6.5 | SDK (hackathon slice) | ✅ | `@blindmarket/sdk` 0.1.0 — crypto, chain, storage, Agent/Worker roles, 97 tests |
 | 7 | Submission | BLOCKED | Demo video, X post, HackQuest — after everything works |
 
 ---
@@ -24,7 +24,7 @@
 
 | Task | Status | Notes |
 |---|---|---|
-| 0.1 Create project folder + git init | ✅ | `/Users/ram/Desktop/BlindBounty` |
+| 0.1 Create project folder + git init | ✅ | `/Users/ram/Desktop/BlindMarket` |
 | 0.2 Copy Execution Market dashboard | ✅ | `dashboard/` copied |
 | 0.3 Create all .md files | ✅ | CLAUDE.md, ROADMAP.md, PITCH.md, etc. |
 | 0.4 Create folder structure | ✅ | contracts/, backend/, frontend/, scripts/ |
@@ -97,9 +97,9 @@
 
 ## Phase 6.5: SDK (hackathon slice) ✅
 
-`@blindbounty/sdk` v0.1.0 — an isomorphic TypeScript SDK for integrators.
-Shipped via the plan in `docs/plans/2026-04-18-blindbounty-sdk-implementation.md`
-(design in `docs/plans/2026-04-18-blindbounty-sdk-design.md`).
+`@blindmarket/sdk` v0.1.0 — an isomorphic TypeScript SDK for integrators.
+Shipped via the plan in `docs/plans/2026-04-18-blindmarket-sdk-implementation.md`
+(design in `docs/plans/2026-04-18-blindmarket-sdk-design.md`).
 
 | Task | Status | Notes |
 |---|---|---|
@@ -119,7 +119,7 @@ Shipped via the plan in `docs/plans/2026-04-18-blindbounty-sdk-implementation.md
 
 Deferred to post-hackathon: BrowserSigner/KmsSigner, File/Browser KeyStore
 persistence, REST API client for reserved namespaces (staking/a2a/custody/
-forensics/accounting), Verifier role, umbrella `BlindBounty` class, battle-
+forensics/accounting), Verifier role, umbrella `BlindMarket` class, battle-
 testing matrix, TypeDoc site, npm publish, Python port, backend dogfood
 (sync Buffer → async Uint8Array migration is invasive).
 
@@ -142,7 +142,7 @@ testing matrix, TypeDoc site, npm publish, Python port, backend dogfood
 | 7.1 Demo video | BLOCKED | Screen recording of full flow |
 | 7.2 X post | BLOCKED | Public post (mandatory) |
 | 7.3 HackQuest submission form | BLOCKED | Track 3, all links |
-| 7.4 GitHub repo public | ✅ | `JemIIahh/BlindBounty` |
+| 7.4 GitHub repo public | ✅ | `JemIIahh/BlindMarket` |
 | 7.5 PITCH.md | ✅ | Scenario-driven demo script, checklist self-assessment |
 
 ---
@@ -158,7 +158,7 @@ testing matrix, TypeDoc site, npm publish, Python port, backend dogfood
 
 ## Phase 8: Post-Hackathon — Multi-Chain Expansion
 
-> Not part of hackathon submission. BlindBounty currently runs exclusively on 0G Chain. Multi-chain support is a post-hackathon goal.
+> Not part of hackathon submission. BlindMarket currently runs exclusively on 0G Chain. Multi-chain support is a post-hackathon goal.
 
 | Task | Status | Notes |
 |---|---|---|

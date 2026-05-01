@@ -1,4 +1,4 @@
-# BlindBounty — Gotchas
+# BlindMarket — Gotchas
 
 > Append every surprise, undocumented behavior, or painful lesson here so future sessions don't repeat them.
 
