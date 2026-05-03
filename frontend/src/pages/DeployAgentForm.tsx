@@ -75,7 +75,9 @@ export default function DeployAgentForm() {
       // Derive the secp256k1 public key by recovering it from a signed message
       const msg = `BlindMarket agent deployment\nOwner: ${address}`;
       const sig = await walletClient.signMessage({ message: msg });
-      const ownerPublicKey = await recoverPublicKey({ hash: hashMessage(msg), signature: sig });
+      const recovered = await recoverPublicKey({ hash: hashMessage(msg), signature: sig });
+      // viem returns 0x04... — strip 0x for backend
+      const ownerPublicKey = recovered.replace(/^0x/, '');
 
       const res = await fetch('/api/v1/agents/deploy', {
         method: 'POST',
