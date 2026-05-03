@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAccount } from 'wagmi';
+import { useAccount, useWalletClient } from 'wagmi';
+import { recoverPublicKey, hashMessage } from 'viem';
 import { Breadcrumb, PageHeader, SectionRule } from '../components/bb';
-import { generateKeyPair } from '../lib/crypto';
 
 type Provider = 'openai' | 'anthropic' | 'groq' | 'gemini';
 type ProviderModels = Record<Provider, string[]>;
@@ -18,6 +18,7 @@ interface Tool {
 
 export default function DeployAgentForm() {
   const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
   const navigate = useNavigate();
 
   const [providers, setProviders] = useState<ProviderModels>({
@@ -67,12 +68,14 @@ export default function DeployAgentForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!address) return;
+    if (!address || !walletClient) return;
     setStatus('deploying');
     setError('');
     try {
-      const { publicKeyHex } = await generateKeyPair();
-      const ownerPublicKey = '04' + publicKeyHex.replace(/^04/, '');
+      // Derive the secp256k1 public key by recovering it from a signed message
+      const msg = `BlindMarket agent deployment\nOwner: ${address}`;
+      const sig = await walletClient.signMessage({ message: msg });
+      const ownerPublicKey = await recoverPublicKey({ hash: hashMessage(msg), signature: sig });
 
       const res = await fetch('/api/v1/agents/deploy', {
         method: 'POST',
