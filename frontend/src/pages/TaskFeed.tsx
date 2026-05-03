@@ -98,8 +98,8 @@ export default function TaskFeed() {
       {/* Table + detail panel */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-0 border border-line">
         {/* Task table */}
-        <div>
-          <div className="grid grid-cols-[80px_1fr_100px_100px_80px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
+        <div className="overflow-x-auto min-w-0">
+          <div className="grid grid-cols-[80px_1fr_100px_100px_80px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 min-w-[480px]">
             <span>id</span>
             <span>category · zone</span>
             <span>bounty</span>
@@ -127,7 +127,7 @@ export default function TaskFeed() {
             <button
               key={task.taskId}
               onClick={() => setSelectedId(task.taskId)}
-              className={`grid grid-cols-[80px_1fr_100px_100px_80px] gap-4 px-5 py-4 border-b border-line text-[13px] font-mono w-full text-left transition-colors duration-150 ${
+              className={`grid grid-cols-[80px_1fr_100px_100px_80px] gap-4 px-5 py-4 border-b border-line text-[13px] font-mono w-full text-left transition-colors duration-150 min-w-[480px] ${
                 activeId === task.taskId ? 'bg-surface-2' : 'hover:bg-surface-2'
               }`}
             >

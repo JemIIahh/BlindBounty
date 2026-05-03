@@ -163,8 +163,8 @@ export default function Earnings() {
             {entriesLoading ? 'loading…' : 'no pending payments.'}
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-[80px_100px_100px_100px_1fr_100px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-[80px_100px_100px_100px_1fr_100px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 min-w-[560px]">
               <span>task</span>
               <span>type</span>
               <span>amount</span>
@@ -175,7 +175,7 @@ export default function Earnings() {
             {pending.map((p) => (
               <div
                 key={p.id}
-                className="grid grid-cols-[80px_100px_100px_100px_1fr_100px] gap-4 px-5 py-4 border-b border-line last:border-b-0 text-[13px] font-mono"
+                className="grid grid-cols-[80px_100px_100px_100px_1fr_100px] gap-4 px-5 py-4 border-b border-line last:border-b-0 text-[13px] font-mono min-w-[560px]"
               >
                 <span className="text-ink-3">{p.task_id ? `#${p.task_id}` : '—'}</span>
                 <Tag tone={typeTone(p.type)}>{p.type}</Tag>
@@ -185,7 +185,7 @@ export default function Earnings() {
                 <span className="text-ink-3">{formatTime(p.created_at)}</span>
               </div>
             ))}
-          </>
+          </div>
         )}
       </div>
 
@@ -204,8 +204,8 @@ export default function Earnings() {
             </div>
           )}
           {entries.length > 0 && (
-            <>
-              <div className="grid grid-cols-[100px_90px_60px_100px_90px_1fr_80px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
+            <div className="overflow-x-auto">
+              <div className="grid grid-cols-[100px_90px_60px_100px_90px_1fr_80px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3 min-w-[640px]">
                 <span>time</span>
                 <span>type</span>
                 <span>ref</span>
@@ -217,7 +217,7 @@ export default function Earnings() {
               {entries.map((tx) => (
                 <div
                   key={tx.id}
-                  className="grid grid-cols-[100px_90px_60px_100px_90px_1fr_80px] gap-4 px-5 py-3 border-b border-line last:border-b-0 text-[12px] font-mono"
+                  className="grid grid-cols-[100px_90px_60px_100px_90px_1fr_80px] gap-4 px-5 py-3 border-b border-line last:border-b-0 text-[12px] font-mono min-w-[640px]"
                 >
                   <span className="text-ink-3">{formatTime(tx.created_at)}</span>
                   <Tag tone={typeTone(tx.type)}>{tx.type}</Tag>
@@ -232,7 +232,7 @@ export default function Earnings() {
                   </Tag>
                 </div>
               ))}
-            </>
+            </div>
           )}
         </div>
       </Panel>
