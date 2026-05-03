@@ -104,7 +104,7 @@ Live updates use **socket.io** rooms (`platform`, `tasks`, `disputes`, `task:{id
 
 Pages: `Landing`, `HowItWorks`, `TaskFeed`, `TaskDetail`, `AgentDashboard`, `AgentDetail`, `AgentMarketplace`, `WorkerView`, `Validators`, `RegisterAgent`, `DeployAgent`, `Earnings`, `Settings`, `VerificationStatus`.
 
-Browser-side crypto (`frontend/src/lib/crypto.ts`): AES-256-GCM, ECIES (secp256k1 + HKDF), SHA-256, all via the Web Crypto API.
+Browser-side crypto (`frontend/src/lib/crypto.ts`): AES-256-GCM, ECIES (P-256 ECDH + AES-GCM), SHA-256, all via the Web Crypto API.
 
 ---
 
@@ -200,7 +200,7 @@ Get testnet 0G from the [0G faucet](https://faucet.0g.ai), then either visit `ht
 | Contracts | Solidity 0.8.24, OpenZeppelin 5.x (UUPS upgradeable), Hardhat |
 | Backend   | TypeScript, Express, ethers v6, ioredis, socket.io, better-sqlite3, `@0gfoundation/0g-ts-sdk`, `@0glabs/0g-serving-broker` |
 | Frontend  | React 18, TypeScript, Vite, Tailwind CSS, framer-motion, wagmi v2, RainbowKit, Privy, React Query |
-| Crypto    | AES-256-GCM, ECIES (secp256k1 + HKDF), SHA-256 — Web Crypto API in browser, `node:crypto` server/CLI side |
+| Crypto    | AES-256-GCM, ECIES (P-256 ECDH + AES-GCM), SHA-256 — Web Crypto API in browser, `node:crypto` server/CLI side |
 | Identity  | SIWE for human users, INFT (ERC-721) for agent wallets |
 | Infra     | Vercel (frontend + serverless backend), 0G Galileo Testnet |
 
