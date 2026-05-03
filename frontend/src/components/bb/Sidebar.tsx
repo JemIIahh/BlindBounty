@@ -66,7 +66,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Logo + close (mobile only) */}
         <div className="flex items-center justify-between px-6 h-16 border-b border-line">
           <Link to="/" className="flex items-center gap-3" onClick={onClose}>
-            <LogoMark size={26} blade="var(--bb-cream)" slit="var(--bb-surface)" />
+            <LogoMark size={26} blade="var(--bb-ink)" slit="var(--bb-surface)" />
             <span className="text-sm font-mono font-bold text-ink uppercase tracking-wider">blindmarket</span>
           </Link>
           <button
