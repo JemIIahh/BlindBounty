@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAccount, useBalance } from 'wagmi';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
+import { truncateAddress } from '../lib/utils';
 
 interface AgentDetails {
   id: string;
@@ -14,12 +17,19 @@ interface AgentDetails {
   walletAddress?: string;
   publicKey?: string;
   inftTokenId?: number;
+  tasksCompleted?: number;
+  totalEarned?: string;
 }
+
+const STATUS_TONE: Record<string, 'ok' | 'warn' | 'err' | 'neutral'> = {
+  running: 'ok', idle: 'neutral', paused: 'warn', stopped: 'err', error: 'err',
+};
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>();
   const { address } = useAccount();
-  const navigate = useNavigate();
+  const qc = useQueryClient();
+
   const [agent, setAgent] = useState<AgentDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
@@ -33,139 +43,123 @@ export default function AgentDetail() {
     fetch(`/api/v1/agents/${id}`)
       .then(r => r.json())
       .then(d => { if (d.success) setAgent(d.data); })
-      .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {
     if (!id) return;
     const es = new EventSource(`/api/v1/agents/${id}/logs`);
-    es.onmessage = (e) => {
+    es.onmessage = e => {
       try { setLogs(prev => [...prev.slice(-199), JSON.parse(e.data)]); } catch {}
     };
     return () => es.close();
   }, [id]);
 
-  if (loading) return <div className="text-center py-20 text-gray-500">Loading…</div>;
+  const action = useMutation({
+    mutationFn: async (act: 'start' | 'pause' | 'stop') => {
+      const res = await fetch(`/api/v1/agents/${id}/${act}`, { method: 'POST' });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.success) setAgent(data.data);
+      qc.invalidateQueries({ queryKey: ['my-agents'] });
+    },
+  });
 
-  if (!agent) return (
-    <div className="text-center py-20">
-      <p className="text-gray-500 mb-4">Agent not found</p>
-      <button onClick={() => navigate('/agents')} className="text-blue-400 underline text-sm">Back</button>
-    </div>
-  );
+  if (loading) return <div className="text-xs font-mono text-ink-3 py-20 text-center">loading…</div>;
+  if (!agent) return <div className="text-xs font-mono text-ink-3 py-20 text-center">agent not found</div>;
 
   const isOwner = address?.toLowerCase() === agent.ownerAddress?.toLowerCase();
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-10">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <button onClick={() => navigate('/agents/mine')} className="text-gray-500 hover:text-white text-sm transition-colors">
-          ← Back to my agents
-        </button>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-900/40 border border-blue-800/50 flex items-center justify-center text-blue-400 font-bold text-sm">
-            {agent.name.slice(0, 2).toUpperCase()}
+    <div>
+      <Breadcrumb items={['marketplace', 'agents', 'mine', agent.name]} />
+      <PageHeader
+        title={agent.name}
+        description={`${agent.provider} · ${agent.model}`}
+        right={
+          <div className="flex items-center gap-3">
+            <Tag tone={STATUS_TONE[agent.status] ?? 'neutral'}>{agent.status}</Tag>
+            {isOwner && (
+              <div className="flex gap-2 text-[11px] font-mono">
+                {agent.status !== 'running' && (
+                  <button onClick={() => action.mutate('start')} className="px-3 py-1 border border-green-400 text-green-400 hover:bg-green-400 hover:text-bg transition-colors">start</button>
+                )}
+                {agent.status === 'running' && (
+                  <button onClick={() => action.mutate('pause')} className="px-3 py-1 border border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-bg transition-colors">pause</button>
+                )}
+                <button onClick={() => action.mutate('stop')} className="px-3 py-1 border border-line text-ink-3 hover:border-red-400 hover:text-red-400 transition-colors">stop</button>
+              </div>
+            )}
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-white">{agent.name}</h1>
-            <p className="text-gray-500 text-xs">{agent.provider} · {agent.model}</p>
-          </div>
+        }
+      />
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-0 border border-line mb-8">
+        <StatCard label="tasks completed" value={String(agent.tasksCompleted ?? 0)} sub="all time" />
+        <div className="border-l border-line">
+          <StatCard label="earned" value={`$${parseFloat(agent.totalEarned ?? '0').toFixed(2)}`} sub="USDC" subColor="ok" />
         </div>
-        <div className="ml-auto">
-          <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1.5 ${
-            agent.status === 'running' ? 'bg-green-900/40 text-green-400' :
-            agent.status === 'paused'  ? 'bg-yellow-900/40 text-yellow-400' :
-            'bg-gray-800 text-gray-500'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${
-              agent.status === 'running' ? 'bg-green-400 animate-pulse' :
-              agent.status === 'paused'  ? 'bg-yellow-400' : 'bg-gray-500'
-            }`} />
-            {agent.status}
-          </span>
+        <div className="border-l border-line">
+          <StatCard label="wallet balance" value={balance ? `${parseFloat(balance.formatted).toFixed(4)}` : '—'} sub={balance?.symbol ?? '0G'} />
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        {/* Left panel */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-gray-950 border border-gray-800 rounded-xl p-5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">Identity</p>
-            <div className="space-y-4">
+      <div className="grid grid-cols-[320px_1fr] gap-6">
+        {/* Left */}
+        <div className="space-y-6">
+          <div className="border border-line p-5">
+            <SectionRule num="01" title="identity" />
+            <div className="mt-4 space-y-4 text-xs font-mono">
               <div>
-                <p className="text-gray-500 text-xs mb-1">Owner</p>
-                <p className="text-white font-mono text-xs">{agent.ownerAddress.slice(0, 6)}...{agent.ownerAddress.slice(-4)}</p>
+                <div className="text-ink-3 mb-1">owner</div>
+                <div className="text-ink">{truncateAddress(agent.ownerAddress)}</div>
               </div>
               <div>
-                <p className="text-gray-500 text-xs mb-1">Deployed</p>
-                <p className="text-white text-xs">{new Date(agent.deployedAt).toLocaleString()}</p>
+                <div className="text-ink-3 mb-1">deployed</div>
+                <div className="text-ink">{new Date(agent.deployedAt).toLocaleString()}</div>
               </div>
               {agent.walletAddress && (
                 <div>
-                  <p className="text-gray-500 text-xs mb-1">Agent Wallet</p>
-                  <p className="text-white font-mono text-xs break-all">{agent.walletAddress}</p>
-                  <p className="text-blue-400 text-xs mt-1 font-medium">
-                    {balance ? `${parseFloat(balance.formatted).toFixed(4)} ${balance.symbol}` : 'loading...'}
-                  </p>
+                  <div className="text-ink-3 mb-1">agent wallet</div>
+                  <div className="text-ink break-all">{agent.walletAddress}</div>
                 </div>
               )}
               {agent.inftTokenId !== undefined && (
                 <div>
-                  <p className="text-gray-500 text-xs mb-1">INFT Token</p>
-                  <p className="text-white font-mono text-xs">#{agent.inftTokenId}</p>
+                  <div className="text-ink-3 mb-1">INFT token</div>
+                  <div className="text-cream">#{agent.inftTokenId}</div>
                 </div>
               )}
               {agent.publicKey && (
                 <div>
-                  <p className="text-gray-500 text-xs mb-1">Public Key</p>
-                  <p className="text-white font-mono text-xs">{agent.publicKey.slice(0, 18)}…{agent.publicKey.slice(-6)}</p>
+                  <div className="text-ink-3 mb-1">public key</div>
+                  <div className="text-ink">{agent.publicKey.slice(0, 18)}…{agent.publicKey.slice(-6)}</div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-gray-950 border border-gray-800 rounded-xl p-5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Instructions</p>
-            <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap">{agent.instructions}</p>
+          <div className="border border-line p-5">
+            <SectionRule num="02" title="instructions" />
+            <div className="mt-3 text-xs font-mono text-ink-3 leading-relaxed whitespace-pre-wrap">{agent.instructions}</div>
           </div>
-
-          {isOwner && (
-            <div className="bg-gray-950 border border-gray-800 rounded-xl p-5">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Controls</p>
-              <button className="w-full text-xs font-medium py-2 rounded-lg bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors">
-                ⚙ Manage Agent
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Logs panel */}
-        <div className="lg:col-span-3">
-          <div className="bg-gray-950 border border-gray-800 rounded-xl p-5 h-full">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Live Logs</p>
-              {agent.status === 'running' && (
-                <span className="flex items-center gap-1.5 text-xs text-green-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                  live
-                </span>
-              )}
-            </div>
-            <div className="space-y-0.5 max-h-[520px] overflow-y-auto font-mono">
-              {logs.length > 0 ? logs.map((line, i) => (
-                <div key={i} className={`text-xs px-3 py-1.5 rounded ${
-                  line.includes('[err]') ? 'bg-red-900/20 text-red-400' : 'text-gray-300 hover:bg-gray-900'
-                }`}>
-                  {line}
-                </div>
-              )) : (
-                <div className="text-center py-16 text-gray-600 text-sm">
-                  {agent.status === 'running' ? 'Waiting for logs…' : 'Start the agent to see logs'}
-                </div>
-              )}
-            </div>
+        {/* Logs */}
+        <div className="border border-line p-5 flex flex-col">
+          <SectionRule num="03" title="live logs" side={agent.status === 'running' ? '● live' : undefined} />
+          <div className="mt-4 flex-1 overflow-y-auto max-h-[520px] space-y-0.5">
+            {logs.length > 0 ? logs.map((line, i) => (
+              <div key={i} className={`px-3 py-1.5 text-xs font-mono ${line.includes('[err]') ? 'text-red-400 bg-red-900/10' : 'text-ink-3 hover:bg-surface-2'}`}>
+                {line}
+              </div>
+            )) : (
+              <div className="text-center py-16 text-xs font-mono text-ink-3">
+                {agent.status === 'running' ? 'waiting for logs…' : 'start the agent to see logs'}
+              </div>
+            )}
           </div>
         </div>
       </div>
