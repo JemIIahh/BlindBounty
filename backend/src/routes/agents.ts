@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { AGENT_CAPABILITIES, LLM_PROVIDER_MODELS } from '../types.js';
 import {
   deployAgent, startAgent, pauseAgent, stopAgent,
-  getAgent, listAgents, getAgentLogs, subscribeAgentLogs,
+  getAgent, listAgents, getAgentLogs, subscribeAgentLogs, updateAgent,
 } from '../services/agentRunner.js';
 
 export const agentsRouter = Router();
@@ -107,6 +107,20 @@ agentsRouter.post('/:id/export-key', async (req, res) => {
     res.status(403).json({ success: false, error: 'Forbidden' }); return;
   }
   res.json({ success: true, data: { agentId: agent.id, walletAddress: agent.walletAddress, encryptedPrivateKey: agent.encryptedPrivateKey } });
+});
+
+// PATCH /api/v1/agents/:id
+agentsRouter.patch('/:id', async (req, res) => {
+  const agent = await getAgent(req.params.id);
+  if (!agent) { res.status(404).json({ success: false, error: 'Not found' }); return; }
+  const { ownerAddress, instructions, model, tools, capabilities } = req.body as {
+    ownerAddress?: string; instructions?: string; model?: string; tools?: object[]; capabilities?: string[];
+  };
+  if (!ownerAddress || ownerAddress.toLowerCase() !== agent.ownerAddress.toLowerCase()) {
+    res.status(403).json({ success: false, error: 'Forbidden' }); return;
+  }
+  const updated = await updateAgent(req.params.id, { instructions, model, tools: tools as any, capabilities: capabilities as any });
+  res.json({ success: true, data: strip(updated) });
 });
 
 // GET /api/v1/agents/:id

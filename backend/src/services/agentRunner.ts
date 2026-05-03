@@ -175,3 +175,11 @@ export async function listAgents(ownerAddress?: string): Promise<DeployedAgent[]
   const all = await loadAllAgents();
   return ownerAddress ? all.filter(a => a.ownerAddress === ownerAddress) : all;
 }
+
+export async function updateAgent(id: string, patch: Partial<Pick<DeployedAgent, 'instructions' | 'model' | 'tools' | 'capabilities'>>): Promise<DeployedAgent | undefined> {
+  const agent = await loadAgent(id);
+  if (!agent) return undefined;
+  const updated = { ...agent, ...patch };
+  await saveAgent(updated);
+  return updated;
+}

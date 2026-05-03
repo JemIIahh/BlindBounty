@@ -5,20 +5,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
 
+interface AgentTool { type: string; name: string; description: string; url?: string; endpointUrl?: string; method?: string; toolName?: string; }
 interface AgentDetails {
-  id: string;
-  name: string;
-  provider: string;
-  model: string;
-  status: string;
-  ownerAddress: string;
-  deployedAt: string;
-  instructions: string;
-  walletAddress?: string;
-  publicKey?: string;
-  inftTokenId?: number;
-  tasksCompleted?: number;
-  totalEarned?: string;
+  id: string; name: string; provider: string; model: string; status: string;
+  ownerAddress: string; deployedAt: string; instructions: string;
+  walletAddress?: string; publicKey?: string; inftTokenId?: number;
+  tasksCompleted?: number; totalEarned?: string; tools?: AgentTool[];
 }
 
 const STATUS_TONE: Record<string, 'ok' | 'warn' | 'err' | 'neutral'> = {
@@ -33,6 +25,11 @@ export default function AgentDetail() {
   const [agent, setAgent] = useState<AgentDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState<string[]>([]);
+  const [tab, setTab] = useState<'logs' | 'tools' | 'tasks' | 'edit'>('logs');
+
+  // Edit state
+  const [editInstructions, setEditInstructions] = useState('');
+  const [editModel, setEditModel] = useState('');
 
   const { data: balance } = useBalance({
     address: agent?.walletAddress as `0x${string}` | undefined,
@@ -42,7 +39,13 @@ export default function AgentDetail() {
   useEffect(() => {
     fetch(`/api/v1/agents/${id}`)
       .then(r => r.json())
-      .then(d => { if (d.success) setAgent(d.data); })
+      .then(d => {
+        if (d.success) {
+          setAgent(d.data);
+          setEditInstructions(d.data.instructions ?? '');
+          setEditModel(d.data.model ?? '');
+        }
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -60,10 +63,19 @@ export default function AgentDetail() {
       const res = await fetch(`/api/v1/agents/${id}/${act}`, { method: 'POST' });
       return res.json();
     },
-    onSuccess: (data) => {
-      if (data.success) setAgent(data.data);
-      qc.invalidateQueries({ queryKey: ['my-agents'] });
+    onSuccess: (data) => { if (data.success) setAgent(data.data); qc.invalidateQueries({ queryKey: ['my-agents'] }); },
+  });
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/agents/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerAddress: address, instructions: editInstructions, model: editModel }),
+      });
+      return res.json();
     },
+    onSuccess: (data) => { if (data.success) { setAgent(data.data); setTab('logs'); } },
   });
 
   if (loading) return <div className="text-xs font-mono text-ink-3 py-20 text-center">loading…</div>;
@@ -82,12 +94,8 @@ export default function AgentDetail() {
             <Tag tone={STATUS_TONE[agent.status] ?? 'neutral'}>{agent.status}</Tag>
             {isOwner && (
               <div className="flex gap-2 text-[11px] font-mono">
-                {agent.status !== 'running' && (
-                  <button onClick={() => action.mutate('start')} className="px-3 py-1 border border-green-400 text-green-400 hover:bg-green-400 hover:text-bg transition-colors">start</button>
-                )}
-                {agent.status === 'running' && (
-                  <button onClick={() => action.mutate('pause')} className="px-3 py-1 border border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-bg transition-colors">pause</button>
-                )}
+                {agent.status !== 'running' && <button onClick={() => action.mutate('start')} className="px-3 py-1 border border-green-400 text-green-400 hover:bg-green-400 hover:text-bg transition-colors">start</button>}
+                {agent.status === 'running' && <button onClick={() => action.mutate('pause')} className="px-3 py-1 border border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-bg transition-colors">pause</button>}
                 <button onClick={() => action.mutate('stop')} className="px-3 py-1 border border-line text-ink-3 hover:border-red-400 hover:text-red-400 transition-colors">stop</button>
               </div>
             )}
@@ -95,74 +103,123 @@ export default function AgentDetail() {
         }
       />
 
-      {/* Stats */}
       <div className="grid grid-cols-3 gap-0 border border-line mb-8">
         <StatCard label="tasks completed" value={String(agent.tasksCompleted ?? 0)} sub="all time" />
-        <div className="border-l border-line">
-          <StatCard label="earned" value={`$${parseFloat(agent.totalEarned ?? '0').toFixed(2)}`} sub="USDC" subColor="ok" />
-        </div>
-        <div className="border-l border-line">
-          <StatCard label="wallet balance" value={balance ? `${parseFloat(balance.formatted).toFixed(4)}` : '—'} sub={balance?.symbol ?? '0G'} />
-        </div>
+        <div className="border-l border-line"><StatCard label="earned" value={`$${parseFloat(agent.totalEarned ?? '0').toFixed(2)}`} sub="USDC" subColor="ok" /></div>
+        <div className="border-l border-line"><StatCard label="wallet balance" value={balance ? parseFloat(balance.formatted).toFixed(4) : '—'} sub={balance?.symbol ?? '0G'} /></div>
       </div>
 
-      <div className="grid grid-cols-[320px_1fr] gap-6">
-        {/* Left */}
-        <div className="space-y-6">
-          <div className="border border-line p-5">
-            <SectionRule num="01" title="identity" />
-            <div className="mt-4 space-y-4 text-xs font-mono">
-              <div>
-                <div className="text-ink-3 mb-1">owner</div>
-                <div className="text-ink">{truncateAddress(agent.ownerAddress)}</div>
-              </div>
-              <div>
-                <div className="text-ink-3 mb-1">deployed</div>
-                <div className="text-ink">{new Date(agent.deployedAt).toLocaleString()}</div>
-              </div>
-              {agent.walletAddress && (
-                <div>
-                  <div className="text-ink-3 mb-1">agent wallet</div>
-                  <div className="text-ink break-all">{agent.walletAddress}</div>
-                </div>
-              )}
-              {agent.inftTokenId !== undefined && (
-                <div>
-                  <div className="text-ink-3 mb-1">INFT token</div>
-                  <div className="text-cream">#{agent.inftTokenId}</div>
-                </div>
-              )}
-              {agent.publicKey && (
-                <div>
-                  <div className="text-ink-3 mb-1">public key</div>
-                  <div className="text-ink">{agent.publicKey.slice(0, 18)}…{agent.publicKey.slice(-6)}</div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="border border-line p-5">
-            <SectionRule num="02" title="instructions" />
-            <div className="mt-3 text-xs font-mono text-ink-3 leading-relaxed whitespace-pre-wrap">{agent.instructions}</div>
+      <div className="grid grid-cols-[300px_1fr] gap-6">
+        {/* Identity */}
+        <div className="border border-line p-5">
+          <SectionRule num="01" title="identity" />
+          <div className="mt-4 space-y-4 text-xs font-mono">
+            <div><div className="text-ink-3 mb-1">owner</div><div className="text-ink">{truncateAddress(agent.ownerAddress)}</div></div>
+            <div><div className="text-ink-3 mb-1">deployed</div><div className="text-ink">{new Date(agent.deployedAt).toLocaleString()}</div></div>
+            {agent.walletAddress && <div><div className="text-ink-3 mb-1">agent wallet</div><div className="text-ink break-all text-[11px]">{agent.walletAddress}</div></div>}
+            {agent.inftTokenId !== undefined && <div><div className="text-ink-3 mb-1">INFT token</div><div className="text-cream">#{agent.inftTokenId}</div></div>}
+            {agent.publicKey && <div><div className="text-ink-3 mb-1">public key</div><div className="text-ink">{agent.publicKey.slice(0, 18)}…{agent.publicKey.slice(-6)}</div></div>}
           </div>
         </div>
 
-        {/* Logs */}
-        <div className="border border-line p-5 flex flex-col">
-          <SectionRule num="03" title="live logs" side={agent.status === 'running' ? '● live' : undefined} />
-          <div className="mt-4 flex-1 overflow-y-auto max-h-[520px] space-y-0.5">
-            {logs.length > 0 ? logs.map((line, i) => (
-              <div key={i} className={`px-3 py-1.5 text-xs font-mono ${line.includes('[err]') ? 'text-red-400 bg-red-900/10' : 'text-ink-3 hover:bg-surface-2'}`}>
-                {line}
+        {/* Tabbed right panel */}
+        <div className="border border-line flex flex-col">
+          {/* Tabs */}
+          <div className="flex border-b border-line">
+            {(['logs', 'tools', 'tasks', ...(isOwner ? ['edit'] : [])] as const).map(t => (
+              <button key={t} onClick={() => setTab(t as typeof tab)}
+                className={`px-5 py-3 text-[11px] font-mono uppercase tracking-widest border-r border-line transition-colors ${tab === t ? 'text-cream bg-surface-2' : 'text-ink-3 hover:text-ink hover:bg-surface-2'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 p-5 overflow-y-auto max-h-[520px]">
+            {tab === 'logs' && (
+              logs.length > 0 ? logs.map((line, i) => (
+                <div key={i} className={`px-3 py-1.5 text-xs font-mono ${line.includes('[err]') ? 'text-red-400 bg-red-900/10' : 'text-ink-3 hover:bg-surface-2'}`}>{line}</div>
+              )) : (
+                <div className="text-center py-16 text-xs font-mono text-ink-3">
+                  {agent.status === 'running' ? 'waiting for logs…' : 'start the agent to see logs'}
+                </div>
+              )
+            )}
+
+            {tab === 'tools' && (
+              <div className="space-y-3">
+                {(agent.tools ?? []).length === 0 ? (
+                  <div className="text-xs font-mono text-ink-3 py-8 text-center">no tools configured</div>
+                ) : (agent.tools ?? []).map((t, i) => (
+                  <div key={i} className="border border-line p-4 text-xs font-mono">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-cream">{t.name}</span>
+                      <span className="text-ink-3 border border-line px-2 py-0.5 text-[10px]">{t.type}</span>
+                    </div>
+                    <div className="text-ink-3">{t.description}</div>
+                    {(t.url || t.endpointUrl) && <div className="text-ink-3 mt-1 text-[11px]">{t.url ?? t.endpointUrl}</div>}
+                  </div>
+                ))}
               </div>
-            )) : (
-              <div className="text-center py-16 text-xs font-mono text-ink-3">
-                {agent.status === 'running' ? 'waiting for logs…' : 'start the agent to see logs'}
+            )}
+
+            {tab === 'tasks' && (
+              <AgentTasks agentWallet={agent.walletAddress} />
+            )}
+
+            {tab === 'edit' && isOwner && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">instructions</label>
+                  <textarea rows={6} value={editInstructions} onChange={e => setEditInstructions(e.target.value)}
+                    className="w-full bg-surface-2 border border-line px-4 py-3 text-xs font-mono text-ink focus:outline-none focus:border-cream resize-none" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">model</label>
+                  <input value={editModel} onChange={e => setEditModel(e.target.value)}
+                    className="w-full bg-surface-2 border border-line px-4 py-3 text-xs font-mono text-ink focus:outline-none focus:border-cream" />
+                </div>
+                <button onClick={() => save.mutate()} disabled={save.isPending}
+                  className="px-6 py-3 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg disabled:opacity-40 transition-colors">
+                  {save.isPending ? 'saving…' : 'save changes →'}
+                </button>
+                {save.isError && <div className="text-xs font-mono text-red-400">save failed</div>}
               </div>
             )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AgentTasks({ agentWallet }: { agentWallet?: string }) {
+  const [tasks, setTasks] = useState<Array<{ taskId: string; category: string; status: number; reward: string }>>([]);
+
+  useEffect(() => {
+    if (!agentWallet) return;
+    fetch(`/api/v1/tasks?limit=50`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.success) setTasks((j.data.tasks ?? []).filter((t: any) =>
+          t.worker?.toLowerCase() === agentWallet.toLowerCase() || t.agent?.toLowerCase() === agentWallet.toLowerCase()
+        ));
+      });
+  }, [agentWallet]);
+
+  const STATUS: Record<number, string> = { 0: 'funded', 1: 'assigned', 2: 'submitted', 3: 'verified', 4: 'completed', 5: 'cancelled', 6: 'disputed' };
+
+  if (tasks.length === 0) return <div className="text-xs font-mono text-ink-3 py-8 text-center">no tasks yet</div>;
+
+  return (
+    <div className="space-y-2">
+      {tasks.map(t => (
+        <div key={t.taskId} className="flex items-center justify-between border border-line px-4 py-3 text-xs font-mono">
+          <span className="text-ink-3">#{t.taskId}</span>
+          <span className="text-ink">{t.category}</span>
+          <span className="text-ink-3">{STATUS[t.status] ?? t.status}</span>
+          <span className="text-cream">${(BigInt(t.reward ?? '0') / 10n ** 18n).toString()} USDC</span>
+        </div>
+      ))}
     </div>
   );
 }
