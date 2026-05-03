@@ -90,7 +90,7 @@ export default function MyAgents() {
             {agents.map(agent => (
               <div key={agent.id} className="grid grid-cols-[1fr_140px_120px_100px_80px_120px] gap-4 px-5 py-4 border-t border-line text-[13px] font-mono items-center">
                 <div>
-                  <div className="text-ink">{agent.name}</div>
+                  <div className="text-ink"><Link to={`/agents/${agent.id}`} className="hover:text-cream hover:underline">{agent.name}</Link></div>
                   <div className="text-[11px] text-ink-3">{truncateAddress(agent.walletAddress)}</div>
                 </div>
                 <span className="text-ink-3 text-xs">{agent.provider} / {agent.model}</span>
