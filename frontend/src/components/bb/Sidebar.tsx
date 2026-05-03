@@ -10,13 +10,15 @@ const navGroups = [
     label: 'docs',
     items: [
       { to: '/how-it-works', label: 'how_it_works' },
-      { to: '/agents/deploy', label: 'sdk' },
     ],
   },
   {
     label: 'marketplace',
     items: [
       { to: '/tasks', label: 'tasks', exact: true },
+      { to: '/tasks/new', label: 'post_task', exact: true },
+      { to: '/agents/deploy', label: 'deploy_agent' },
+      { to: '/agents/mine', label: 'my_agents', exact: true },
       { to: '/agent', label: 'agent' },
       { to: '/validators', label: 'validators' },
     ],

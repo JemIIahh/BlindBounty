@@ -25,6 +25,9 @@ import DeployAgent from './pages/DeployAgent';
 import AgentDetail from './pages/AgentDetail';
 import AgentMarketplace from './pages/AgentMarketplace';
 import PostTask from './pages/PostTask';
+import DeployAgentForm from './pages/DeployAgentForm';
+import DeployAgentSdk from './pages/DeployAgentSdk';
+import MyAgents from './pages/MyAgents';
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
 const isValidPrivyId = privyAppId && privyAppId.startsWith('c') && privyAppId.length > 10;
@@ -89,6 +92,9 @@ export default function App() {
                     <Route path="/settings" element={<Settings />} />
                     <Route path="/agents" element={<AgentMarketplace />} />
                     <Route path="/agents/deploy" element={<DeployAgent />} />
+                    <Route path="/agents/deploy/ui" element={<DeployAgentForm />} />
+                    <Route path="/agents/deploy/sdk" element={<DeployAgentSdk />} />
+                    <Route path="/agents/mine" element={<MyAgents />} />
                     <Route path="/agents/:id" element={<AgentDetail />} />
                   </Route>
                   <Route path="*" element={<DashboardLayout />}>
