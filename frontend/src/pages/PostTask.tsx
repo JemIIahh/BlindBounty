@@ -2,15 +2,22 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccount, useWalletClient } from 'wagmi';
 import { usePrivy, getIdentityToken, getAccessToken } from '@privy-io/react-auth';
-import { BrowserProvider } from 'ethers';
+import { BrowserProvider, Contract, parseUnits } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule } from '../components/bb';
 import { aesEncrypt, generateAesKey, sha256, toBase64, toBytes } from '../lib/crypto';
 import { signAndSendTx } from '../lib/txSigner';
 import { authedPost } from '../lib/api';
 import { trackEvent } from '../hooks/useAnalytics';
+import { BLIND_ESCROW_ADDRESS } from '../config/constants';
 
 const CATEGORIES = ['photography', 'research', 'verification', 'data-collection', 'transcription', 'other'];
 const TOKEN = import.meta.env.VITE_MOCK_ERC20_ADDRESS ?? '0x3af9232009C5da30AdA366B6E09849A040162A1a';
+
+const ERC20_ABI = [
+  'function approve(address spender, uint256 amount) public returns (bool)',
+  'function allowance(address owner, address spender) public view returns (uint256)',
+  'function balanceOf(address account) public view returns (uint256)',
+];
 
 export default function PostTask() {
   const { address } = useAccount();
@@ -25,7 +32,7 @@ export default function PostTask() {
     amount: '10',
     duration: '86400',
   });
-  const [status, setStatus] = useState<'idle' | 'encrypting' | 'signing' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'encrypting' | 'approving' | 'signing' | 'done' | 'error'>('idle');
   const [error, setError] = useState('');
   const [taskId, setTaskId] = useState<string | null>(null);
 
@@ -45,7 +52,21 @@ export default function PostTask() {
       const token = (await getIdentityToken()) || (await getAccessToken());
       if (!token) throw new Error('No authentication token available. Please try logging out and back in.');
 
+      // 0. Handle Token Approval if needed
+      const provider = new BrowserProvider(walletClient.transport);
+      const signer = await provider.getSigner();
+      const tokenContract = new Contract(TOKEN, ERC20_ABI, signer);
+      const amountWei = parseUnits(form.amount, 18);
+
+      const allowance = await tokenContract.allowance(address, BLIND_ESCROW_ADDRESS);
+      if (allowance < amountWei) {
+        setStatus('approving');
+        const tx = await tokenContract.approve(BLIND_ESCROW_ADDRESS, amountWei);
+        await tx.wait();
+      }
+
       // 1. Encrypt instructions browser-side
+      setStatus('encrypting');
       const key = generateAesKey();
       const plaintext = toBytes(form.instructions);
       const ciphertext = await aesEncrypt(plaintext, key);
@@ -56,11 +77,10 @@ export default function PostTask() {
       const uploadJson = await authedPost<any>('/api/v1/storage/upload', { data: blob }, token);
 
       // 3. Get unsigned tx from backend
-      const amountWei = (BigInt(Math.round(parseFloat(form.amount) * 1e18))).toString();
       const taskJson = await authedPost<any>('/api/v1/tasks', {
         taskHash,
         token: TOKEN,
-        amount: amountWei,
+        amount: amountWei.toString(),
         category: form.category,
         locationZone: form.locationZone,
         duration: form.duration,
@@ -86,7 +106,7 @@ export default function PostTask() {
     }
   }
 
-  const busy = status === 'encrypting' || status === 'signing';
+  const busy = status === 'encrypting' || status === 'approving' || status === 'signing';
 
   return (
     <div>
@@ -193,7 +213,7 @@ export default function PostTask() {
                 disabled={busy}
                 className="px-6 py-3 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {status === 'encrypting' ? 'encrypting…' : status === 'signing' ? 'sign in wallet…' : 'encrypt + post task →'}
+                {status === 'encrypting' ? 'encrypting…' : status === 'approving' ? 'approving…' : status === 'signing' ? 'sign in wallet…' : 'encrypt + post task →'}
               </button>
             )}
             {status === 'error' && (
