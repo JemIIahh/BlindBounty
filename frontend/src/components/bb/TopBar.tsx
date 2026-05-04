@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Button } from './Button';
-
-function shortenAddress(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
+import { ConnectWalletButton } from './ConnectWalletButton';
 
 interface TopBarProps {
   onMenuClick?: () => void;
@@ -61,60 +57,8 @@ export function TopBar({ onMenuClick }: TopBarProps = {}) {
         </span>
       </button>
 
-      {/* Wallet — custom-styled rainbowkit button */}
-      <ConnectButton.Custom>
-        {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
-          const ready = mounted;
-          const connected = ready && account && chain;
-
-          if (!ready) {
-            return <div aria-hidden className="opacity-0 pointer-events-none select-none" />;
-          }
-
-          if (!connected) {
-            return (
-              <button
-                onClick={openConnectModal}
-                className="px-3 py-1.5 border border-line text-[11px] font-mono text-ink hover:bg-surface-2 transition-colors"
-              >
-                <span className="opacity-40">[</span> connect_wallet <span className="opacity-40">]</span>
-              </button>
-            );
-          }
-
-          if (chain.unsupported) {
-            return (
-              <button
-                onClick={openChainModal}
-                className="px-3 py-1.5 border border-err text-[11px] font-mono text-err hover:bg-surface-2 transition-colors"
-              >
-                wrong_network
-              </button>
-            );
-          }
-
-          return (
-            <div className="flex items-center border border-line text-[11px] font-mono">
-              {/* Chain segment — hidden on small screens */}
-              <button
-                onClick={openChainModal}
-                className="hidden sm:flex px-3 py-1.5 text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors items-center gap-1.5"
-              >
-                <span className="w-1.5 h-1.5 bg-ok inline-block" />
-                {chain.name}
-              </button>
-              <button
-                onClick={openAccountModal}
-                className="px-3 py-1.5 sm:border-l border-line text-ink hover:bg-surface-2 transition-colors flex items-center gap-1.5"
-              >
-                {/* On mobile, dot indicator stays since chain segment is hidden */}
-                <span className="sm:hidden w-1.5 h-1.5 bg-ok inline-block" />
-                {shortenAddress(account.address)}
-              </button>
-            </div>
-          );
-        }}
-      </ConnectButton.Custom>
+      {/* Wallet — Privy-driven connect/disconnect pill */}
+      <ConnectWalletButton />
     </header>
   );
 }

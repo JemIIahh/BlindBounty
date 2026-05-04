@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAccount, useSignMessage } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { ConnectWalletButton } from '../components/bb';
 
 type State = 'loading' | 'ready' | 'signing' | 'done' | 'error';
 
@@ -89,7 +89,7 @@ export default function RegisterAgent() {
             {!isConnected ? (
               <div className="space-y-2">
                 <p className="text-xs font-mono text-ink-3">connect your wallet to continue</p>
-                <ConnectButton />
+                <ConnectWalletButton variant="block" />
               </div>
             ) : (
               <button

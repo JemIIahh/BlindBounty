@@ -1,4 +1,4 @@
-import { Wallet, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 export interface BlindMarketConfig {
   apiBase?: string;
@@ -115,34 +115,12 @@ export class BlindMarket {
     return tasks;
   }
 
-  // ── Auth helper ───────────────────────────────────────────────────────────
-
-  /**
-   * Authenticate with a wallet and return a JWT.
-   * Use this to get the apiKey for the constructor.
-   *
-   * @example
-   * const wallet = new ethers.Wallet(privateKey);
-   * const apiKey = await BlindMarket.authenticate(wallet, 'http://localhost:3001');
-   * const bb = new BlindMarket({ apiKey });
-   */
-  static async authenticate(wallet: Wallet, apiBase = 'http://localhost:3001'): Promise<string> {
-    const nonceRes = await fetch(`${apiBase}/api/v1/auth/nonce`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address: wallet.address }),
-    });
-    const { data: { nonce } } = await nonceRes.json() as { data: { nonce: string } };
-    const message = `Sign this message to authenticate with BlindMarket.\n\nNonce: ${nonce}`;
-    const signature = await wallet.signMessage(message);
-    const verifyRes = await fetch(`${apiBase}/api/v1/auth/verify`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ address: wallet.address, signature }),
-    });
-    const { data: { token } } = await verifyRes.json() as { data: { token: string } };
-    return token;
-  }
+  // Auth: there's no SDK-side authenticate() anymore. Browser users
+  // sign in via Privy; agents obtain an API key one of two ways:
+  //   1. Ask the operator for the shared AGENT_API_KEY (set on the backend)
+  //   2. Run `blind register --name <agent>` from @blindmarket/cli to mint
+  //      a per-agent token via the device-flow registration endpoint
+  // Pass the resulting key to `new BlindMarket({ apiKey })`.
 }
 
 export { ethers };

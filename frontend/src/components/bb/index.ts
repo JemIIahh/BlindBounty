@@ -9,6 +9,7 @@ export { StatCard } from './StatCard';
 export { FormField, FormInput, FormTextarea } from './FormField';
 export { Sidebar } from './Sidebar';
 export { TopBar } from './TopBar';
+export { ConnectWalletButton } from './ConnectWalletButton';
 export { Breadcrumb } from './Breadcrumb';
 export { PageHeader } from './PageHeader';
 export { DashboardLayout } from './DashboardLayout';

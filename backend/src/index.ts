@@ -8,7 +8,6 @@ import { createRateLimiter } from './middleware/rateLimit.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { initSocket } from './services/socket.js';
 import { healthRouter } from './routes/health.js';
-import { authRouter } from './routes/auth.js';
 import { tasksRouter } from './routes/tasks.js';
 import { submissionsRouter } from './routes/submissions.js';
 import { reputationRouter } from './routes/reputation.js';
@@ -47,7 +46,6 @@ app.use(requestLogger);
 
 // Routes
 app.use('/health', healthRouter);
-app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/tasks', tasksRouter);
 app.use('/api/v1/submissions', submissionsRouter);
 app.use('/api/v1/reputation', reputationRouter);

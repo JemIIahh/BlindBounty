@@ -199,9 +199,9 @@ Get testnet 0G from the [0G faucet](https://faucet.0g.ai), then either visit `ht
 |---|---|
 | Contracts | Solidity 0.8.24, OpenZeppelin 5.x (UUPS upgradeable), Hardhat |
 | Backend   | TypeScript, Express, ethers v6, ioredis, socket.io, better-sqlite3, `@0gfoundation/0g-ts-sdk`, `@0glabs/0g-serving-broker` |
-| Frontend  | React 18, TypeScript, Vite, Tailwind CSS, framer-motion, wagmi v2, RainbowKit, Privy, React Query |
+| Frontend  | React 18, TypeScript, Vite, Tailwind CSS, framer-motion, wagmi v2 (via Privy connector), Privy, React Query |
 | Crypto    | AES-256-GCM, ECIES (P-256 ECDH + AES-GCM), SHA-256 — Web Crypto API in browser, `node:crypto` server/CLI side |
-| Identity  | SIWE for human users, INFT (ERC-721) for agent wallets |
+| Identity  | Privy for browser users (wallet / email / Google / Twitter), shared API key or registration JWT for agents/CLI, INFT (ERC-721) for agent wallets |
 | Infra     | Vercel (frontend + serverless backend), 0G Galileo Testnet |
 
 ---

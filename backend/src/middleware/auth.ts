@@ -86,22 +86,29 @@ function extractWalletAddress(payload: jwt.JwtPayload): string | null {
   return null;
 }
 
-/** Try legacy HS256 JWT verification (backwards compat) */
-function verifyLegacyToken(token: string): { address: string } | null {
+/**
+ * Verify a registration-minted JWT (HS256, signed with JWT_SECRET in
+ * routes/registration.ts). Identified by carrying both `address` and
+ * `ownerAddress` claims — generic HS256 tokens without those are rejected,
+ * so this isn't a re-introduction of the old SIWE end-user auth.
+ */
+function verifyRegistrationToken(token: string): { address: string } | null {
   if (!config.jwtSecret) return null;
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-    if (typeof payload === 'string' || !payload || typeof (payload as Record<string, unknown>).address !== 'string') {
+    if (typeof payload === 'string' || !payload) return null;
+    const claims = payload as Record<string, unknown>;
+    if (typeof claims.address !== 'string' || typeof claims.ownerAddress !== 'string') {
       return null;
     }
-    return { address: (payload as Record<string, string>).address };
+    return { address: claims.address };
   } catch {
     return null;
   }
 }
 
 /**
- * Auth middleware: accepts Privy JWT, legacy JWT, or X-API-Key.
+ * Auth middleware: accepts Privy JWT, registration-minted JWT, or X-API-Key.
  * Attaches `req.user = { address }` on success.
  */
 export function requireAuth(req: AuthRequest, _res: Response, next: NextFunction): void {
@@ -121,27 +128,28 @@ export function requireAuth(req: AuthRequest, _res: Response, next: NextFunction
 
   const token = authHeader.slice(7);
 
-  // Check if it's the API key passed as Bearer
+  // 2a. Shared API key passed as Bearer
   if (isAgentApiKey(token)) {
     req.user = { address: 'agent' };
     next();
     return;
   }
 
-  // Try Privy JWKS verification (async), then fall back to legacy
+  // 2b. Registration-minted JWT (CLI/SDK agents)
+  const regUser = verifyRegistrationToken(token);
+  if (regUser) {
+    req.user = regUser;
+    next();
+    return;
+  }
+
+  // 2c. Privy JWT (browser users)
   verifyPrivyToken(token)
     .then((user) => {
       req.user = user;
       next();
     })
     .catch(() => {
-      // Fall back to legacy HS256 JWT
-      const legacyUser = verifyLegacyToken(token);
-      if (legacyUser) {
-        req.user = legacyUser;
-        next();
-        return;
-      }
       next(new AppError(401, 'INVALID_TOKEN', 'Invalid or expired token'));
     });
 }
@@ -167,7 +175,8 @@ export function requireFounder(req: AuthRequest, _res: Response, next: NextFunct
 }
 
 /**
- * Optional auth — attaches user if token present, continues regardless.
+ * Optional auth — attaches user if a valid Privy / registration-JWT /
+ * API-key token is present, continues regardless.
  */
 export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
@@ -186,17 +195,18 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
     return;
   }
 
-  // Try Privy, then legacy, then continue without auth
+  // Registration-minted JWT
+  const regUser = verifyRegistrationToken(token);
+  if (regUser) {
+    req.user = regUser;
+    next();
+    return;
+  }
+
   verifyPrivyToken(token)
     .then((user) => {
       req.user = user;
       next();
     })
-    .catch(() => {
-      const legacyUser = verifyLegacyToken(token);
-      if (legacyUser) {
-        req.user = legacyUser;
-      }
-      next();
-    });
+    .catch(() => next());
 }

@@ -7,7 +7,6 @@ import { globalErrorHandler } from './middleware/errorHandler.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { healthRouter } from './routes/health.js';
-import { authRouter } from './routes/auth.js';
 import { tasksRouter } from './routes/tasks.js';
 import { submissionsRouter } from './routes/submissions.js';
 import { reputationRouter } from './routes/reputation.js';
@@ -23,6 +22,7 @@ import { agentsRouter } from './routes/agents.js';
 import { registrationRouter } from './routes/registration.js';
 import { validatorsRouter } from './routes/validators.js';
 import { statsRouter } from './routes/stats.js';
+import { analyticsRouter } from './routes/analytics.js';
 import { getDb } from './services/database.js';
 
 const app = express();
@@ -37,7 +37,6 @@ app.use(express.json({ limit: '15mb' }));
 app.use(requestLogger);
 
 app.use('/health', healthRouter);
-app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/tasks', tasksRouter);
 app.use('/api/v1/submissions', submissionsRouter);
 app.use('/api/v1/reputation', reputationRouter);
@@ -52,6 +51,7 @@ app.use('/api/v1/agents', agentsRouter);
 app.use('/api/v1/registration', registrationRouter);
 app.use('/api/v1/validators', validatorsRouter);
 app.use('/api/v1/stats', statsRouter);
+app.use('/api/v1/analytics', analyticsRouter);
 app.use('/a2a/v1', a2aProtocolRouter);
 
 app.use(globalErrorHandler);

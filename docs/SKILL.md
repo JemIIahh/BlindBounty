@@ -44,26 +44,21 @@ Use BlindMarket when you need a human to:
 
 ## Full lifecycle — step by step
 
-### Step 1 — Authenticate (SIWE)
+### Step 1 — Authenticate (API key)
+
+The backend operator gives you an `AGENT_API_KEY`. Send it on every request:
 
 ```http
-POST /api/v1/auth/nonce
-{ "address": "0xYOUR_WALLET" }
-→ { "nonce": "0xabc123..." }
-
-POST /api/v1/auth/verify
-{ "address": "0xYOUR_WALLET", "signature": "<sign the message below>" }
-→ { "token": "<jwt>", "expiresIn": "24h" }
+X-API-Key: <your-key>
 ```
 
-Message to sign (EIP-191):
-```
-Sign this message to authenticate with BlindMarket.
+Or, equivalently, as a Bearer token:
 
-Nonce: <nonce from above>
+```http
+Authorization: Bearer <your-key>
 ```
 
-Use the JWT as `Authorization: Bearer <token>` on all subsequent requests.
+Browser users authenticate through Privy (wallet, email, Google, or Twitter); agent processes use the shared API key.
 
 ---
 
@@ -95,7 +90,7 @@ const taskHash = await crypto.subtle.digest('SHA-256', ciphertext);
 
 ```http
 POST /api/v1/tasks
-Authorization: Bearer <token>
+X-API-Key: <your-key>
 {
   "taskHash": "0x<sha256 of encrypted instructions>",
   "token": "0x317227efcA18D004E12CA8046AEf7E1597458F25",  // MockERC20 on testnet
@@ -117,7 +112,7 @@ Sign and broadcast the unsigned transaction with your wallet. The escrow is lock
 
 ```http
 GET /api/v1/tasks/:taskId/applications
-Authorization: Bearer <token>
+X-API-Key: <your-key>
 → { "applications": [{ "id": "...", "applicant": "0x...", "createdAt": "..." }] }
 ```
 
@@ -149,7 +144,7 @@ Then assign on-chain:
 
 ```http
 POST /api/v1/tasks/:taskId/assign
-Authorization: Bearer <token>
+X-API-Key: <your-key>
 { "worker": "0xWORKER_ADDRESS" }
 → { "unsignedTx": { ... } }
 ```
@@ -184,7 +179,7 @@ The TEE (Intel TDX + NVIDIA H100) decrypts the evidence inside a hardware enclav
 
 ```http
 POST /api/v1/verification/trigger
-Authorization: Bearer <token>
+X-API-Key: <your-key>
 {
   "taskId": 1,
   "taskCategory": "photography",
@@ -207,7 +202,7 @@ If verification passed:
 
 ```http
 POST /api/v1/submissions/verify
-Authorization: Bearer <token>
+X-API-Key: <your-key>
 { "taskId": 1, "passed": true }
 → { "unsignedTx": { ... } }
 ```
@@ -255,12 +250,8 @@ POST /api/v1/tasks/:taskId/cancel   → full refund to you
 const BASE = 'http://localhost:3001/api/v1';
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
-// 1. Auth
-const { nonce } = await post('/auth/nonce', { address: wallet.address });
-const message = `Sign this message to authenticate with BlindMarket.\n\nNonce: ${nonce}`;
-const signature = await wallet.signMessage(message);
-const { token } = await post('/auth/verify', { address: wallet.address, signature });
-const headers = { Authorization: `Bearer ${token}` };
+// 1. Auth — operator-issued API key
+const headers = { 'X-API-Key': process.env.AGENT_API_KEY };
 
 // 2. Encrypt + upload
 const aesKey = await generateAesKey();
@@ -289,9 +280,8 @@ await receipt.wait();
 
 | Code | Meaning |
 |---|---|
-| `NONCE_NOT_FOUND` | Call `/auth/nonce` first |
-| `NONCE_EXPIRED` | Nonce is 5 min TTL — request a new one |
-| `INVALID_SIGNATURE` | Signed wrong message or wrong address |
+| `UNAUTHORIZED` | Missing `X-API-Key` / `Authorization: Bearer` header |
+| `INVALID_TOKEN` | API key doesn't match — check with the operator |
 | `ALREADY_APPLIED` | Worker already applied to this task |
 | `FORBIDDEN` | Only the task agent can assign/cancel |
 | `INVALID_TASK_ID` | Task ID must be a positive integer |

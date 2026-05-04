@@ -12,12 +12,6 @@ function optional(key: string, fallback: string): string {
   return process.env[key] || fallback;
 }
 
-// JWT_SECRET is optional when using Privy JWKS verification
-const jwtSecret = process.env.JWT_SECRET || '';
-if (jwtSecret && jwtSecret.length < 32) {
-  throw new Error('JWT_SECRET must be at least 32 characters');
-}
-
 export const config = {
   port: parseInt(optional('PORT', '3001'), 10),
   nodeEnv: optional('NODE_ENV', 'development'),
@@ -32,11 +26,12 @@ export const config = {
   blindReputationAddress: required('BLIND_REPUTATION_ADDRESS'),
   inftAddress: process.env.INFT_ADDRESS || '',
 
-  // Auth
-  jwtSecret,
-  jwtExpiry: optional('JWT_EXPIRY', '24h'),
+  // Auth — Privy is the sole identity provider; agent API key for service callers
   agentApiKey: process.env.AGENT_API_KEY || '',
-  privyAppId: process.env.PRIVY_APP_ID || '',
+  privyAppId: required('PRIVY_APP_ID'),
+  // Used only by registration.ts to mint long-lived agent CLI tokens.
+  // No longer accepted by requireAuth — that path is Privy-only.
+  jwtSecret: process.env.JWT_SECRET || '',
 
   // CORS
   corsOrigin: optional('CORS_ORIGIN', 'http://localhost:5173').split(',').map(s => s.trim()),

@@ -1,10 +1,8 @@
-import { type ReactNode } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { config, customTheme } from './config/rainbowkit';
 import { PrivyProvider } from '@privy-io/react-auth';
+import { WagmiProvider } from '@privy-io/wagmi';
+import { wagmiConfig } from './config/wagmi';
 import { ogTestnet } from './config/chains';
 import { WalletProvider } from './context/WalletContext';
 import { AuthProvider } from './context/AuthContext';
@@ -31,12 +29,13 @@ import MyAgents from './pages/MyAgents';
 import Metrics from './pages/Metrics';
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
-const isValidPrivyId = privyAppId && privyAppId.startsWith('c') && privyAppId.length > 10;
+if (!privyAppId) {
+  throw new Error('VITE_PRIVY_APP_ID is required — set it in frontend/.env');
+}
 
 const queryClient = new QueryClient();
 
-function MaybePrivy({ children }: { children: ReactNode }) {
-  if (!isValidPrivyId) return <>{children}</>;
+export default function App() {
   return (
     <PrivyProvider
       appId={privyAppId}
@@ -48,8 +47,6 @@ function MaybePrivy({ children }: { children: ReactNode }) {
         // Disable Coinbase Smart Wallet — CSW only supports a fixed chain list
         // (Base, Mainnet, etc.) and throws "configured chains not supported"
         // on 0G Galileo (16602), which stalls Privy's modal render.
-        // EOA-only means the regular Coinbase Wallet browser extension /
-        // mobile app still works; only the smart-contract-wallet flavor is off.
         externalWallets: {
           coinbaseWallet: {
             config: {
@@ -64,50 +61,40 @@ function MaybePrivy({ children }: { children: ReactNode }) {
         },
       }}
     >
-      {children}
-    </PrivyProvider>
-  );
-}
-
-export default function App() {
-  return (
-    <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={customTheme}>
-          <MaybePrivy>
-            <WalletProvider>
-              <AuthProvider>
-                <Routes>
-                  <Route path="/" element={<Landing />} />
-                  <Route path="/register/:token" element={<RegisterAgent />} />
-                  <Route element={<DashboardLayout />}>
-                    <Route path="/how-it-works" element={<HowItWorks />} />
-                    <Route path="/tasks" element={<TaskFeed />} />
-                    <Route path="/tasks/new" element={<PostTask />} />
-                    <Route path="/tasks/:id" element={<TaskDetail />} />
-                    <Route path="/agent" element={<AgentDashboard />} />
-                    <Route path="/worker" element={<WorkerView />} />
-                    <Route path="/validators" element={<Validators />} />
-                    <Route path="/verification" element={<VerificationStatus />} />
-                    <Route path="/earnings" element={<Earnings />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/agents" element={<AgentMarketplace />} />
-                    <Route path="/agents/deploy" element={<DeployAgent />} />
-                    <Route path="/agents/deploy/ui" element={<DeployAgentForm />} />
-                    <Route path="/agents/deploy/sdk" element={<DeployAgentSdk />} />
-                    <Route path="/agents/mine" element={<MyAgents />} />
-                    <Route path="/agents/:id" element={<AgentDetail />} />
-                    <Route path="/metrics" element={<Metrics />} />
-                  </Route>
-                  <Route path="*" element={<DashboardLayout />}>
-                    <Route path="*" element={<NotFound />} />
-                  </Route>
-                </Routes>
-              </AuthProvider>
-            </WalletProvider>
-          </MaybePrivy>
-        </RainbowKitProvider>
+        <WagmiProvider config={wagmiConfig}>
+          <WalletProvider>
+            <AuthProvider>
+              <Routes>
+                <Route path="/" element={<Landing />} />
+                <Route path="/register/:token" element={<RegisterAgent />} />
+                <Route element={<DashboardLayout />}>
+                  <Route path="/how-it-works" element={<HowItWorks />} />
+                  <Route path="/tasks" element={<TaskFeed />} />
+                  <Route path="/tasks/new" element={<PostTask />} />
+                  <Route path="/tasks/:id" element={<TaskDetail />} />
+                  <Route path="/agent" element={<AgentDashboard />} />
+                  <Route path="/worker" element={<WorkerView />} />
+                  <Route path="/validators" element={<Validators />} />
+                  <Route path="/verification" element={<VerificationStatus />} />
+                  <Route path="/earnings" element={<Earnings />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/agents" element={<AgentMarketplace />} />
+                  <Route path="/agents/deploy" element={<DeployAgent />} />
+                  <Route path="/agents/deploy/ui" element={<DeployAgentForm />} />
+                  <Route path="/agents/deploy/sdk" element={<DeployAgentSdk />} />
+                  <Route path="/agents/mine" element={<MyAgents />} />
+                  <Route path="/agents/:id" element={<AgentDetail />} />
+                  <Route path="/metrics" element={<Metrics />} />
+                </Route>
+                <Route path="*" element={<DashboardLayout />}>
+                  <Route path="*" element={<NotFound />} />
+                </Route>
+              </Routes>
+            </AuthProvider>
+          </WalletProvider>
+        </WagmiProvider>
       </QueryClientProvider>
-    </WagmiProvider>
+    </PrivyProvider>
   );
 }
