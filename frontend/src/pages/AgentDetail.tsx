@@ -4,7 +4,7 @@ import { useAccount, useBalance } from 'wagmi';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
-import { get, post } from '../lib/api';
+import { get, post, patch } from '../lib/api';
 import { API_BASE_URL } from '../config/constants';
 
 interface AgentTool { type: string; name: string; description: string; url?: string; endpointUrl?: string; method?: string; toolName?: string; }
@@ -66,17 +66,12 @@ export default function AgentDetail() {
   });
 
   const save = useMutation({
-    mutationFn: async () => {
-      // PATCH isn't in lib/api.ts; prefix with API_BASE_URL so prod routing works.
-      const res = await fetch(`${API_BASE_URL}/api/v1/agents/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerAddress: address, instructions: editInstructions, model: editModel }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error?.message ?? 'Save failed');
-      return json.data as AgentDetails;
-    },
+    mutationFn: () =>
+      patch<AgentDetails>(`/api/v1/agents/${id}`, {
+        ownerAddress: address,
+        instructions: editInstructions,
+        model: editModel,
+      }),
     onSuccess: (data) => { setAgent(data); setTab('logs'); },
   });
 

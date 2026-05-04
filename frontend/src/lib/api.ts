@@ -53,6 +53,15 @@ export async function post<T>(path: string, body?: unknown): Promise<T> {
   return handleResponse<T>(res);
 }
 
+export async function patch<T>(path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse<T>(res);
+}
+
 export async function authedGet<T>(path: string, overrideToken?: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders(overrideToken)) },
@@ -63,6 +72,15 @@ export async function authedGet<T>(path: string, overrideToken?: string): Promis
 export async function authedPost<T>(path: string, body?: unknown, overrideToken?: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders(overrideToken)) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return handleResponse<T>(res);
+}
+
+export async function authedPatch<T>(path: string, body?: unknown, overrideToken?: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders(overrideToken)) },
     body: body ? JSON.stringify(body) : undefined,
   });
