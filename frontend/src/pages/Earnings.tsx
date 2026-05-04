@@ -12,6 +12,7 @@ import {
 import { useAccountingEntries, useAccountingSummary } from '../hooks/useAccounting';
 import { useAuth } from '../context/AuthContext';
 import type { Transaction } from '../services/accounting';
+import { API_BASE_URL } from '../config/constants';
 
 function formatUsd(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -55,7 +56,7 @@ export default function Earnings() {
   const { data: agents } = useQuery({
     queryKey: ['agents', address],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/agents?owner=${address}`);
+      const res = await fetch(`${API_BASE_URL}/api/v1/agents?owner=${address}`);
       const json = await res.json();
       return json.success ? json.data as Array<{ id: string; name: string; walletAddress: string; status: string; inftTokenId?: number }> : [];
     },

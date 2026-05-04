@@ -24,6 +24,7 @@ function getJwksClient(): jwksRsa.JwksClient | null {
   if (!config.privyAppId) return null;
   if (!jwksClient) {
     jwksClient = jwksRsa({
+      // Privy's documented JWKS endpoint for verifying access tokens
       jwksUri: `https://auth.privy.io/api/v1/apps/${config.privyAppId}/jwks`,
       cache: true,
       cacheMaxAge: 3600000, // 1 hour
@@ -48,7 +49,8 @@ async function verifyPrivyToken(token: string): Promise<{ address: string }> {
   const signingKey = key.getPublicKey();
 
   const payload = jwt.verify(token, signingKey, {
-    algorithms: ['RS256'],
+    // Privy signs access tokens with ES256 (ECDSA P-256), not RS256.
+    algorithms: ['ES256'],
     issuer: 'privy.io',
     audience: config.privyAppId,
   }) as jwt.JwtPayload;

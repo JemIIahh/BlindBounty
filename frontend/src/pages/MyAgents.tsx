@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
+import { API_BASE_URL } from '../config/constants';
 
 interface Agent {
   id: string;
@@ -27,7 +28,7 @@ export default function MyAgents() {
   const { data: agents = [], isLoading } = useQuery<Agent[]>({
     queryKey: ['my-agents', address],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/agents?owner=${address}`);
+      const res = await fetch(`${API_BASE_URL}/api/v1/agents?owner=${address}`);
       const json = await res.json();
       return json.success ? json.data : [];
     },
@@ -36,7 +37,7 @@ export default function MyAgents() {
 
   const action = useMutation({
     mutationFn: async ({ id, act }: { id: string; act: 'start' | 'pause' | 'stop' }) => {
-      const res = await fetch(`/api/v1/agents/${id}/${act}`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/api/v1/agents/${id}/${act}`, { method: 'POST' });
       return res.json();
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['my-agents', address] }),
