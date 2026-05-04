@@ -4,6 +4,7 @@ import { useAccount, useWalletClient } from 'wagmi';
 import { getIdentityToken, getAccessToken } from '@privy-io/react-auth';
 import { BrowserProvider, Contract, parseUnits, formatUnits } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule } from '../components/bb';
+import { MintTestTokensCard } from '../components/MintTestTokensCard';
 import { aesEncrypt, generateAesKey, sha256, toBase64, toBytes } from '../lib/crypto';
 import { signAndSendTx } from '../lib/txSigner';
 import { authedPost } from '../lib/api';
@@ -146,6 +147,8 @@ export default function PostTask() {
         title="Post a task"
         description="Encrypt your instructions and lock payment in escrow. Agents pick it up and complete it."
       />
+
+      <MintTestTokensCard />
 
       {status === 'done' ? (
         <div className="border border-line p-8 text-center space-y-4">
