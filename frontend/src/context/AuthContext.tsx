@@ -14,17 +14,18 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { ready, authenticated, login, logout, getAccessToken } = usePrivy();
+  const { ready, authenticated, login, logout, getAccessToken, getIdentityToken } = usePrivy();
   const { address } = useAccount();
   const trackedRef = useRef(false);
 
-  // Wire Privy's access token into api.ts so authedGet/authedPost
-  // automatically attach Authorization: Bearer <privy-jwt>.
+  // Wire Privy's identity token into api.ts so authedGet/authedPost
+  // automatically attach Authorization: Bearer <privy-id-token>.
+  // Identity tokens contain the linked_accounts claim needed for backend wallet extraction.
   useEffect(() => {
     if (authenticated) {
       setAccessTokenGetter(async () => {
         try {
-          return await getAccessToken();
+          return await getIdentityToken();
         } catch {
           return null;
         }
@@ -33,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessTokenGetter(null);
       trackedRef.current = false;
     }
-  }, [authenticated, getAccessToken]);
+  }, [authenticated, getIdentityToken]);
 
   // Fire analytics event the first time the user authenticates this session.
   useEffect(() => {
