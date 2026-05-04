@@ -47,6 +47,14 @@ async function getJWKS() {
     }
   }
 
+  // Diagnostic: check if the app exists at all
+  try {
+    const appRes = await fetch(`https://auth.privy.io/api/v1/apps/${app_id}`);
+    console.warn(`[Auth] Diagnostic base app check (${app_id}): ${appRes.status} ${appRes.statusText}`);
+  } catch (e: any) {
+    console.warn(`[Auth] Diagnostic base app check failed: ${e.message}`);
+  }
+
   // Fallback to the first one even if it failed, so jose can try its own internal fetch/retry
   remoteJWKSet = createRemoteJWKSet(new URL(urls[0]));
   return remoteJWKSet;
