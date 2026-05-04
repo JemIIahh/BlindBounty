@@ -24,7 +24,7 @@ let remoteJWKSet: ReturnType<typeof createRemoteJWKSet> | null = null;
 function getJWKS() {
   if (!config.privyAppId) return null;
   if (!remoteJWKSet) {
-    const jwksUrl = `https://auth.privy.io/api/v1/apps/${config.privyAppId}/jwks`;
+    const jwksUrl = `https://auth.privy.io/api/v1/apps/${config.privyAppId}/.well-known/jwks.json`;
     console.log(`[Auth] Initializing JWKS. URL: ${jwksUrl}`);
     remoteJWKSet = createRemoteJWKSet(new URL(jwksUrl));
   }
@@ -52,7 +52,7 @@ async function verifyPrivyToken(token: string): Promise<{ address: string }> {
   } catch (err: any) {
     if (err.message?.includes('JSON Web Key Set HTTP response')) {
       try {
-        const jwksUrl = `https://auth.privy.io/api/v1/apps/${config.privyAppId}/jwks`;
+        const jwksUrl = `https://auth.privy.io/api/v1/apps/${config.privyAppId}/.well-known/jwks.json`;
         const res = await fetch(jwksUrl);
         console.error(`[Auth] Debug manual JWKS fetch: ${res.status} ${res.statusText}`);
         if (res.status !== 200) {
