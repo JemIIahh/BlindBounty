@@ -25,7 +25,7 @@ function getJWKS() {
   if (!config.privyAppId) return null;
   if (!remoteJWKSet) {
     const jwksUrl = `https://auth.privy.io/api/v1/apps/${config.privyAppId}/jwks`;
-    console.log(`[Auth] Initializing JWKS for App ID: ${config.privyAppId.slice(0, 5)}...`);
+    console.log(`[Auth] Initializing JWKS. URL: ${jwksUrl}`);
     remoteJWKSet = createRemoteJWKSet(new URL(jwksUrl));
   }
   return remoteJWKSet;
@@ -36,18 +36,35 @@ async function verifyPrivyToken(token: string): Promise<{ address: string }> {
   const JWKS = getJWKS();
   if (!JWKS) throw new Error('Privy not configured (missing PRIVY_APP_ID)');
 
-  const { payload } = await jwtVerify(token, JWKS, {
-    issuer: 'privy.io',
-    audience: config.privyAppId,
-  });
+  try {
+    const { payload } = await jwtVerify(token, JWKS, {
+      issuer: 'privy.io',
+      audience: config.privyAppId,
+    });
 
-  // Extract wallet address from Privy token claims
-  const walletAddress = extractWalletAddress(payload as any);
-  if (!walletAddress) {
-    throw new Error('No wallet address in Privy token');
+    // Extract wallet address from Privy token claims
+    const walletAddress = extractWalletAddress(payload as any);
+    if (!walletAddress) {
+      throw new Error('No wallet address in Privy token');
+    }
+
+    return { address: walletAddress };
+  } catch (err: any) {
+    if (err.message?.includes('JSON Web Key Set HTTP response')) {
+      try {
+        const jwksUrl = `https://auth.privy.io/api/v1/apps/${config.privyAppId}/jwks`;
+        const res = await fetch(jwksUrl);
+        console.error(`[Auth] Debug manual JWKS fetch: ${res.status} ${res.statusText}`);
+        if (res.status !== 200) {
+          const body = await res.text();
+          console.error(`[Auth] Debug manual JWKS fetch body: ${body}`);
+        }
+      } catch (fetchErr: any) {
+        console.error(`[Auth] Debug manual JWKS fetch failed completely: ${fetchErr.message}`);
+      }
+    }
+    throw err;
   }
-
-  return { address: walletAddress };
 }
 
 /** Extract wallet address from Privy JWT claims */
