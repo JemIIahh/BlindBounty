@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAccount } from 'wagmi';
+import { get, post } from '../lib/api';
 
 type AgentStatus = 'stopped' | 'running' | 'paused';
 
@@ -39,9 +40,10 @@ export default function AgentMarketplace() {
 
   const fetchAgents = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/agents');
-      const json = await res.json();
-      if (json.success) setAgents(json.data);
+      const data = await get<DeployedAgent[]>('/api/v1/agents');
+      setAgents(data);
+    } catch {
+      // leave list empty on error
     } finally {
       setLoading(false);
     }
@@ -52,9 +54,10 @@ export default function AgentMarketplace() {
   async function action(id: string, verb: 'start' | 'pause' | 'stop') {
     setBusy(`${id}:${verb}`);
     try {
-      const res = await fetch(`/api/v1/agents/${id}/${verb}`, { method: 'POST' });
-      const json = await res.json();
-      if (json.success) setAgents(prev => prev.map(a => a.id === id ? { ...a, ...json.data } : a));
+      const data = await post<Partial<DeployedAgent>>(`/api/v1/agents/${id}/${verb}`);
+      setAgents(prev => prev.map(a => a.id === id ? { ...a, ...data } : a));
+    } catch {
+      // ignore — UI stays in current state
     } finally {
       setBusy(null);
     }

@@ -4,6 +4,8 @@ import { useAccount, useBalance } from 'wagmi';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
+import { get, post } from '../lib/api';
+import { API_BASE_URL } from '../config/constants';
 
 interface AgentTool { type: string; name: string; description: string; url?: string; endpointUrl?: string; method?: string; toolName?: string; }
 interface AgentDetails {
@@ -37,21 +39,20 @@ export default function AgentDetail() {
   });
 
   useEffect(() => {
-    fetch(`/api/v1/agents/${id}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.success) {
-          setAgent(d.data);
-          setEditInstructions(d.data.instructions ?? '');
-          setEditModel(d.data.model ?? '');
-        }
+    if (!id) return;
+    get<AgentDetails>(`/api/v1/agents/${id}`)
+      .then(data => {
+        setAgent(data);
+        setEditInstructions(data.instructions ?? '');
+        setEditModel(data.model ?? '');
       })
+      .catch(() => { /* not found / server error */ })
       .finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {
     if (!id) return;
-    const es = new EventSource(`/api/v1/agents/${id}/logs`);
+    const es = new EventSource(`${API_BASE_URL}/api/v1/agents/${id}/logs`);
     es.onmessage = e => {
       try { setLogs(prev => [...prev.slice(-199), JSON.parse(e.data)]); } catch {}
     };
@@ -59,23 +60,24 @@ export default function AgentDetail() {
   }, [id]);
 
   const action = useMutation({
-    mutationFn: async (act: 'start' | 'pause' | 'stop') => {
-      const res = await fetch(`/api/v1/agents/${id}/${act}`, { method: 'POST' });
-      return res.json();
-    },
-    onSuccess: (data) => { if (data.success) setAgent(data.data); qc.invalidateQueries({ queryKey: ['my-agents'] }); },
+    mutationFn: (act: 'start' | 'pause' | 'stop') =>
+      post<AgentDetails>(`/api/v1/agents/${id}/${act}`),
+    onSuccess: (data) => { setAgent(data); qc.invalidateQueries({ queryKey: ['my-agents'] }); },
   });
 
   const save = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/v1/agents/${id}`, {
+      // PATCH isn't in lib/api.ts; prefix with API_BASE_URL so prod routing works.
+      const res = await fetch(`${API_BASE_URL}/api/v1/agents/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ownerAddress: address, instructions: editInstructions, model: editModel }),
       });
-      return res.json();
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message ?? 'Save failed');
+      return json.data as AgentDetails;
     },
-    onSuccess: (data) => { if (data.success) { setAgent(data.data); setTab('logs'); } },
+    onSuccess: (data) => { setAgent(data); setTab('logs'); },
   });
 
   if (loading) return <div className="text-xs font-mono text-ink-3 py-20 text-center">loading…</div>;
@@ -197,13 +199,15 @@ function AgentTasks({ agentWallet }: { agentWallet?: string }) {
 
   useEffect(() => {
     if (!agentWallet) return;
-    fetch(`/api/v1/tasks?limit=50`)
-      .then(r => r.json())
-      .then(j => {
-        if (j.success) setTasks((j.data.tasks ?? []).filter((t: any) =>
+    get<{ tasks?: Array<{ taskId: string; category: string; status: number; reward: string; worker?: string; agent?: string }> }>(
+      `/api/v1/tasks?limit=50`,
+    )
+      .then(data => {
+        setTasks((data.tasks ?? []).filter(t =>
           t.worker?.toLowerCase() === agentWallet.toLowerCase() || t.agent?.toLowerCase() === agentWallet.toLowerCase()
         ));
-      });
+      })
+      .catch(() => { /* leave empty */ });
   }, [agentWallet]);
 
   const STATUS: Record<number, string> = { 0: 'funded', 1: 'assigned', 2: 'submitted', 3: 'verified', 4: 'completed', 5: 'cancelled', 6: 'disputed' };

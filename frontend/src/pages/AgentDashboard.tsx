@@ -4,6 +4,7 @@ import { Breadcrumb, PageHeader, SectionRule, StatCard, Panel, Tag, Prompt } fro
 import { useReputation } from '../hooks/useReputation';
 import { truncateAddress } from '../lib/utils';
 import { Link } from 'react-router-dom';
+import { get } from '../lib/api';
 
 const STATUS_LABELS: Record<number, string> = { 0: 'funded', 1: 'assigned', 2: 'submitted', 3: 'verified', 4: 'completed', 5: 'cancelled', 6: 'disputed' };
 const STATUS_TONE: Record<number, 'ok' | 'warn' | 'err' | 'neutral'> = { 0: 'neutral', 1: 'warn', 2: 'warn', 3: 'ok', 4: 'ok', 5: 'err', 6: 'err' };
@@ -16,12 +17,14 @@ export default function AgentDashboard() {
   const { data: taskData } = useQuery({
     queryKey: ['agent-tasks', address],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/tasks?limit=50`);
-      const json = await res.json();
-      if (!json.success) return [];
-      // Filter tasks where worker === address (assigned to this agent)
-      return (json.data.tasks as Array<{ taskId: string; category: string; locationZone: string; reward: string; agent: string; worker?: string; status?: number }>)
-        .filter(t => t.worker?.toLowerCase() === address?.toLowerCase());
+      try {
+        const data = await get<{ tasks: Array<{ taskId: string; category: string; locationZone: string; reward: string; agent: string; worker?: string; status?: number }> }>(
+          `/api/v1/tasks?limit=50`,
+        );
+        return data.tasks.filter(t => t.worker?.toLowerCase() === address?.toLowerCase());
+      } catch {
+        return [];
+      }
     },
     enabled: !!address,
   });

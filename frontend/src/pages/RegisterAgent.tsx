@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAccount, useSignMessage } from 'wagmi';
 import { ConnectWalletButton } from '../components/bb';
+import { get, post } from '../lib/api';
 
 type State = 'loading' | 'ready' | 'signing' | 'done' | 'error';
 
@@ -16,15 +17,13 @@ export default function RegisterAgent() {
 
   useEffect(() => {
     if (!token) return;
-    fetch(`/api/v1/registration/session/${token}`)
-      .then(r => r.json())
-      .then(body => {
-        if (!body.success) throw new Error(body.error?.message || 'Session not found');
-        if (body.data.status === 'confirmed') { setState('done'); return; }
-        setSession(body.data);
+    get<{ status: string; agentName: string; agentWallet: string }>(`/api/v1/registration/session/${token}`)
+      .then(data => {
+        if (data.status === 'confirmed') { setState('done'); return; }
+        setSession({ agentName: data.agentName, agentWallet: data.agentWallet });
         setState('ready');
       })
-      .catch(e => { setError(e.message); setState('error'); });
+      .catch(e => { setError(e.message || 'Session not found'); setState('error'); });
   }, [token]);
 
   const handleSign = async () => {
@@ -33,16 +32,10 @@ export default function RegisterAgent() {
     try {
       const message = `Register agent "${session.agentName}" (${session.agentWallet}) to BlindMarket.\n\nToken: ${token}`;
       const signature = await signMessageAsync({ message });
-      const res = await fetch(`/api/v1/registration/confirm/${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerAddress: address, signature }),
-      });
-      const body = await res.json();
-      if (!body.success) throw new Error(body.error?.message || 'Confirmation failed');
+      await post(`/api/v1/registration/confirm/${token}`, { ownerAddress: address, signature });
       setState('done');
     } catch (e) {
-      setError((e as Error).message);
+      setError((e as Error).message || 'Confirmation failed');
       setState('error');
     }
   };
