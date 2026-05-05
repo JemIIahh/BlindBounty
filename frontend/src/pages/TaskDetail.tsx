@@ -12,7 +12,7 @@ import { TxPendingModal } from '../components/TxPendingModal';
 import { CustodyChain } from '../components/CustodyChain';
 import { ReputationBadge } from '../components/DecayIndicator';
 import { truncateAddress, formatCurrency, formatDate } from '../lib/utils';
-import { buildAssignTask, buildCancelTask } from '../services/tasks';
+import { buildAssignTask, buildCancelTask, buildClaimTimeout } from '../services/tasks';
 import { lockStake } from '../services/staking';
 import { TaskStatus } from '../types/api';
 
@@ -52,6 +52,13 @@ export default function TaskDetail() {
   const reward = Number(meta.reward) / (10 ** decimals);
   const stakeAmount = Math.round(reward * 0.10 * 100) / 100;
 
+  const isExpired = Date.now() > Number(onChain.deadline) * 1000;
+  const canTimeout = isExpired && [
+    TaskStatus.Assigned,
+    TaskStatus.Submitted,
+    TaskStatus.Verified
+  ].includes(onChain.status);
+
   const handleApply = () => {
     if (!id) return;
     applyMutation.mutate({ taskId: id, message: applyMessage || undefined });
@@ -68,6 +75,12 @@ export default function TaskDetail() {
   const handleCancel = async () => {
     if (!id) return;
     const unsignedTx = await buildCancelTask(id);
+    txSend.mutate(unsignedTx);
+  };
+
+  const handleTimeout = async () => {
+    if (!id) return;
+    const unsignedTx = await buildClaimTimeout(id);
     txSend.mutate(unsignedTx);
   };
 
@@ -245,49 +258,88 @@ export default function TaskDetail() {
             </Card>
           )}
 
-          {/* Agent: Applications list + Assign (with staking) */}
-          {isAgent && applications && applications.length > 0 && (
-            <div className="card-dark mb-6 overflow-hidden">
-              <div className="px-6 py-4 border-b border-neutral-800">
-                <h2 className="text-sm font-semibold text-white">Applications ({applications.length})</h2>
-              </div>
-              <div className="divide-y divide-neutral-800">
-                {applications.map((app) => (
-                  <div key={app.id} className="flex items-center justify-between px-6 py-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm text-neutral-300 font-mono">{truncateAddress(app.applicant)}</p>
-                        <ReputationBadge address={app.applicant} />
-                      </div>
-                      {app.message && (
-                        <p className="text-sm text-neutral-500 mt-0.5">{app.message}</p>
-                      )}
-                    </div>
-                    {onChain.status === TaskStatus.Funded && (
-                      <button
-                        className="btn-accent text-xs py-1.5 px-4"
-                        onClick={() => handleApplyWithStake(app.applicant)}
-                        disabled={txSend.isPending}
-                      >
-                        Assign
-                      </button>
-                    )}
-                  </div>
-                ))}
+          {/* Agent: Actions (Cancel or Timeout) */}
+          {isAgent && (onChain.status === TaskStatus.Funded || canTimeout) && (
+            <div className="card-dark mb-6 p-6 border-red-900/20 bg-red-900/5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-white">Agent Actions</h3>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {onChain.status === TaskStatus.Funded 
+                      ? "Cancel this task to reclaim your escrowed funds." 
+                      : "The worker missed the deadline. Reclaim your funds now."}
+                  </p>
+                </div>
+                {onChain.status === TaskStatus.Funded ? (
+                  <button
+                    className="px-4 py-2 rounded-lg border border-red-900/50 text-red-400 text-sm font-medium hover:bg-red-900/20 transition-colors"
+                    onClick={handleCancel}
+                    disabled={txSend.isPending}
+                  >
+                    Cancel & Refund
+                  </button>
+                ) : (
+                  <button
+                    className="px-4 py-2 rounded-lg border border-red-900/50 text-red-400 text-sm font-medium hover:bg-red-900/20 transition-colors"
+                    onClick={handleTimeout}
+                    disabled={txSend.isPending}
+                  >
+                    Claim Timeout
+                  </button>
+                )}
               </div>
             </div>
           )}
 
-          {/* Agent: Cancel */}
+          {/* Agent: Applications list + Assign (with staking) */}
           {isAgent && onChain.status === TaskStatus.Funded && (
-            <div className="flex justify-end">
-              <button
-                className="px-4 py-2 rounded-lg border border-red-900/50 text-red-400 text-sm font-medium hover:border-red-700 hover:text-red-300 transition-colors disabled:opacity-50"
-                onClick={handleCancel}
-                disabled={txSend.isPending}
-              >
-                Cancel Task & Refund
-              </button>
+            <div className="card-dark overflow-hidden mb-6">
+              <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white">Applications</h2>
+                <span className="px-2 py-0.5 rounded-full bg-neutral-800 text-[10px] text-neutral-400 font-mono">
+                  {applications?.applications?.length || 0} Total
+                </span>
+              </div>
+              <div className="divide-y divide-neutral-800">
+                {!applications?.applications || applications.applications.length === 0 ? (
+                  <div className="px-6 py-10 text-center">
+                    <p className="text-sm text-neutral-500 italic">No applications yet. Your task is being broadcast to the agent network.</p>
+                  </div>
+                ) : (
+                  applications.applications.map((app: any) => (
+                    <div key={app.id} className="px-6 py-4 hover:bg-white/[0.02] transition-colors group">
+                      <div className="flex items-start justify-between">
+                        <div className="flex gap-4">
+                          <div className="w-8 h-8 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-400">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-white font-mono">{truncateAddress(app.applicant)}</span>
+                              <ReputationBadge address={app.applicant} size="xs" />
+                            </div>
+                            <p className="text-xs text-neutral-500 mt-1 line-clamp-2 max-w-md">
+                              {app.message || "No application message provided."}
+                            </p>
+                            <span className="text-[10px] text-neutral-700 mt-2 block italic">
+                              Applied {formatDate(new Date(app.created_at))}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          className="btn-accent text-[10px] py-1.5 px-3 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+                          onClick={() => handleApplyWithStake(app.applicant)}
+                          disabled={txSend.isPending}
+                        >
+                          Stake & Accept
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           )}
 

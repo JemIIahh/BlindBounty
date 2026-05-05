@@ -33,9 +33,19 @@ const AGENT_INSTRUCTIONS = process.env.AGENT_INSTRUCTIONS ?? '';
 const AGENT_PROVIDER = (process.env.AGENT_PROVIDER ?? 'openai').toLowerCase();
 const AGENT_MODEL = process.env.AGENT_MODEL ?? 'gpt-4o-mini';
 const AGENT_API_KEY = process.env.AGENT_API_KEY ?? '';
+const AGENT_PLATFORM_TOKEN = process.env.AGENT_PLATFORM_TOKEN ?? '';
 const AGENT_TOOLS_RAW = process.env.AGENT_TOOLS ?? '[]';
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 30_000);
+
+// Track tasks we've already applied to or are currently working on
+const appliedTasks = new Set();
+
+// Exit if parent process disconnects (prevents orphans)
+process.on('disconnect', () => {
+  log('parent disconnected, exiting');
+  process.exit();
+});
 
 let agentTools = [];
 try {
@@ -169,45 +179,110 @@ async function pollAndWork() {
     sendHeartbeat();
 
     // 1. Find open tasks
-    const res = await fetch(`${BACKEND_URL}/api/v1/tasks?status=open&limit=5`);
-    if (!res.ok) { log(`poll failed: ${res.status}`); return; }
-    const { data: tasks } = await res.json();
-    if (!tasks?.length) { log('no open tasks'); return; }
-
-    // 2. Apply to first task (TODO: filter by capabilities)
-    const task = tasks[0];
-    log(`applying to task ${task.id}`);
-    const applyRes = await fetch(`${BACKEND_URL}/api/v1/applications`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: task.id, applicant: AGENT_ID }),
+    const url = `${BACKEND_URL}/api/v1/tasks?status=open&limit=5`;
+    log(`polling ${url}...`);
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}` }
     });
-    if (!applyRes.ok) { log(`apply failed: ${applyRes.status}`); return; }
+    if (!res.ok) { 
+      const errText = await res.text();
+      log(`poll failed: ${res.status} ${errText.slice(0, 50)}`); 
+      return; 
+    }
+    
+    const json = await res.json();
+    const tasks = json.data?.tasks;
+    
+    if (!tasks || !Array.isArray(tasks)) {
+      log(`invalid tasks response structure: ${Object.keys(json.data || {}).join(', ')}`);
+      return;
+    }
+    
+    if (tasks.length === 0) {
+      log(`no open tasks found (total reported: ${json.data?.total})`);
+      return;
+    }
+
+    // Filter out tasks we've already applied to
+    const availableTasks = tasks.filter(t => !appliedTasks.has(String(t.taskId)));
+
+    if (availableTasks.length === 0) {
+      log(`found ${tasks.length} open tasks, but already applied to all of them`);
+      return;
+    }
+
+    log(`found ${availableTasks.length} new open tasks (total open: ${json.data?.total})`);
+
+    // 2. Apply to available tasks until one succeeds (or we've tried them all)
+    let selectedTaskId = null;
+    let selectedTask = null;
+
+    for (const task of availableTasks) {
+      const taskId = String(task.taskId);
+      log(`applying to task ${taskId}`);
+      const applyRes = await fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}/apply`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}`
+        },
+        body: JSON.stringify({ message: `I am ${AGENT_NAME}, an autonomous agent ready to help.` }),
+      });
+
+      if (applyRes.ok) {
+        appliedTasks.add(taskId);
+        selectedTaskId = taskId;
+        selectedTask = task;
+        break; 
+      }
+
+      const err = await applyRes.json();
+      log(`apply failed for task ${taskId}: ${applyRes.status} ${err.error?.code || ''}`); 
+      
+      // If already applied, record it and try the NEXT task in this same poll
+      if (applyRes.status === 409 || err.error?.code === 'ALREADY_APPLIED') {
+        appliedTasks.add(taskId);
+        continue;
+      } else {
+        // For other errors (e.g. 500, network), stop this cycle
+        return;
+      }
+    }
+
+    if (!selectedTaskId) {
+      log(`could not apply to any of the ${availableTasks.length} tasks`);
+      return;
+    }
+
+    const taskId = selectedTaskId;
+    const task = selectedTask;
 
     // 3. Wait for assignment (poll task status for 30s)
     let assigned = false;
     for (let i = 0; i < 6; i++) {
       await sleep(5000);
-      const statusRes = await fetch(`${BACKEND_URL}/api/v1/tasks/${task.id}`);
+      const statusRes = await fetch(`${BACKEND_URL}/api/v1/tasks/${taskId}`, {
+        headers: { 'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}` }
+      });
       if (!statusRes.ok) break;
       const { data: updated } = await statusRes.json();
-      if (updated.status === 'Assigned' && updated.worker === AGENT_ID) {
+      if (updated.status === 1 && updated.worker?.toLowerCase() === process.env.AGENT_WALLET?.toLowerCase()) {
         assigned = true;
         break;
       }
     }
-    if (!assigned) { log(`not assigned to task ${task.id}`); return; }
+    if (!assigned) { log(`not assigned to task ${taskId}`); return; }
 
     // 4. Decrypt instructions from 0G Storage (TODO: implement decryption flow)
-    // For now, use task.description as instructions
-    const instructions = task.description ?? task.title;
+    // For now, use task.category as instructions placeholder
+    const instructions = task.category;
 
     // 5. Call LLM with tools
-    log(`working on task ${task.id}`);
+    log(`working on task ${taskId}`);
     const { text } = await generateText({
       model: getModel(),
       system: AGENT_INSTRUCTIONS,
-      prompt: `Task: ${task.title}\n\n${instructions}`,
+      prompt: `Task ID: ${taskId}\nCategory: ${task.category}\n\nInstructions: ${instructions}`,
       tools: buildTools(),
       maxSteps: 5,
     });
@@ -217,18 +292,19 @@ async function pollAndWork() {
     const evidenceHash = createHash('sha256').update(text).digest('hex');
 
     // 7. Submit evidence
-    log(`submitting task ${task.id}`);
-    const submitRes = await fetch(`${BACKEND_URL}/api/v1/submissions`, {
+    log(`submitting task ${taskId}`);
+    const submitRes = await fetch(`${BACKEND_URL}/api/v1/submissions/submit`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}`
+      },
       body: JSON.stringify({
-        taskId: task.id,
-        worker: AGENT_ID,
+        taskId: Number(taskId),
         evidenceHash: `0x${evidenceHash}`,
-        evidence: text, // plaintext for now; should be encrypted blob ref
       }),
     });
-    log(`submitted task ${task.id}: ${submitRes.status}`);
+    log(`submitted task ${taskId}: ${submitRes.status}`);
   } catch (err) {
     log(`error: ${err.message}`);
   }
