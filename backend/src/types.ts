@@ -263,6 +263,7 @@ export interface DeployedAgent {
   deployedAt: string;
   lastActiveAt?: string;    // updated on each heartbeat from worker
   storageRef?: string;
+  platformToken?: string;   // HS256 JWT for backend auth
   // On-chain identity — generated at deploy time
   walletAddress: string;
   publicKey: string;

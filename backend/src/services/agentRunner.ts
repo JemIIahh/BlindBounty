@@ -3,6 +3,8 @@ import { randomUUID, createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 import { join, dirname } from 'path';
 import { Wallet } from 'ethers';
+import jwt from 'jsonwebtoken';
+import { config } from '../config.js';
 import { eciesEncrypt, generateKeyPair } from './crypto.js';
 import { inft } from './chain.js';
 import {
@@ -75,6 +77,12 @@ export async function deployAgent(params: {
     }
   }
 
+  const platformToken = jwt.sign(
+    { address: walletAddress, ownerAddress: params.ownerAddress.toLowerCase(), agentName: params.name },
+    config.jwtSecret,
+    { algorithm: 'HS256', expiresIn: '365d' } as jwt.SignOptions,
+  );
+
   const agent: DeployedAgent = {
     id: randomUUID(),
     ownerAddress: params.ownerAddress,
@@ -93,6 +101,7 @@ export async function deployAgent(params: {
     encryptedPrivateKey,
     inftTokenId,
     storageRef: params.storageRef,
+    platformToken,
   };
 
   await saveAgent(agent);
@@ -106,6 +115,21 @@ export async function startAgent(id: string): Promise<void> {
   if (!agent) throw new Error(`Agent ${id} not found`);
   if (processes.has(id)) return;
 
+  // Migration: Generate platform token if missing
+  if (!agent.platformToken) {
+    if (!config.jwtSecret) {
+      console.error('[agentRunner] Cannot start agent: JWT_SECRET not configured');
+      throw new Error('Server configuration error: JWT_SECRET missing');
+    }
+    agent.platformToken = jwt.sign(
+      { address: agent.walletAddress, ownerAddress: agent.ownerAddress.toLowerCase(), agentName: agent.name },
+      config.jwtSecret,
+      { algorithm: 'HS256', expiresIn: '365d' } as jwt.SignOptions,
+    );
+    await saveAgent(agent);
+    console.log(`[agentRunner] Generated missing platform token for agent ${id}`);
+  }
+
   const child = fork(WORKER_PATH, [], {
     env: {
       ...process.env,
@@ -115,6 +139,9 @@ export async function startAgent(id: string): Promise<void> {
       AGENT_PROVIDER: agent.provider,
       AGENT_MODEL: agent.model,
       AGENT_API_KEY: agent.apiKey,
+      AGENT_PLATFORM_TOKEN: agent.platformToken,
+      AGENT_WALLET: agent.walletAddress,
+      BACKEND_URL: `http://localhost:${config.port}`,
       AGENT_TOOLS: JSON.stringify(agent.tools ?? []),
     },
     silent: true,

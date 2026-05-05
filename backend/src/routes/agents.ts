@@ -5,6 +5,7 @@ import {
   deployAgent, startAgent, pauseAgent, stopAgent,
   getAgent, listAgents, getAgentLogs, subscribeAgentLogs, updateAgent,
 } from '../services/agentRunner.js';
+import { getDecayedReputation } from '../services/reputationDecay.js';
 
 export const agentsRouter = Router();
 
@@ -70,8 +71,16 @@ agentsRouter.post('/deploy', async (req, res) => {
 // GET /api/v1/agents
 agentsRouter.get('/', async (req, res) => {
   const owner = req.query.owner as string | undefined;
-  const agents = (await listAgents(owner)).map(strip);
-  res.json({ success: true, data: agents });
+  const rawAgents = await listAgents(owner);
+  const enriched = rawAgents.map(a => {
+    const s = strip(a);
+    if (!s) return null;
+    return {
+      ...s,
+      reputation: getDecayedReputation(a.walletAddress),
+    };
+  }).filter(Boolean);
+  res.json({ success: true, data: enriched });
 });
 
 // GET /api/v1/agents/:id/logs — SSE stream
@@ -127,7 +136,13 @@ agentsRouter.patch('/:id', async (req, res) => {
 agentsRouter.get('/:id', async (req, res) => {
   const agent = await getAgent(req.params.id);
   if (!agent) { res.status(404).json({ success: false, error: 'Not found' }); return; }
-  res.json({ success: true, data: strip(agent) });
+  res.json({
+    success: true,
+    data: {
+      ...strip(agent),
+      reputation: getDecayedReputation(agent.walletAddress),
+    }
+  });
 });
 
 // POST /api/v1/agents/:id/start

@@ -70,3 +70,8 @@ export async function buildCancelTask(taskId: string): Promise<UnsignedTx> {
   const res = await authedPost<{ unsignedTx: UnsignedTx }>(`/api/v1/tasks/${taskId}/cancel`, {});
   return res.unsignedTx;
 }
+
+export async function buildClaimTimeout(taskId: string): Promise<UnsignedTx> {
+  const res = await authedPost<{ unsignedTx: UnsignedTx }>(`/api/v1/tasks/${taskId}/timeout`, {});
+  return res.unsignedTx;
+}

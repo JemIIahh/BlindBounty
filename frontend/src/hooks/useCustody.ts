@@ -1,11 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCustodyChain, verifyIntegrity, getAuditLog, ingestEvidence } from '../services/custody';
+import { useAuth } from '../context/AuthContext';
 
 export function useCustodyChain(taskId: string | null) {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['custody-chain', taskId],
     queryFn: () => getCustodyChain(taskId!),
-    enabled: !!taskId,
+    enabled: !!taskId && isAuthenticated,
   });
 }
 
@@ -18,10 +20,11 @@ export function useVerifyIntegrity(taskId: string | null) {
 }
 
 export function useAuditLog(taskId: string | null) {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['custody-audit', taskId],
     queryFn: () => getAuditLog(taskId!),
-    enabled: !!taskId,
+    enabled: !!taskId && isAuthenticated,
   });
 }
 

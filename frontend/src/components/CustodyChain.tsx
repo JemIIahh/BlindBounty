@@ -3,6 +3,7 @@ import { useCustodyChain, useAuditLog } from '../hooks/useCustody';
 import { verifyIntegrity } from '../services/custody';
 import type { IntegrityResult } from '../services/custody';
 import { truncateAddress } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 
 const actionColors: Record<string, string> = {
   submitted: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -13,6 +14,7 @@ const actionColors: Record<string, string> = {
 };
 
 export function CustodyChain({ taskId }: { taskId: string }) {
+  const { isAuthenticated } = useAuth();
   const { data: chainData, isLoading: chainLoading } = useCustodyChain(taskId);
   const { data: auditData, isLoading: auditLoading } = useAuditLog(taskId);
   const [integrityResult, setIntegrityResult] = useState<IntegrityResult | null>(null);
@@ -30,6 +32,22 @@ export function CustodyChain({ taskId }: { taskId: string }) {
       setVerifying(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="py-8 text-center space-y-3">
+        <div className="w-12 h-12 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center mx-auto mb-2">
+          <svg className="w-6 h-6 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <p className="text-sm text-neutral-300">Authentication Required</p>
+        <p className="text-xs text-neutral-500 max-w-xs mx-auto">
+          You must be logged in to view the cryptographic evidence chain and audit logs for this task.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

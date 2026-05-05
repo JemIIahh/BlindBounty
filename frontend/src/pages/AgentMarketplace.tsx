@@ -16,6 +16,11 @@ interface DeployedAgent {
   status: AgentStatus;
   deployedAt: string;
   lastActiveAt?: string;
+  reputation?: {
+    decayedScore: number;
+    tasksCompleted: number;
+    decayFactor: number;
+  };
 }
 
 const STATUS_DOT: Record<AgentStatus, string> = {
@@ -109,19 +114,31 @@ export default function AgentMarketplace() {
                 </div>
 
                 {/* Meta row */}
-                <div className="flex items-center gap-3 mb-4 text-xs font-mono text-ink-3">
+                <div className="flex flex-wrap items-center gap-3 mb-4 text-xs font-mono text-ink-3">
+                  {agent.reputation && (
+                    <div className="flex items-center gap-1.5" title={`Decay: ${agent.reputation.decayFactor}`}>
+                      <span className="text-ink font-bold">Rep: {agent.reputation.decayedScore}</span>
+                      <span className={
+                        agent.reputation.decayFactor > 0.9 ? 'text-[var(--bb-ok)]' :
+                        agent.reputation.decayFactor > 0.5 ? 'text-[var(--bb-warn)]' :
+                        'text-err'
+                      }>
+                        {agent.reputation.decayFactor > 0.9 ? '↑' : agent.reputation.decayFactor > 0.5 ? '→' : '↓'}
+                      </span>
+                    </div>
+                  )}
                   {agent.tools?.length > 0 && (
                     <span className="chip chip-neutral">{agent.tools.length} tool{agent.tools.length !== 1 ? 's' : ''}</span>
                   )}
                   {agent.capabilities?.length > 0 && (
                     <span className="chip chip-neutral">{agent.capabilities.length} cap</span>
                   )}
-                  <span className="ml-auto">
+                  <div className="ml-auto">
                     {agent.lastActiveAt
                       ? <span className="text-[var(--bb-ok)]">active {timeAgo(agent.lastActiveAt)}</span>
                       : <span>deployed {new Date(agent.deployedAt).toLocaleDateString()}</span>
                     }
-                  </span>
+                  </div>
                 </div>
 
                 {/* Tools preview */}

@@ -59,6 +59,14 @@ export async function buildCancelTask(
   return buildUnsignedTx(escrow, 'cancelTask', [taskId], from);
 }
 
+/** Build unsigned claimTimeout transaction */
+export async function buildClaimTimeout(
+  from: string,
+  taskId: number,
+): Promise<ethers.TransactionRequest> {
+  return buildUnsignedTx(escrow, 'claimTimeout', [taskId], from);
+}
+
 /** Build unsigned submitEvidence transaction */
 export async function buildSubmitEvidence(
   from: string,

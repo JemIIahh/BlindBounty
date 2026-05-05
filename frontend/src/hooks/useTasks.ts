@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getOpenTasks, getTask, applyToTask, getApplications } from '../services/tasks';
+import { useAuth } from '../context/AuthContext';
 
 export function useOpenTasks(offset = 0, limit = 20) {
   return useQuery({
@@ -17,10 +18,11 @@ export function useTask(id: string | undefined) {
 }
 
 export function useApplications(taskId: string | undefined) {
+  const { isAuthenticated } = useAuth();
   return useQuery({
     queryKey: ['tasks', taskId, 'applications'],
     queryFn: () => getApplications(taskId!),
-    enabled: !!taskId,
+    enabled: !!taskId && isAuthenticated,
   });
 }
 

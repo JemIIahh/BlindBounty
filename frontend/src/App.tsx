@@ -26,6 +26,7 @@ import PostTask from './pages/PostTask';
 import DeployAgentForm from './pages/DeployAgentForm';
 import DeployAgentSdk from './pages/DeployAgentSdk';
 import MyAgents from './pages/MyAgents';
+import Leaderboard from './pages/Leaderboard';
 import Metrics from './pages/Metrics';
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
@@ -84,6 +85,7 @@ export default function App() {
                   <Route path="/agents/deploy/ui" element={<DeployAgentForm />} />
                   <Route path="/agents/deploy/sdk" element={<DeployAgentSdk />} />
                   <Route path="/agents/mine" element={<MyAgents />} />
+                  <Route path="/leaderboard" element={<Leaderboard />} />
                   <Route path="/agents/:id" element={<AgentDetail />} />
                   <Route path="/metrics" element={<Metrics />} />
                 </Route>

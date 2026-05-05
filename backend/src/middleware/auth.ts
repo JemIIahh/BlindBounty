@@ -118,16 +118,24 @@ function extractWalletAddress(payload: any): string | null {
  * so this isn't a re-introduction of the old SIWE end-user auth.
  */
 function verifyRegistrationToken(token: string): { address: string } | null {
-  if (!config.jwtSecret) return null;
+  if (!config.jwtSecret) {
+    console.warn('[Auth] Registration token rejected: JWT_SECRET not configured');
+    return null;
+  }
   try {
     const payload = jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });
-    if (typeof payload === 'string' || !payload) return null;
+    if (typeof payload === 'string' || !payload) {
+      console.warn('[Auth] Registration token rejected: Invalid payload type');
+      return null;
+    }
     const claims = payload as Record<string, unknown>;
     if (typeof claims.address !== 'string' || typeof claims.ownerAddress !== 'string') {
+      console.warn('[Auth] Registration token rejected: Missing address or ownerAddress claims', Object.keys(claims));
       return null;
     }
     return { address: claims.address };
-  } catch {
+  } catch (err: any) {
+    console.warn('[Auth] Registration token verification failed:', err.message);
     return null;
   }
 }

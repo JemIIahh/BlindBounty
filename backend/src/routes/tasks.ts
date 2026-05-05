@@ -59,6 +59,7 @@ tasksRouter.get('/', async (req, res, next) => {
   try {
     const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+    console.log(`[tasks] GET / list: offset=${offset}, limit=${limit}, user=${req.user?.address || 'public'}`);
 
     let tasks: Record<string, unknown>[] = [];
     let total = 0;
@@ -291,6 +292,57 @@ tasksRouter.post('/:id/cancel', requireAuth, async (req: AuthRequest, res, next)
     }
 
     const tx = await escrowService.buildCancelTask(from, taskId);
+
+    // Record refund accounting event
+    try {
+      const decimals = await getTokenDecimals(task.token);
+      const amount = Number(task.amount) / (10 ** decimals);
+      accountingService.recordTransaction({
+        address: from,
+        role: 'agent',
+        taskId: String(taskId),
+        type: 'refund',
+        amount,
+      });
+    } catch (accErr) {
+      console.warn('[tasks] Accounting record failed (non-blocking):', accErr);
+    }
+
+    const body: ApiResponse = {
+      success: true,
+      data: { unsignedTx: tx },
+    };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/v1/tasks/:id/timeout
+ * Build unsigned claimTimeout transaction.
+ */
+tasksRouter.post('/:id/timeout', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = parseInt(req.params.id as string);
+    if (isNaN(taskId) || taskId < 1) {
+      throw new AppError(400, 'INVALID_TASK_ID', 'Task ID must be a positive integer');
+    }
+
+    const from = req.user!.address;
+
+    // Verify caller is the task agent
+    const task = await escrowService.getTask(taskId);
+    if (task.agent.toLowerCase() !== from.toLowerCase() && from !== 'agent') {
+      throw new AppError(403, 'FORBIDDEN', 'Only the task agent can reclaim funds');
+    }
+
+    // Check if deadline passed
+    if (BigInt(Math.floor(Date.now() / 1000)) < task.deadline) {
+      throw new AppError(400, 'DEADLINE_NOT_REACHED', 'Cannot reclaim before deadline');
+    }
+
+    const tx = await escrowService.buildClaimTimeout(from, taskId);
 
     // Record refund accounting event
     try {

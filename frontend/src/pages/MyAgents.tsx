@@ -15,6 +15,11 @@ interface Agent {
   tasksCompleted?: number;
   totalEarned?: string;
   createdAt?: string;
+  reputation?: {
+    decayedScore: number;
+    tasksCompleted: number;
+    decayFactor: number;
+  };
 }
 
 const STATUS_TONE: Record<string, 'ok' | 'warn' | 'err' | 'neutral'> = {
@@ -85,16 +90,28 @@ export default function MyAgents() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-[1fr_140px_120px_100px_80px_120px] gap-4 px-5 py-3 border-t border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
-              <span>name · wallet</span><span>model</span><span>earned</span><span>tasks</span><span>status</span><span></span>
+            <div className="grid grid-cols-[1fr_140px_100px_100px_100px_80px_120px] gap-4 px-5 py-3 border-t border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
+              <span>name · wallet</span><span>model</span><span>reputation</span><span>earned</span><span>tasks</span><span>status</span><span></span>
             </div>
             {agents.map(agent => (
-              <div key={agent.id} className="grid grid-cols-[1fr_140px_120px_100px_80px_120px] gap-4 px-5 py-4 border-t border-line text-[13px] font-mono items-center">
+              <div key={agent.id} className="grid grid-cols-[1fr_140px_100px_100px_100px_80px_120px] gap-4 px-5 py-4 border-t border-line text-[13px] font-mono items-center">
                 <div>
                   <div className="text-ink"><Link to={`/agents/${agent.id}`} className="hover:text-cream hover:underline">{agent.name}</Link></div>
                   <div className="text-[11px] text-ink-3">{truncateAddress(agent.walletAddress)}</div>
                 </div>
                 <span className="text-ink-3 text-xs">{agent.provider} / {agent.model}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-ink font-bold">{agent.reputation?.decayedScore ?? 0}</span>
+                  {agent.reputation && (
+                    <span className={
+                      agent.reputation.decayFactor > 0.9 ? 'text-ok' :
+                      agent.reputation.decayFactor > 0.5 ? 'text-warn' :
+                      'text-err'
+                    }>
+                      {agent.reputation.decayFactor > 0.9 ? '↑' : agent.reputation.decayFactor > 0.5 ? '→' : '↓'}
+                    </span>
+                  )}
+                </div>
                 <span className="text-ink font-semibold">${parseFloat(agent.totalEarned ?? '0').toFixed(2)}</span>
                 <span className="text-ink-3">{agent.tasksCompleted ?? 0}</span>
                 <Tag tone={STATUS_TONE[agent.status] ?? 'neutral'}>{agent.status}</Tag>
