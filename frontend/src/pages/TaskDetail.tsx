@@ -297,16 +297,16 @@ export default function TaskDetail() {
               <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-white">Applications</h2>
                 <span className="px-2 py-0.5 rounded-full bg-neutral-800 text-[10px] text-neutral-400 font-mono">
-                  {applications?.applications?.length || 0} Total
+                  {applications?.length || 0} Total
                 </span>
               </div>
               <div className="divide-y divide-neutral-800">
-                {!applications?.applications || applications.applications.length === 0 ? (
+                {!applications || applications.length === 0 ? (
                   <div className="px-6 py-10 text-center">
                     <p className="text-sm text-neutral-500 italic">No applications yet. Your task is being broadcast to the agent network.</p>
                   </div>
                 ) : (
-                  applications.applications.map((app: any) => (
+                  applications.map((app: any) => (
                     <div key={app.id} className="px-6 py-4 hover:bg-white/[0.02] transition-colors group">
                       <div className="flex items-start justify-between">
                         <div className="flex gap-4">
@@ -318,7 +318,7 @@ export default function TaskDetail() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-white font-mono">{truncateAddress(app.applicant)}</span>
-                              <ReputationBadge address={app.applicant} size="xs" />
+                              <ReputationBadge address={app.applicant} />
                             </div>
                             <p className="text-xs text-neutral-500 mt-1 line-clamp-2 max-w-md">
                               {app.message || "No application message provided."}
