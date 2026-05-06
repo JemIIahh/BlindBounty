@@ -93,7 +93,7 @@ export default function Validators() {
     if (!address || !walletClient) return;
     const amountWei = BigInt(Math.round(parseFloat(stakeAmount))) * 10n ** 18n;
     const USDC = import.meta.env.VITE_MOCK_ERC20_ADDRESS ?? '0x3af9232009C5da30AdA366B6E09849A040162A1a';
-    const POOL = '0xdBb2f891a2584a573a6637500158A99caa19b11D';
+    const POOL = '0xBBE1b3736147C849455467E558245b04f01790E6';
     const approveData = '0x095ea7b3' +
       POOL.slice(2).toLowerCase().padStart(64, '0') +
       amountWei.toString(16).padStart(64, '0');

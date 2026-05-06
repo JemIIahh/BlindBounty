@@ -23,7 +23,7 @@ contract ValidatorPool is ReentrancyGuard {
 
     // ── Constants ──
 
-    uint256 public constant MIN_STAKE        = 100e18;  // 100 tokens minimum stake
+    uint256 public constant MIN_STAKE        = 100e6;   // 100 USDC (6 decimals) minimum stake
     uint256 public constant VOTE_WINDOW      = 48 hours;
     uint256 public constant SLASH_BPS        = 1000;    // 10% slashed from wrong voters
     uint256 public constant REWARD_BPS       = 500;     // 5% of dispute amount to correct voters
