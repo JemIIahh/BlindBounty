@@ -5,6 +5,7 @@ import { BrowserProvider } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule, StatCard } from '../components/bb';
 import { useSocket } from '../hooks/useSocket';
 import { signAndSendTx } from '../lib/txSigner';
+import { authedPost } from '../lib/api';
 import { API_BASE_URL } from '../config/constants';
 
 interface ValidatorInfo {
@@ -74,29 +75,10 @@ export default function Validators() {
     if (!address || !walletClient) return;
     setTxStatus(`${label}…`);
     try {
-      const authRes = await fetch(`${API_BASE_URL}/api/v1/auth/nonce`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address }),
-      });
-      const { data: { nonce } } = await authRes.json();
-      const sig = await walletClient.signMessage({ message: `Sign this message to authenticate with BlindMarket.\n\nNonce: ${nonce}` });
-      const verifyRes = await fetch(`${API_BASE_URL}/api/v1/auth/verify`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, signature: sig }),
-      });
-      const { data: { token } } = await verifyRes.json();
-
-      const txRes = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      const txJson = await txRes.json();
-      if (!txJson.success) throw new Error(txJson.error?.message ?? 'Request failed');
-
+      const txJson = await authedPost<{ unsignedTx: object }>(endpoint, body);
       const provider = new BrowserProvider(walletClient.transport);
       const signer = await provider.getSigner();
-      await signAndSendTx(signer, txJson.data.unsignedTx);
+      await signAndSendTx(signer, txJson.unsignedTx as any);
 
       setTxStatus('✓ done');
       refetchValidator();
