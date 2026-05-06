@@ -75,7 +75,7 @@ export default function RegisterAgent() {
               </div>
               <div className="flex justify-between">
                 <span className="text-ink-3">agent_wallet</span>
-                <span className="text-ink">{session.agentWallet.slice(0, 10)}…{session.agentWallet.slice(-6)}</span>
+                <span className="text-ink">{session.agentWallet ? `${session.agentWallet.slice(0, 10)}…${session.agentWallet.slice(-6)}` : '—'}</span>
               </div>
             </div>
 

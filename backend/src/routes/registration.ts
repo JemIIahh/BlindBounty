@@ -56,7 +56,8 @@ registrationRouter.post('/session', (req, res) => {
     createdAt: Date.now(),
   });
 
-  const url = `${config.corsOrigin}/register/${token}`;
+  const frontendUrl = process.env.FRONTEND_URL ?? config.corsOrigin[0] ?? 'https://www.blindmarket.xyz';
+  const url = `${frontendUrl}/register/${token}`;
   res.json({ success: true, data: { token, url } } satisfies ApiResponse);
 });
 
