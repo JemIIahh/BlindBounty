@@ -1,98 +1,232 @@
+import { useState } from 'react';
+import { useAccount, useWalletClient } from 'wagmi';
 import { useQuery } from '@tanstack/react-query';
+import { BrowserProvider } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule, StatCard } from '../components/bb';
-import { get } from '../lib/api';
 import { useSocket } from '../hooks/useSocket';
+import { signAndSendTx } from '../lib/txSigner';
+import { API_BASE_URL } from '../config/constants';
 
-function useStats() {
-  return useQuery({
-    queryKey: ['stats'],
-    queryFn: () => get<{ openTasks: number; activeAgents: number; activeValidators: number }>('/api/v1/stats'),
-  });
+interface ValidatorInfo {
+  stake: string;
+  active: boolean;
+  totalVotes: number;
+  correctVotes: number;
 }
 
-const STEPS = [
-  { n: '01', title: 'deploy an agent', body: 'Create an agent from the dashboard. It gets its own wallet and on-chain identity (INFT).' },
-  { n: '02', title: 'stake tokens', body: 'Run blind validator stake --amount 100 to lock tokens. This is the agent\'s skin in the game.' },
-  { n: '03', title: 'run the daemon', body: 'Run blind validator run. The agent watches for disputes, calls the TEE, and votes automatically.' },
-  { n: '04', title: 'earn rewards', body: 'Agents that vote with the majority share the slash pool from wrong voters. Fully autonomous.' },
-];
+interface Dispute {
+  disputeId: string;
+  taskId: string;
+  amount: string;
+  openedAt: number;
+  finalized: boolean;
+  workerFavored: boolean;
+  workerVotes: number;
+  agentVotes: number;
+}
 
 export default function Validators() {
-  const { data: stats, refetch } = useStats();
-  useSocket('platform', { 'stats:update': () => refetch() });
-  useSocket('disputes', { 'dispute:voted': () => refetch(), 'dispute:finalized': () => refetch() });
+  const { address } = useAccount();
+  const { data: walletClient } = useWalletClient();
+
+  const [stakeAmount, setStakeAmount] = useState('100');
+  const [txStatus, setTxStatus] = useState('');
+
+  const { data: stats, refetch: refetchStats } = useQuery({
+    queryKey: ['stats'],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE_URL}/api/v1/stats`);
+      return r.json().then(j => j.data);
+    },
+  });
+
+  const { data: validatorInfo, refetch: refetchValidator } = useQuery<ValidatorInfo>({
+    queryKey: ['validator', address],
+    queryFn: async () => {
+      const r = await fetch(`${API_BASE_URL}/api/v1/validators/${address}`);
+      const j = await r.json();
+      return j.success ? j.data : null;
+    },
+    enabled: !!address,
+  });
+
+  const { data: disputes = [], refetch: refetchDisputes } = useQuery<Dispute[]>({
+    queryKey: ['disputes'],
+    queryFn: async () => {
+      // Fetch open disputes — try IDs 1..20
+      const results: Dispute[] = [];
+      for (let i = 1; i <= 10; i++) {
+        const r = await fetch(`${API_BASE_URL}/api/v1/validators/disputes/${i}`);
+        if (!r.ok) break;
+        const j = await r.json();
+        if (j.success && !j.data.finalized) results.push({ ...j.data, disputeId: String(i) });
+      }
+      return results;
+    },
+  });
+
+  useSocket('disputes', {
+    'dispute:voted': () => { refetchDisputes(); refetchStats(); },
+    'dispute:finalized': () => { refetchDisputes(); refetchStats(); },
+  });
+
+  async function sendTx(endpoint: string, body: object, label: string) {
+    if (!address || !walletClient) return;
+    setTxStatus(`${label}…`);
+    try {
+      const authRes = await fetch(`${API_BASE_URL}/api/v1/auth/nonce`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address }),
+      });
+      const { data: { nonce } } = await authRes.json();
+      const sig = await walletClient.signMessage({ message: `Sign this message to authenticate with BlindMarket.\n\nNonce: ${nonce}` });
+      const verifyRes = await fetch(`${API_BASE_URL}/api/v1/auth/verify`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, signature: sig }),
+      });
+      const { data: { token } } = await verifyRes.json();
+
+      const txRes = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const txJson = await txRes.json();
+      if (!txJson.success) throw new Error(txJson.error?.message ?? 'Request failed');
+
+      const provider = new BrowserProvider(walletClient.transport);
+      const signer = await provider.getSigner();
+      await signAndSendTx(signer, txJson.data.unsignedTx);
+
+      setTxStatus('✓ done');
+      refetchValidator();
+      refetchDisputes();
+      refetchStats();
+    } catch (e) {
+      setTxStatus(`error: ${(e as Error).message}`);
+    }
+  }
+
+  const isValidator = validatorInfo?.active;
+  const accuracy = validatorInfo && validatorInfo.totalVotes > 0
+    ? Math.round((validatorInfo.correctVotes / validatorInfo.totalVotes) * 100)
+    : null;
 
   return (
     <div>
       <Breadcrumb items={['marketplace', 'validators']} />
       <PageHeader
         title="Validators"
-        description="Agents validate disputes — no humans in the loop."
+        description="Stake tokens to join the dispute resolution pool. Vote on disputes, earn rewards."
       />
 
-      {/* Live counts */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-0 border border-line mb-8">
-        <StatCard label="active validators" value={String(stats?.activeValidators ?? '—')} sub="agents staked + running" subColor="ok" />
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-0 border border-line mb-8">
+        <StatCard label="active validators" value={String(stats?.activeValidators ?? '—')} sub="staked + online" subColor="ok" />
         <div className="border-l border-line">
-          <StatCard label="active agents" value={String(stats?.activeAgents ?? '—')} sub="running now" subColor="ok" />
+          <StatCard label="open disputes" value={String(disputes.length)} sub="awaiting votes" subColor={disputes.length > 0 ? 'warn' : undefined} />
         </div>
         <div className="border-l border-line">
-          <StatCard label="open tasks" value={String(stats?.openTasks ?? '—')} sub="live from chain" />
+          {isValidator
+            ? <StatCard label="your accuracy" value={accuracy !== null ? `${accuracy}%` : '—'} sub={`${validatorInfo!.totalVotes} votes`} subColor="ok" />
+            : <StatCard label="your status" value="not staked" sub="stake to become a validator" />
+          }
         </div>
+      </div>
+
+      {/* Onboarding / status */}
+      <div className="border border-line mb-8">
+        <div className="p-6 border-b border-line">
+          <SectionRule num="01" title={isValidator ? 'your validator status' : 'become a validator'} />
+        </div>
+
+        {!address ? (
+          <div className="p-8 text-center text-xs font-mono text-ink-3">connect wallet to continue</div>
+        ) : isValidator ? (
+          <div className="p-6 grid grid-cols-4 gap-6 text-xs font-mono">
+            <div><div className="text-ink-3 mb-1">staked</div><div className="text-cream">{(BigInt(validatorInfo!.stake) / 10n ** 6n).toString()} USDC</div></div>
+            <div><div className="text-ink-3 mb-1">total votes</div><div className="text-ink">{validatorInfo!.totalVotes}</div></div>
+            <div><div className="text-ink-3 mb-1">correct votes</div><div className="text-ink">{validatorInfo!.correctVotes}</div></div>
+            <div>
+              <div className="text-ink-3 mb-2">actions</div>
+              <button onClick={() => sendTx('/api/v1/validators/unstake', {}, 'unstaking')}
+                className="px-3 py-1 border border-line text-ink-3 hover:border-red-400 hover:text-red-400 transition-colors">
+                unstake
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="p-6 space-y-4">
+            <div className="text-xs font-mono text-ink-3 leading-relaxed max-w-lg">
+              Stake USDC to join the validator pool. You'll vote on disputed tasks and earn a share of slashed stakes from wrong voters. Minimum stake: 100 USDC.
+            </div>
+            <div className="flex items-end gap-4">
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">stake amount (USDC)</label>
+                <input type="number" min="100" value={stakeAmount} onChange={e => setStakeAmount(e.target.value)}
+                  className="w-40 bg-surface-2 border border-line px-4 py-3 text-xs font-mono text-ink focus:outline-none focus:border-cream" />
+              </div>
+              <button onClick={() => sendTx('/api/v1/validators/register', { amount: String(BigInt(Math.round(parseFloat(stakeAmount) * 1e6))) }, 'staking')}
+                className="px-6 py-3 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg transition-colors">
+                stake + become validator →
+              </button>
+            </div>
+            {txStatus && <div className={`text-xs font-mono ${txStatus.startsWith('error') ? 'text-red-400' : 'text-green-400'}`}>{txStatus}</div>}
+          </div>
+        )}
+      </div>
+
+      {/* Open disputes */}
+      <div className="border border-line">
+        <div className="p-6 border-b border-line">
+          <SectionRule num="02" title="open disputes" side={`${disputes.length} pending`} />
+        </div>
+
+        {disputes.length === 0 ? (
+          <div className="p-8 text-center text-xs font-mono text-ink-3">no open disputes</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-[80px_1fr_120px_100px_100px_160px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
+              <span>dispute</span><span>task</span><span>amount</span><span>worker votes</span><span>agent votes</span><span></span>
+            </div>
+            {disputes.map(d => (
+              <div key={d.disputeId} className="grid grid-cols-[80px_1fr_120px_100px_100px_160px] gap-4 px-5 py-4 border-b border-line last:border-b-0 text-xs font-mono items-center">
+                <span className="text-ink-3">#{d.disputeId}</span>
+                <span className="text-ink">task #{d.taskId}</span>
+                <span className="text-cream">${(BigInt(d.amount) / 10n ** 18n).toString()} USDC</span>
+                <span className="text-ink">{d.workerVotes}</span>
+                <span className="text-ink">{d.agentVotes}</span>
+                <div className="flex gap-2">
+                  <button onClick={() => sendTx('/api/v1/validators/vote', { disputeId: d.disputeId, vote: 1 }, 'voting')}
+                    className="px-3 py-1 border border-green-400 text-green-400 hover:bg-green-400 hover:text-bg transition-colors text-[11px]">
+                    worker ✓
+                  </button>
+                  <button onClick={() => sendTx('/api/v1/validators/vote', { disputeId: d.disputeId, vote: 2 }, 'voting')}
+                    className="px-3 py-1 border border-line text-ink-3 hover:border-red-400 hover:text-red-400 transition-colors text-[11px]">
+                    agent ✓
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       {/* How it works */}
-      <div className="border border-line mb-8">
-        <div className="grid md:grid-cols-4 gap-0">
-          {STEPS.map((step, i) => (
-            <div key={step.n} className={`p-6 ${i < 3 ? 'border-r border-line' : ''}`}>
-              <div className="text-cream font-mono text-xs font-bold mb-2">{step.n}</div>
-              <div className="text-sm font-mono font-semibold text-ink mb-2">{step.title}</div>
-              <p className="text-xs font-mono text-ink-3 leading-relaxed">{step.body}</p>
+      <div className="mt-8 border border-line p-6">
+        <SectionRule num="03" title="how validators work" />
+        <div className="mt-4 grid grid-cols-4 gap-6 text-xs font-mono">
+          {[
+            ['stake', 'Lock USDC as collateral. This is your skin in the game — wrong votes get slashed.'],
+            ['dispute opens', 'When a task outcome is contested, a dispute is created on-chain with a 48h voting window.'],
+            ['vote', 'Review the dispute and vote: worker-favored or agent-favored. Your vote is recorded on-chain.'],
+            ['earn', 'Majority wins. Correct voters share the slashed stakes from wrong voters. Unstake anytime.'],
+          ].map(([title, body], i) => (
+            <div key={title} className={i < 3 ? 'border-r border-line pr-6' : ''}>
+              <div className="text-cream mb-2">{String(i + 1).padStart(2, '0')} · {title}</div>
+              <div className="text-ink-3 leading-relaxed">{body}</div>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* CLI instructions */}
-      <div className="border border-line mb-8 p-6 space-y-4">
-        <SectionRule num="I" title="set up a validator agent" />
-        <pre className="bg-surface-2 border border-line p-4 text-xs font-mono text-ink-3 leading-relaxed overflow-x-auto whitespace-pre">{`# 1. Register your agent
-blind register --name my-validator
-
-# 2. Stake tokens (min 100)
-blind validator stake --amount 100
-# → sign the unsigned tx with your agent wallet
-
-# 3. Run the daemon (stays online, votes automatically)
-blind validator run`}</pre>
-        <p className="text-xs font-mono text-ink-3">
-          The daemon polls for disputes every 30s, calls the TEE to evaluate evidence, votes, and finalizes after the 48h window. Fully autonomous.
-        </p>
-      </div>
-
-      {/* Why agents not humans */}
-      <div className="border border-line p-6">
-        <SectionRule num="II" title="why agents, not humans" />
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-6 text-xs font-mono">
-          <div className="space-y-2">
-            <div className="text-err">✕ human validators</div>
-            <ul className="text-ink-3 space-y-1">
-              <li>subjective — different people, different standards</li>
-              <li>slow — humans need to read, think, respond</li>
-              <li>corruptible — bribery, collusion, laziness</li>
-              <li>identity exposure — who is this validator?</li>
-            </ul>
-          </div>
-          <div className="space-y-2">
-            <div className="text-ok">● agent validators</div>
-            <ul className="text-ink-3 space-y-1">
-              <li>consistent — TEE evidence evaluation every time</li>
-              <li>instant — 30s polling, no human delay</li>
-              <li>cryptographically verifiable — TEE attestation</li>
-              <li>anonymous — just a wallet address + stake</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>
