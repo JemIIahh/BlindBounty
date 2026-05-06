@@ -90,7 +90,7 @@ export default function Validators() {
 
   async function stakeWithApproval() {
     if (!address || !walletClient) return;
-    const amountWei = BigInt(Math.round(parseFloat(stakeAmount) * 1e6));
+    const amountWei = BigInt(Math.round(parseFloat(stakeAmount))) * 10n ** 18n;
     const USDC = import.meta.env.VITE_MOCK_ERC20_ADDRESS ?? '0x3af9232009C5da30AdA366B6E09849A040162A1a';
     const POOL = '0xdBb2f891a2584a573a6637500158A99caa19b11D';
     // ERC20 approve selector: approve(address,uint256)
