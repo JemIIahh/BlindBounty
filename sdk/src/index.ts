@@ -32,7 +32,7 @@ export class BlindMarket {
   private apiKey: string;
 
   constructor(config: BlindMarketConfig) {
-    this.apiBase = config.apiBase ?? 'http://localhost:3001';
+    this.apiBase = config.apiBase ?? 'https://api.blindmarket.xyz';
     this.apiKey = config.apiKey;
   }
 
