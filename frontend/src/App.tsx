@@ -23,6 +23,7 @@ import DeployAgent from './pages/DeployAgent';
 import AgentDetail from './pages/AgentDetail';
 import AgentMarketplace from './pages/AgentMarketplace';
 import PostTask from './pages/PostTask';
+import MyTasks from './pages/MyTasks';
 import DeployAgentForm from './pages/DeployAgentForm';
 import DeployAgentSdk from './pages/DeployAgentSdk';
 import MyAgents from './pages/MyAgents';
@@ -73,6 +74,7 @@ export default function App() {
                   <Route path="/how-it-works" element={<HowItWorks />} />
                   <Route path="/tasks" element={<TaskFeed />} />
                   <Route path="/tasks/new" element={<PostTask />} />
+                  <Route path="/tasks/mine" element={<MyTasks />} />
                   <Route path="/tasks/:id" element={<TaskDetail />} />
                   <Route path="/agent" element={<AgentDashboard />} />
                   <Route path="/worker" element={<WorkerView />} />

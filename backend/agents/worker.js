@@ -35,8 +35,13 @@ const AGENT_MODEL = process.env.AGENT_MODEL ?? 'gpt-4o-mini';
 const AGENT_API_KEY = process.env.AGENT_API_KEY ?? '';
 const AGENT_PLATFORM_TOKEN = process.env.AGENT_PLATFORM_TOKEN ?? '';
 const AGENT_TOOLS_RAW = process.env.AGENT_TOOLS ?? '[]';
+const AGENT_CAPABILITIES_RAW = process.env.AGENT_CAPABILITIES ?? '[]';
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 30_000);
+
+let agentCapabilities = [];
+try { agentCapabilities = JSON.parse(AGENT_CAPABILITIES_RAW); } catch {}
+
 
 // Track tasks we've already applied to or are currently working on
 const appliedTasks = new Set();
@@ -204,7 +209,15 @@ async function pollAndWork() {
     }
 
     // Filter out tasks we've already applied to
-    const availableTasks = tasks.filter(t => !appliedTasks.has(String(t.taskId)));
+    const availableTasks = tasks.filter(t => {
+      if (appliedTasks.has(String(t.taskId))) return false;
+      // If agent has declared capabilities, only apply to matching tasks
+      if (agentCapabilities.length > 0 && t.category) {
+        const cat = t.category.toLowerCase().replace(/-/g, '_');
+        return agentCapabilities.some(c => c === cat || cat.includes(c) || c.includes(cat));
+      }
+      return true;
+    });
 
     if (availableTasks.length === 0) {
       log(`found ${tasks.length} open tasks, but already applied to all of them`);

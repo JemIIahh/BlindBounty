@@ -143,6 +143,7 @@ export async function startAgent(id: string): Promise<void> {
       AGENT_WALLET: agent.walletAddress,
       BACKEND_URL: `http://localhost:${config.port}`,
       AGENT_TOOLS: JSON.stringify(agent.tools ?? []),
+      AGENT_CAPABILITIES: JSON.stringify(agent.capabilities ?? []),
     },
     silent: true,
   });

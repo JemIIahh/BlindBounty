@@ -17,6 +17,7 @@ const navGroups = [
     items: [
       { to: '/tasks', label: 'tasks', exact: true },
       { to: '/tasks/new', label: 'post_task', exact: true },
+      { to: '/tasks/mine', label: 'my_tasks', exact: true },
       { to: '/agents', label: 'agents', exact: true },
       { to: '/agents/mine', label: 'my_agents', exact: true },
       { to: '/leaderboard', label: 'leaderboard', exact: true },
