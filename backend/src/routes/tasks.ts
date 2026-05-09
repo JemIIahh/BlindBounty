@@ -165,7 +165,7 @@ tasksRouter.post('/', requireAuth, async (req: AuthRequest, res, next) => {
     // Store A2A metadata if this is an agent-targeted task
     if (data.targetExecutorType === 'agent') {
       // Use taskHash as a stable ID (actual on-chain taskId isn't known until tx confirms)
-      a2aStore.setMeta({
+      await a2aStore.setMeta({
         taskId: data.taskHash,
         targetExecutorType: data.targetExecutorType,
         verificationMode: data.verificationMode ?? 'manual',

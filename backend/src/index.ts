@@ -25,6 +25,7 @@ import { validatorsRouter } from './routes/validators.js';
 import { statsRouter } from './routes/stats.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { getDb } from './services/database.js';
+import { startEscrowEventLoop } from './services/escrowEvents.js';
 
 const app = express();
 
@@ -103,6 +104,10 @@ initSocket(httpServer, corsOptions);
 
 httpServer.listen(config.port, () => {
   console.log(`BlindMarket backend listening on port ${config.port} (${config.nodeEnv})`);
+  // Start the BlindEscrow TaskCreated poller — populates the taskHash↔taskId
+  // mapping that the A2A settlement bridge needs to call assignWorker /
+  // completeVerification by on-chain id.
+  startEscrowEventLoop();
 });
 
 export default app;

@@ -66,7 +66,7 @@ a2aRouter.get('/tasks', async (req, res, next) => {
       : undefined;
     const minRep = req.query.minReputation ? parseInt(req.query.minReputation as string) : undefined;
 
-    const tasks = a2aStore.browseAgentTasks(caps, minRep);
+    const tasks = await a2aStore.browseAgentTasks(caps, minRep);
 
     const body: ApiResponse = {
       success: true,
@@ -87,10 +87,10 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
     const taskId = req.params.id as string;
     const address = req.user!.address;
 
-    const meta = a2aStore.getMeta(taskId);
+    const meta = await a2aStore.getMeta(taskId);
     if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
 
-    const state = a2aStore.getState(taskId);
+    const state = await a2aStore.getState(taskId);
     if (!state || state.status !== 'open') {
       throw new AppError(409, 'NOT_OPEN', 'Task is not open for acceptance');
     }
@@ -109,7 +109,7 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
       }
     }
 
-    a2aStore.updateState(taskId, {
+    await a2aStore.updateState(taskId, {
       status: 'accepted',
       executorAddress: address,
       acceptedAt: new Date().toISOString(),
@@ -135,10 +135,10 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
     const address = req.user!.address;
     const { resultData } = submitSchema.parse(req.body);
 
-    const meta = a2aStore.getMeta(taskId);
+    const meta = await a2aStore.getMeta(taskId);
     if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
 
-    const state = a2aStore.getState(taskId);
+    const state = await a2aStore.getState(taskId);
     if (!state || state.executorAddress !== address) {
       throw new AppError(403, 'FORBIDDEN', 'Only the accepted executor can submit');
     }
@@ -165,7 +165,7 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
       }
     }
 
-    a2aStore.updateState(taskId, {
+    await a2aStore.updateState(taskId, {
       status: newStatus,
       resultData,
       submittedAt: new Date().toISOString(),
@@ -193,7 +193,7 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
 a2aRouter.get('/executions', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const address = req.user!.address;
-    const tasks = a2aStore.getExecutorTasks(address);
+    const tasks = await a2aStore.getExecutorTasks(address);
 
     const body: ApiResponse = {
       success: true,
