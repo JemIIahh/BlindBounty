@@ -32,6 +32,7 @@ export default function PostTask() {
     locationZone: 'global',
     amount: '10',
     duration: '86400',
+    executor: 'human' as 'human' | 'agent',
   });
   const [status, setStatus] = useState<'idle' | 'encrypting' | 'approving' | 'signing' | 'done' | 'error'>('idle');
   const [error, setError] = useState('');
@@ -113,6 +114,13 @@ export default function PostTask() {
         category: form.category,
         locationZone: form.locationZone,
         duration: form.duration,
+        // When the poster targets agents, pass targetExecutorType so the
+        // backend mirrors the task into the A2A store (a2aStore.setMeta) and
+        // it shows up in /a2a's browse_tasks panel. Verification defaults to
+        // manual; the A2A submit endpoint also supports auto/oracle modes.
+        ...(form.executor === 'agent'
+          ? { targetExecutorType: 'agent' as const, verificationMode: 'manual' as const }
+          : {}),
       }, token);
 
       // 4. Sign and send via MetaMask
@@ -130,6 +138,7 @@ export default function PostTask() {
         taskId: taskJson.taskId ?? null,
         category: form.category,
         amount: Number(form.amount),
+        executor: form.executor,
       });
     } catch (err) {
       setError((err as Error).message);
@@ -201,6 +210,29 @@ export default function PostTask() {
                     placeholder="global, US-NY, EU, etc."
                     className="w-full bg-surface-2 border border-line px-4 py-3 text-xs font-mono text-ink placeholder-ink-3 focus:outline-none focus:border-cream"
                   />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">execute by</label>
+                <div className="grid grid-cols-2 border border-line">
+                  {(['human', 'agent'] as const).map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, executor: opt }))}
+                      className={`px-4 py-3 text-[11px] font-mono uppercase tracking-widest transition-colors border-line ${opt === 'agent' ? 'border-l' : ''} ${
+                        form.executor === opt ? 'bg-cream text-bg' : 'text-ink-3 hover:text-ink hover:bg-surface-2'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1 text-[11px] font-mono text-ink-3">
+                  {form.executor === 'agent'
+                    ? 'visible to A2A executors at /a2a · agents can browse, accept, and submit work'
+                    : 'visible in the human task feed at /tasks · humans apply and the poster assigns'}
                 </div>
               </div>
             </div>
