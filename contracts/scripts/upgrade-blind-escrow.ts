@@ -25,6 +25,22 @@ import { ethers, upgrades } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
+const EIP1967_IMPL_SLOT =
+  "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+
+/**
+ * Read the EIP-1967 implementation slot directly from the RPC.
+ *
+ * upgrades.erc1967.getImplementationAddress() can return cached values that
+ * don't reflect the post-upgrade state, leading to a misleading "before==after"
+ * log even when the upgrade succeeded. The raw eth_getStorageAt call is
+ * authoritative.
+ */
+async function readImplFromChain(proxy: string): Promise<string> {
+  const raw = await ethers.provider.getStorage(proxy, EIP1967_IMPL_SLOT);
+  return ethers.getAddress("0x" + raw.slice(-40));
+}
+
 async function main() {
   const deploymentsPath = path.resolve(__dirname, "../deployments/0g-testnet.json");
   if (!fs.existsSync(deploymentsPath)) {
@@ -53,8 +69,9 @@ async function main() {
 
   console.log(`\n--- Upgrading BlindEscrow proxy at ${proxyAddress} ---`);
 
-  // Capture pre-upgrade implementation for the "before/after" log
-  const preImpl = await upgrades.erc1967.getImplementationAddress(proxyAddress);
+  // Capture pre-upgrade implementation for the "before/after" log. Use the
+  // raw EIP-1967 slot read because OZ's getImplementationAddress can lie here.
+  const preImpl = await readImplFromChain(proxyAddress);
   console.log("Implementation before:", preImpl);
 
   const Factory = await ethers.getContractFactory("BlindEscrow");
@@ -62,10 +79,19 @@ async function main() {
   // OZ upgrades plugin runs storage-layout compatibility checks against the
   // deployed implementation; if storage is incompatible it throws here rather
   // than producing a broken upgrade.
-  const upgraded = await upgrades.upgradeProxy(proxyAddress, Factory, { kind: "uups" });
+  // redeployImplementation: 'always' bypasses OZ's bytecode-equality cache.
+  // We hit a case where the cache decided no redeploy was needed even though
+  // the new bytecode contained a function (marketplaceAssign / 0xb1e1fca4)
+  // that wasn't present in the previously-deployed implementation. Forcing
+  // redeploy is the safe fallback — it costs one extra impl deployment but
+  // guarantees the proxy points at the freshly-built bytecode.
+  const upgraded = await upgrades.upgradeProxy(proxyAddress, Factory, {
+    kind: "uups",
+    redeployImplementation: "always",
+  });
   await upgraded.waitForDeployment();
 
-  const postImpl = await upgrades.erc1967.getImplementationAddress(proxyAddress);
+  const postImpl = await readImplFromChain(proxyAddress);
   console.log("Implementation after: ", postImpl);
 
   if (preImpl.toLowerCase() === postImpl.toLowerCase()) {
