@@ -24,8 +24,23 @@ const KEY = {
 
 const POLL_INTERVAL_MS = 30_000;
 
+// Cap the per-tick block range. 0G's testnet RPC times out reliably on
+// queryFilter ranges over a few thousand blocks (observed: consistent
+// TIMEOUTs when the lag grows past one tick). Chunking keeps each request
+// small enough to land, and lets us catch up over multiple ticks without
+// the checkpoint-never-advances spiral that happens when one big query
+// fails and the next attempt asks for an even bigger range.
+const MAX_BLOCKS_PER_TICK = 1000;
+
 let timer: NodeJS.Timeout | null = null;
 let inFlight = false;
+
+// Failure-mode tracking so we don't spam the same error every 30s. We log
+// the first occurrence of each failure type, then go silent until either
+// (a) the failure type changes, or (b) a tick succeeds — at which point we
+// log a recovery line. Resets on successful tick.
+let lastFailureSig: string | null = null;
+let consecutiveFailures = 0;
 
 async function tick(): Promise<void> {
   // Skip re-entry: a slow RPC could otherwise stack overlapping ticks.
@@ -46,8 +61,14 @@ async function tick(): Promise<void> {
     }
     if (from > latest) return;
 
+    // Cap the tail end so each request stays small. If we're behind by more
+    // than the cap, this tick processes the next chunk and the next tick
+    // picks up from there — at worst we trail by ~MAX_BLOCKS_PER_TICK blocks.
+    const to = Math.min(latest, from + MAX_BLOCKS_PER_TICK - 1);
+    const lagBlocks = latest - to;
+
     const filter = escrow.filters.TaskCreated();
-    const events = await escrow.queryFilter(filter, from, latest);
+    const events = await escrow.queryFilter(filter, from, to);
 
     if (events.length > 0) {
       const pipe = redis.pipeline();
@@ -64,16 +85,48 @@ async function tick(): Promise<void> {
       }
       await pipe.exec();
       console.log(
-        `[escrowEvents] processed ${events.length} TaskCreated event(s) (blocks ${from}..${latest})`,
+        `[escrowEvents] processed ${events.length} TaskCreated event(s) (blocks ${from}..${to}` +
+          (lagBlocks > 0 ? `, still ${lagBlocks} blocks behind` : '') +
+          `)`,
       );
+    } else if (lagBlocks > 0) {
+      // No events in this chunk but we're still catching up — log so it's
+      // visible we're making progress, otherwise silent ticks look like
+      // nothing's happening when in fact each tick is advancing 1k blocks.
+      console.log(`[escrowEvents] empty chunk ${from}..${to} (${lagBlocks} blocks behind)`);
     }
 
-    await redis.set(KEY.checkpoint, String(latest));
+    // Advance checkpoint to the end of the chunk we successfully processed.
+    // On error this line is skipped (we throw before getting here), so the
+    // next tick retries from the same `from`.
+    await redis.set(KEY.checkpoint, String(to));
+
+    // Recovery log if the previous tick(s) were failing.
+    if (lastFailureSig !== null) {
+      console.log(
+        `[escrowEvents] recovered after ${consecutiveFailures} failed tick(s) (${lastFailureSig})`,
+      );
+      lastFailureSig = null;
+      consecutiveFailures = 0;
+    }
   } catch (e) {
-    // Swallow & log — we want the loop to keep going. RPC blips and Redis
-    // disconnects are transient; the next tick will retry from the same
-    // checkpoint (no events lost).
-    console.error('[escrowEvents] tick error:', (e as Error).message);
+    // RPC blips and DNS hiccups are transient. The next tick retries from
+    // the same checkpoint — no events lost. To avoid log spam during long
+    // network-fault windows we collapse repeated identical errors into a
+    // single line, with a count emitted on the first occurrence and on
+    // each transition to a new failure mode.
+    const msg = (e as Error).message ?? String(e);
+    // Bucket by first few words / error code so transient timeouts don't
+    // each look unique to the dedup logic.
+    const sig = msg.match(/^[A-Za-z _-]+ (?:error )?: ?[A-Z_]+/)?.[0]
+      ?? msg.split(/[\s(]/).slice(0, 3).join(' ');
+    if (sig !== lastFailureSig) {
+      console.error(`[escrowEvents] tick error: ${msg}` + (consecutiveFailures > 0 ? ` (after ${consecutiveFailures} of previous mode)` : ''));
+      lastFailureSig = sig;
+      consecutiveFailures = 1;
+    } else {
+      consecutiveFailures += 1;
+    }
   } finally {
     inFlight = false;
   }
