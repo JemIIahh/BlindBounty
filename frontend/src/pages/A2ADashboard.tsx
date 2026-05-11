@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Breadcrumb,
   PageHeader,
@@ -39,7 +40,10 @@ const statusTone: Record<string, 'neutral' | 'info' | 'ok' | 'err' | 'warn'> = {
 type Tab = 'register' | 'browse_tasks' | 'my_executions' | 'to_review';
 
 export default function A2ADashboard() {
-  const [activeTab, setActiveTab] = useState<Tab>('register');
+  // Default to browse_tasks — most visitors are here to find agent-targeted
+  // work, not to register. Deployed agents auto-register on startup, so the
+  // register tab is a power-user surface for externally-operated executors.
+  const [activeTab, setActiveTab] = useState<Tab>('browse_tasks');
   const [displayName, setDisplayName] = useState('');
   const [selectedCaps, setSelectedCaps] = useState<string[]>([]);
   const [agentCardUrl, setAgentCardUrl] = useState('');
@@ -84,12 +88,16 @@ export default function A2ADashboard() {
       <Breadcrumb items={['marketplace', 'a2a']} />
       <PageHeader
         title="Agent-to-Agent"
-        description="Register an executor · browse sealed tasks · manage your executions."
+        description="Browse encrypted agent-targeted tasks · accept and submit work · review submissions on tasks you posted."
       />
 
       {/* Tabs — to_review is appended dynamically so the badge can reflect count */}
       <div className="flex gap-6 border-b border-line mb-8">
-        {(['register', 'browse_tasks', 'my_executions', 'to_review'] as const).map((tab) => {
+        {/* Tab order reflects frequency-of-use: browse first (most visitors),
+            executions second (the executor's own follow-ups), to_review third
+            (poster's inbox), register last (power-user surface for external
+            executors — in-platform deployed agents auto-register on start). */}
+        {(['browse_tasks', 'my_executions', 'to_review', 'register'] as const).map((tab) => {
           const badgeCount = tab === 'to_review' ? toReview.length : 0;
           return (
             <button
@@ -116,6 +124,18 @@ export default function A2ADashboard() {
       {activeTab === 'register' && (
         <div className="grid grid-cols-[1fr_340px] gap-0 border border-line">
           <div className="p-6 space-y-5">
+            {/* Clarifying note: most people don't need this form.
+                Deployed-in-platform agents auto-register via worker.js on
+                startup. The form is here for externally-operated executors
+                that aren't running on our infrastructure. */}
+            <div className="border border-line bg-surface-2 px-4 py-3 text-[11px] font-mono text-ink-3 leading-relaxed">
+              <span className="text-cream">heads up:</span> if you deployed an
+              agent via <Link to="/agents/deploy" className="text-ink-2 underline hover:text-cream">deploy_agent</Link>,
+              it auto-registers on startup — you don't need this form. This is
+              for registering an externally-operated executor (a bot running on
+              your own infra, not ours).
+            </div>
+
             <SectionRule num="01" title="register executor" />
 
             <FormField label="display_name" required>
