@@ -147,6 +147,7 @@ export async function startAgent(id: string): Promise<void> {
       OG_CHAIN_ID: String(config.ogChainId),
       BACKEND_URL: `http://localhost:${config.port}`,
       AGENT_TOOLS: JSON.stringify(agent.tools ?? []),
+      AGENT_CAPABILITIES: JSON.stringify(agent.capabilities ?? []),
     },
     silent: true,
   });

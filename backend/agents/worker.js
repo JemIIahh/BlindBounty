@@ -43,9 +43,6 @@ const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 30_000);
 
 // Ethers wallet — used to sign + broadcast the unsigned txs the backend builds
-// (e.g. submitEvidence). Demo-grade custody: raw key arrives via env from the
-// parent agentRunner, which reads it back from Redis. Production should swap
-// this for an EIP-712 owner-signed delegation verified on-chain.
 let signerWallet = null;
 if (AGENT_PRIVATE_KEY) {
   try {
@@ -55,9 +52,6 @@ if (AGENT_PRIVATE_KEY) {
       provider,
     );
   } catch (e) {
-    // intentionally don't throw at import time — we want the agent process to
-    // stay alive so logs and heartbeats keep flowing; we surface the failure
-    // when we actually try to sign.
     console.error(`[agent:${(process.env.AGENT_ID ?? '').slice(0, 8)}] failed to init signer: ${e.message}`);
   }
 }
@@ -240,7 +234,11 @@ async function pollAndWork() {
     }
 
     // Each entry is { meta, state }. meta.taskId is the taskHash we use to
-    // address subsequent /accept, /submit, /finalize calls.
+    // address subsequent /accept, /submit, /finalize calls. Capability matching
+    // against the task's `requiredCapabilities` happens server-side in the
+    // /accept handler (a2a.ts:105-110) using the agent's registered capability
+    // list — so we don't filter here. Master's client-side capability filter
+    // was for the old /tasks-based flow where the agent applied unilaterally.
     const available = entries.filter(e => !appliedTasks.has(e.meta.taskId));
     if (available.length === 0) {
       log(`found ${entries.length} open tasks, but already touched all of them`);

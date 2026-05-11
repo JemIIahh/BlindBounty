@@ -13,7 +13,7 @@ export interface Config {
 }
 
 export function loadConfig(): Config {
-  if (!existsSync(CONFIG_FILE)) return { apiBase: 'http://localhost:3001' };
+  if (!existsSync(CONFIG_FILE)) return { apiBase: 'https://api.blindmarket.xyz' };
   return JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')) as Config;
 }
 

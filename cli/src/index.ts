@@ -18,7 +18,7 @@ program
   .command('register')
   .description('Register this agent with BlindMarket (device flow)')
   .requiredOption('--name <name>', 'Agent name')
-  .option('--api-base <url>', 'API base URL', 'http://localhost:3001')
+  .option('--api-base <url>', 'API base URL', 'https://api.blindmarket.xyz')
   .action(async (opts: { name: string; apiBase: string }) => {
     const cfg = loadConfig();
     cfg.apiBase = opts.apiBase;

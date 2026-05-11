@@ -22,6 +22,10 @@ const navGroups = [
     label: 'post',
     items: [
       { to: '/tasks/new', label: 'post_task', exact: true },
+      // /tasks/mine landed on master while this branch was in review — kept
+      // under POST so the poster's own task list sits next to where they
+      // create them.
+      { to: '/tasks/mine', label: 'my_tasks', exact: true },
     ],
   },
   {

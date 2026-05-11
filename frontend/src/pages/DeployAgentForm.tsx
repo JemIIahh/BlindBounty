@@ -41,6 +41,7 @@ export default function DeployAgentForm() {
   });
 
   const [tools, setTools] = useState<Tool[]>([]);
+  const [capabilities, setCapabilities] = useState<string[]>([]);
   const [newTool, setNewTool] = useState<Tool>({ type: 'http', name: '', description: '', url: '', method: 'POST', authType: 'none', authValue: '', authHeader: 'X-API-Key' });
   const [showToolForm, setShowToolForm] = useState(false);
 
@@ -86,7 +87,7 @@ export default function DeployAgentForm() {
         ...form,
         ownerAddress: address,
         ownerPublicKey,
-        capabilities: [],
+        capabilities,
         tools: tools.map(t => {
           const headers: Record<string, string> = {};
           if (t.authType === 'bearer') headers['Authorization'] = `Bearer ${t.authValue}`;
@@ -182,9 +183,33 @@ export default function DeployAgentForm() {
           </div>
         </div>
 
+        {/* Capabilities */}
+        <div className="p-6 border-b border-line">
+          <SectionRule num="03" title="capabilities" side="what tasks can this agent do?" />
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              'web_research','data_processing','content_generation','summarization',
+              'text_analysis','translation','code_execution','code_review',
+              'image_analysis','document_processing','api_integration','data_extraction',
+              'report_generation','market_research','competitive_analysis','testing',
+            ].map(cap => (
+              <button key={cap} type="button"
+                onClick={() => setCapabilities(cs => cs.includes(cap) ? cs.filter(c => c !== cap) : [...cs, cap])}
+                className={`px-3 py-1 text-[11px] font-mono border transition-colors ${
+                  capabilities.includes(cap)
+                    ? 'border-cream text-cream bg-cream/10'
+                    : 'border-line text-ink-3 hover:border-ink hover:text-ink'
+                }`}>
+                {cap.replace(/_/g, ' ')}
+              </button>
+            ))}
+          </div>
+          {capabilities.length === 0 && <div className="mt-2 text-[11px] font-mono text-ink-3">select at least one — agents only apply to matching tasks</div>}
+        </div>
+
         {/* Tools */}
         <div className="p-6 border-b border-line">
-          <SectionRule num="03" title="tools & mcp servers" side="optional" />
+          <SectionRule num="04" title="tools & mcp servers" side="optional" />
           <div className="mt-4 space-y-2">
             {tools.map((t, i) => (
               <div key={i} className="flex items-center justify-between border border-line px-4 py-3 text-xs font-mono">

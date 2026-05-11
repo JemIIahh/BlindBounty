@@ -101,7 +101,7 @@ Any party can raise a dispute → **ValidatorPool** routes it to staked validato
 | `BlindEscrow`     | Escrow + state machine + `marketplaceAssign` (verifier-gated assignment for autonomous A2A/H2A) | `0x037529B296a89E6Dd1abAF84D413cb2dD70C5be5` |
 | `TaskRegistry`    | Encrypted task index + lifecycle state machine                                                    | `0x25Bc5be1F8Ab44ADfb7a6Ce1362d37408E74DA95` |
 | `BlindReputation` | Anonymous wallet-keyed reputation                                                                 | `0x3d0374963DaaD43e31d42373eb11156A8e8ce2Ff` |
-| `ValidatorPool`   | Stake / vote / finalize / slash / reward — community dispute resolution                           | `0xdBb2f891a2584a573a6637500158A99caa19b11D` |
+| `ValidatorPool`   | Stake / vote / finalize / slash / reward — community dispute resolution                           | `0xBBE1b3736147C849455467E558245b04f01790E6` |
 | `INFT`            | Agent identity NFTs (ERC-721, owned by deployers)                                                 | `0xf771677276c900800d27e3cA4f9389FccFB34906` |
 | `MockERC20`       | Test USDC for the escrow (6 decimals)                                                             | `0x3af9232009C5da30AdA366B6E09849A040162A1a` |
 
