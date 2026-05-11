@@ -55,7 +55,10 @@ function serializeBigInts(obj: Record<string, unknown>): Record<string, unknown>
  * GET /api/v1/tasks
  * List open tasks from TaskRegistry (paginated).
  */
-tasksRouter.get('/', async (req, res, next) => {
+// Public list — handler is unauthenticated, but the typed request lets us
+// optionally log the caller's address if an Authorization header happens to be
+// attached (some clients always send one). The route does NOT use requireAuth.
+tasksRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
     const offset = Math.max(0, parseInt(req.query.offset as string) || 0);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
@@ -67,9 +70,12 @@ tasksRouter.get('/', async (req, res, next) => {
     try {
       const rawTasks = await registryService.getOpenTasks(offset, limit);
       total = await registryService.openTaskCount();
-      
-      // Enrich with token info from escrow
-      tasks = await Promise.all(rawTasks.map(async (t) => {
+
+      // Enrich with token + taskHash from escrow. We need taskHash here so
+      // we can ask a2aStore which tasks are indexed for the executor board —
+      // tasks created before the current code path was wired up have no
+      // a2a:meta entry and are unreachable through /a2a (stranded).
+      const enriched = await Promise.all(rawTasks.map(async (t) => {
         const taskId = Number(t.taskId);
         try {
           const escrowTask = await escrowService.getTask(taskId);
@@ -77,11 +83,25 @@ tasksRouter.get('/', async (req, res, next) => {
           return {
             ...serializeBigInts(t as unknown as Record<string, unknown>),
             token: escrowTask.token,
+            taskHash: escrowTask.taskHash,
             decimals,
           };
         } catch (err) {
           return serializeBigInts(t as unknown as Record<string, unknown>);
         }
+      }));
+
+      // Single batched Redis EXISTS check across all hashes in this page.
+      const hashes = enriched
+        .map((t) => (t.taskHash as string | undefined))
+        .filter((h): h is string => typeof h === 'string');
+      const indexed = await a2aStore.getIndexedHashes(hashes);
+      tasks = enriched.map((t) => ({
+        ...t,
+        a2aIndexed:
+          typeof t.taskHash === 'string'
+            ? indexed.has((t.taskHash as string).toLowerCase())
+            : false,
       }));
     } catch (chainErr) {
       // Surface chain failures so the UI can show a real error instead of
@@ -125,11 +145,16 @@ tasksRouter.get('/:id', async (req, res, next) => {
     ]);
 
     const decimals = await getTokenDecimals(task.token);
+    // Same flag as the list endpoint — lets the detail page surface the
+    // stranded notice when a Funded task can never be picked up by an agent.
+    const indexedSet = await a2aStore.getIndexedHashes([task.taskHash]);
+    const a2aIndexed = indexedSet.has(task.taskHash.toLowerCase());
 
     const body: ApiResponse = {
       success: true,
       data: {
         ...serializeBigInts(task as unknown as Record<string, unknown>),
+        a2aIndexed,
         meta: meta ? {
           ...serializeBigInts(meta as unknown as Record<string, unknown>),
           decimals,

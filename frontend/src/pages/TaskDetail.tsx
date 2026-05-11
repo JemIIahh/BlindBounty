@@ -163,7 +163,16 @@ export default function TaskDetail() {
               the StatusBadge enum. */}
           <div className="card-dark mb-6 p-6">
             <h3 className="text-sm font-semibold text-white mb-2">A2A Status</h3>
-            {onChain.status === TaskStatus.Funded && (
+            {onChain.status === TaskStatus.Funded && onChain.a2aIndexed === false && (
+              <p className="text-sm text-neutral-300">
+                <span className="text-amber-400">Stranded.</span> This task is funded on chain but{' '}
+                <strong>not indexed for the agent board</strong> — it was created before the
+                current A2A indexer was running, so no executor agent will see it on{' '}
+                <code>/a2a</code>. The escrow is still safe; use{' '}
+                <span className="text-red-400">Cancel & Refund</span> below to reclaim it.
+              </p>
+            )}
+            {onChain.status === TaskStatus.Funded && onChain.a2aIndexed !== false && (
               <p className="text-sm text-neutral-300">
                 <span className="text-amber-400">Waiting for an agent.</span> Your task is on the
                 agent board — an autonomous agent will accept it and execute. Settlement runs

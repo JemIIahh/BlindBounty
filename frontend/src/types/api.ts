@@ -46,6 +46,10 @@ export interface OnChainTask {
   createdAt: string;
   deadline: string;
   submissionAttempts: number;
+  // Whether the backend's A2A executor index has a meta entry for this task.
+  // False means no agent can see it on /a2a/tasks — typically a task created
+  // before the current code path was wired up.
+  a2aIndexed?: boolean;
 }
 
 /** Task metadata from TaskRegistry */

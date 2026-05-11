@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PrivyProvider } from '@privy-io/react-auth';
 import { WagmiProvider } from '@privy-io/wagmi';
@@ -8,27 +8,20 @@ import { WalletProvider } from './context/WalletContext';
 import { AuthProvider } from './context/AuthContext';
 import { DashboardLayout } from './components/bb/DashboardLayout';
 import Landing from './pages/Landing';
-import TaskFeed from './pages/TaskFeed';
 import TaskDetail from './pages/TaskDetail';
-import AgentDashboard from './pages/AgentDashboard';
-import WorkerView from './pages/WorkerView';
-import VerificationStatus from './pages/VerificationStatus';
 import A2ADashboard from './pages/A2ADashboard';
 import HowItWorks from './pages/HowItWorks';
 import Earnings from './pages/Earnings';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 import RegisterAgent from './pages/RegisterAgent';
-import Validators from './pages/Validators';
 import DeployAgent from './pages/DeployAgent';
 import AgentDetail from './pages/AgentDetail';
-import AgentMarketplace from './pages/AgentMarketplace';
 import PostTask from './pages/PostTask';
 import MyTasks from './pages/MyTasks';
 import DeployAgentForm from './pages/DeployAgentForm';
 import DeployAgentSdk from './pages/DeployAgentSdk';
 import MyAgents from './pages/MyAgents';
-import Leaderboard from './pages/Leaderboard';
 import Metrics from './pages/Metrics';
 
 const privyAppId = import.meta.env.VITE_PRIVY_APP_ID;
@@ -73,25 +66,30 @@ export default function App() {
                 <Route path="/register/:token" element={<RegisterAgent />} />
                 <Route element={<DashboardLayout />}>
                   <Route path="/how-it-works" element={<HowItWorks />} />
-                  <Route path="/tasks" element={<TaskFeed />} />
                   <Route path="/tasks/new" element={<PostTask />} />
                   <Route path="/tasks/mine" element={<MyTasks />} />
                   <Route path="/tasks/:id" element={<TaskDetail />} />
-                  <Route path="/agent" element={<AgentDashboard />} />
-                  <Route path="/worker" element={<WorkerView />} />
-                  <Route path="/validators" element={<Validators />} />
-                  <Route path="/verification" element={<VerificationStatus />} />
                   <Route path="/a2a" element={<A2ADashboard />} />
                   <Route path="/earnings" element={<Earnings />} />
                   <Route path="/settings" element={<Settings />} />
-                  <Route path="/agents" element={<AgentMarketplace />} />
                   <Route path="/agents/deploy" element={<DeployAgent />} />
                   <Route path="/agents/deploy/ui" element={<DeployAgentForm />} />
                   <Route path="/agents/deploy/sdk" element={<DeployAgentSdk />} />
                   <Route path="/agents/mine" element={<MyAgents />} />
-                  <Route path="/leaderboard" element={<Leaderboard />} />
                   <Route path="/agents/:id" element={<AgentDetail />} />
                   <Route path="/metrics" element={<Metrics />} />
+
+                  {/* Pure-A2A pivot: H2H/H2A/A2H surfaces removed from the IA.
+                      Old deep-links bounce to the closest A2A equivalent so we
+                      don't 404 anyone with bookmarked URLs (or copy-paste
+                      links living in older READMEs). */}
+                  <Route path="/tasks" element={<Navigate to="/a2a" replace />} />
+                  <Route path="/agents" element={<Navigate to="/a2a" replace />} />
+                  <Route path="/agent" element={<Navigate to="/tasks/new" replace />} />
+                  <Route path="/worker" element={<Navigate to="/a2a" replace />} />
+                  <Route path="/validators" element={<Navigate to="/how-it-works" replace />} />
+                  <Route path="/verification" element={<Navigate to="/a2a" replace />} />
+                  <Route path="/leaderboard" element={<Navigate to="/a2a" replace />} />
                 </Route>
                 <Route path="*" element={<DashboardLayout />}>
                   <Route path="*" element={<NotFound />} />

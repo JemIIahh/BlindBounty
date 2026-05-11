@@ -4,7 +4,9 @@ This file is auto-loaded into Claude Code's context every session for this proje
 
 ## Project in one sentence
 
-BlindMarket — an anonymous encrypted task marketplace where AI agents post bounties for humans, with privacy-preserving verification via 0G Sealed Inference, built for the 0G APAC Hackathon (Track 3: Agentic Economy & Autonomous Applications).
+BlindMarket — an agent-to-agent execution layer where autonomous AI agents post encrypted briefs, accept work from each other, execute, and settle on chain — all without a human in the loop after task creation. Built on 0G for the APAC Hackathon (Track 3: Agentic Economy & Autonomous Applications).
+
+> **Pivot note (May 2026):** This was originally framed as an A2H ("agents hire humans") marketplace. We pivoted to pure A2A after re-reading Track 3's brief — the surface is now agent-to-agent only. The H2H/H2A/A2H code paths still exist in the contracts (`assignWorker`, manual `/verify`, etc.) for the A2H roadmap but are NOT exposed in the UI. When in doubt about whether a feature is in scope: if it requires a human signer after task creation, it's not the A2A flow. The on-chain primitive that makes A2A work is `marketplaceAssign` (verifier-gated), added via UUPS upgrade.
 
 ## Source of truth documents (read in this order before any work)
 
@@ -18,21 +20,22 @@ If anything in this file contradicts those docs, those docs win.
 
 ## What BlindMarket Is
 
-An anonymous marketplace where AI agents hire humans for sensitive tasks. Privacy is the product, not a feature:
+An agent-to-agent execution layer. AI agents delegate sub-tasks to each other through an encrypted, settlement-attested rail. Privacy is the product, not a feature:
 
-- **Task instructions are encrypted** — only the assigned worker can read them
-- **Evidence is encrypted** — stored on 0G decentralized storage, verified inside TEE hardware enclaves
-- **Worker identity is anonymous** — reputation scores visible, real identity hidden
-- **The platform is blind** — we never see task content, evidence, or worker locations
+- **Task briefs are encrypted client-side** — only the accepted executor agent can decrypt them
+- **Evidence is encrypted** — stored on 0G decentralized storage; auto-verify checks criteria server-side today, TEE-attested verification via 0G Sealed Inference is on the roadmap
+- **Executor identity is wallet-only** — reputation scores visible, no PII
+- **The platform is architecturally blind** — we never see task content or evidence
+- **Settlement bridge** — backend marketplace verifier (isolated key, separate from admin) signs `marketplaceAssign` + `completeVerification` on chain. The poster signs nothing after `createTask`; the executor signs only `submitEvidence` (contract-enforced)
 
-### How It Works
+### How It Works (A2A flow)
 
-1. Agent posts encrypted bounty (task blob on 0G Storage, metadata on-chain)
-2. Workers browse by category/location/pay — can't see instructions yet
-3. Agent selects a worker → escrow locks on 0G Chain → instructions decrypt for that worker only
-4. Worker completes task, submits encrypted evidence to 0G Storage
-5. 0G Sealed Inference verifies evidence inside TEE — outputs PASS/FAIL, never sees raw data outside enclave
-6. Smart contract releases payment: 85% worker, 15% platform
+1. Posting agent encrypts the brief in browser/runtime; encrypted blob → 0G Storage, hash → on-chain `createTask` (status: Funded)
+2. Executor agents poll `/a2a`, accept by capability match
+3. Backend `a2aSettlement` calls `marketplaceAssign(taskId, executor)` as the verifier (status: Assigned)
+4. Executor decrypts the brief, runs its tool/LLM, encrypts the evidence, posts it to 0G Storage, and signs/broadcasts `submitEvidence` itself (status: Submitted)
+5. Backend `autoVerify` checks the result against the criteria the poster set; on pass, the bridge calls `completeVerification(taskId, true)` (status: Completed)
+6. Smart contract atomically releases: 85% to executor, 15% to treasury; executor reputation increments
 
 ### Hackathon Track
 

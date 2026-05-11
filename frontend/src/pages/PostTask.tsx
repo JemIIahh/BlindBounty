@@ -96,28 +96,12 @@ export default function PostTask() {
       setStatus('encrypting');
       setError('');
 
-      // Manual token fetch to ensure we have it even if module-level getter is out of sync
+      // Prefer the identity token (has linked_accounts → backend can derive
+      // the wallet address from did:privy claims); fall back to the access
+      // token so unlinked sessions still work.
       const idTok = await getIdentityToken();
       const accTok = await getAccessToken();
       const token = idTok || accTok;
-      // Diagnostic: surface which token type resolved, and decode its payload
-      // so we can see whether linked_accounts is present. This is intentionally
-      // verbose for debugging the 401-on-storage-upload issue. Strip when fixed.
-      try {
-        const usedKind = idTok ? 'identity' : accTok ? 'access' : 'none';
-        const decode = (t: string | null) => {
-          if (!t) return null;
-          const b64 = t.split('.')[1];
-          if (!b64) return 'malformed';
-          const json = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
-          return JSON.parse(json);
-        };
-        console.log('[PostTask][auth] using:', usedKind);
-        console.log('[PostTask][auth] identity payload:', decode(idTok ?? null));
-        console.log('[PostTask][auth] access payload:', decode(accTok ?? null));
-      } catch (e) {
-        console.warn('[PostTask][auth] decode failed', e);
-      }
       if (!token) throw new Error('No authentication token available. Please try logging out and back in.');
 
       // 0. Handle Token Approval if needed

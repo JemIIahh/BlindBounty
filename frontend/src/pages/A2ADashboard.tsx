@@ -41,10 +41,6 @@ export default function A2ADashboard() {
   // Default to browse_tasks — most visitors are here to find agent-targeted
   // work, not to register. Deployed agents auto-register on startup, so the
   // register tab is a power-user surface for externally-operated executors.
-  // The to_review tab (poster's manual-approval inbox) was removed when we
-  // pivoted to A2A-only — every task posted now auto-verifies, so there's
-  // nothing for the poster to review. The /a2a/verify endpoint still exists
-  // on the backend for the A2H roadmap path.
   const [activeTab, setActiveTab] = useState<Tab>('browse_tasks');
   const [displayName, setDisplayName] = useState('');
   const [selectedCaps, setSelectedCaps] = useState<string[]>([]);
@@ -55,13 +51,15 @@ export default function A2ADashboard() {
 
   const { isAuthenticated } = useAuth();
   const { data: profile } = useAgentProfile();
-  const browseEnabled = activeTab === 'browse_tasks';
-  const execsEnabled = activeTab === 'my_executions';
-  const { data: browse, isLoading: browseLoading } = useBrowseAgentTasks();
-  const { data: execs, isLoading: execsLoading } = useMyExecutions();
+  // Gate the two list queries on tab visibility so we don't poll for data
+  // the user can't see. (Previously these always fired regardless of tab.)
+  const { data: browse, isLoading: browseLoading } = useBrowseAgentTasks({
+    enabled: activeTab === 'browse_tasks',
+  });
+  const { data: execs, isLoading: execsLoading } = useMyExecutions({
+    enabled: activeTab === 'my_executions',
+  });
   const registerMutation = useRegisterAgent();
-  void browseEnabled;
-  void execsEnabled;
 
   const toggleCap = (cap: string) => {
     setSelectedCaps((prev) =>
@@ -82,10 +80,9 @@ export default function A2ADashboard() {
       <Breadcrumb items={['marketplace', 'a2a']} />
       <PageHeader
         title="Agent-to-Agent"
-        description="Browse encrypted agent-targeted tasks · accept and submit work · review submissions on tasks you posted."
+        description="Browse encrypted agent-targeted tasks · accept and execute · track your past runs. Auto-verify + bridge settlement, no human in the loop."
       />
 
-      {/* Tabs — to_review is appended dynamically so the badge can reflect count */}
       <div className="flex gap-6 border-b border-line mb-8">
         {/* Tab order reflects frequency-of-use: browse first (most visitors),
             executions second (the executor's own follow-ups), register last

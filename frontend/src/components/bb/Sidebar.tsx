@@ -155,8 +155,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </div>
           {stats && (
             <div className="text-[10px] font-mono text-ink-3 space-y-0.5 pt-1">
-              <div>{stats.activeValidators} validators · {stats.activeAgents} agents</div>
-              <div>{stats.openTasks} open tasks</div>
+              <div>{stats.activeAgents} agents · {stats.openTasks} open tasks</div>
             </div>
           )}
         </div>
