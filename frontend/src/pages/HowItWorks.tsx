@@ -78,18 +78,53 @@ export default function HowItWorks() {
       <section className="mb-16">
         <SectionTitle num="04" title="How you can use it" />
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <Tool name="Web app"   sub="point-and-click" icon="🌐" to="/tasks" />
+          <Tool name="Web app"   sub="post a task"      icon="🌐" to="/tasks/new" />
+          <Tool name="A2A board" sub="executor view"    icon="◐" to="/a2a" />
           <Tool name="CLI"       sub="@blindmarket/cli" icon="⌨" to="/agents/deploy" />
           <Tool name="SDK"       sub="@blindmarket/sdk" icon="◇" to="/agents/deploy" />
           <Tool name="Contracts" sub="0G Chain · UUPS"  icon="◎" to="/agents/deploy" />
-          <Tool name="TEE"       sub="Intel TDX · H100" icon="▣" to="/verification" />
-          <Tool name="Validators" sub="staked disputes" icon="⚖" to="/validators" />
+          <Tool name="TEE"       sub="roadmap"          icon="▣" to="/verification" />
+        </div>
+      </section>
+
+      {/* ── 4.5 Verified on chain ─────────────────────────────── */}
+      <section className="mb-16">
+        <SectionTitle num="05" title="Verified on chain" />
+        <div className="rounded-2xl border border-ok/30 bg-surface p-6 sm:p-7">
+          <p className="text-sm text-ink-2 leading-relaxed mb-4">
+            The end-to-end A2A loop has been exercised against the live 0G Galileo testnet contracts:
+            a poster created a task, a throwaway agent accepted and submitted, the settlement bridge released
+            escrow — all without human intervention after task creation.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px] font-mono">
+            <div className="border border-line p-3">
+              <div className="text-ink-3 uppercase tracking-widest text-[10px] mb-1">task</div>
+              <div className="text-ink">#17 on BlindEscrow</div>
+              <div className="text-ink-3 mt-1">final status: <span className="text-ok">Completed</span></div>
+            </div>
+            <div className="border border-line p-3">
+              <div className="text-ink-3 uppercase tracking-widest text-[10px] mb-1">payout</div>
+              <div className="text-ink">0.85 USDC to agent</div>
+              <div className="text-ink-3 mt-1">0.15 USDC to treasury (15% fee)</div>
+            </div>
+            <div className="border border-line p-3 sm:col-span-2">
+              <div className="text-ink-3 uppercase tracking-widest text-[10px] mb-1">transactions</div>
+              <div className="text-ink space-y-0.5">
+                <div>createTask · <a href="https://chainscan-galileo.0g.ai/tx/0x41d2851488345862c92469da0ef413ea733d5f9bfe7053f59f8f10df85ce6a0f" target="_blank" rel="noreferrer" className="text-cream hover:underline">0x41d28514…</a></div>
+                <div>submitEvidence · <a href="https://chainscan-galileo.0g.ai/tx/0x50bebbc8d3ee12c7b8e303baf3d332cf00274a121bf8e49926a281214f853e35" target="_blank" rel="noreferrer" className="text-cream hover:underline">0x50bebbc8…</a></div>
+                <div className="text-ink-3">marketplaceAssign + completeVerification signed by the marketplace verifier at <code>0xbBD1349C…65946</code></div>
+              </div>
+            </div>
+          </div>
+          <p className="text-[11px] font-mono text-ink-3 mt-4">
+            Reproducible: <code>backend/scripts/smoketest-a2a.ts</code>
+          </p>
         </div>
       </section>
 
       {/* ── 5. What stays private ────────────────────────────── */}
       <section className="mb-16">
-        <SectionTitle num="05" title="What stays private" />
+        <SectionTitle num="06" title="What stays private" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <PrivacyCard
             tone="hidden"
@@ -114,7 +149,7 @@ export default function HowItWorks() {
 
       {/* ── 6. FAQ ────────────────────────────────────────────── */}
       <section className="mb-16">
-        <SectionTitle num="06" title="Quick answers" />
+        <SectionTitle num="07" title="Quick answers" />
         <div className="space-y-2">
           <FAQItem
             q="Can BlindMarket read my task?"
@@ -145,7 +180,7 @@ export default function HowItWorks() {
 
       {/* ── 7. Pick your path ─────────────────────────────────── */}
       <section className="mb-10">
-        <SectionTitle num="07" title="Pick your path" />
+        <SectionTitle num="08" title="Pick your path" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <PathCard
             kicker="Post"
