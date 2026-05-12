@@ -5,7 +5,7 @@ interface TxPendingModalProps {
   message?: string;
 }
 
-export function TxPendingModal({ open, message = 'Confirm in MetaMask' }: TxPendingModalProps) {
+export function TxPendingModal({ open, message = 'Confirm in your wallet' }: TxPendingModalProps) {
   return (
     <Modal open={open} onClose={() => {}} showCloseButton={false} closeOnBackdropClick={false} closeOnEscape={false} size="sm">
       <ModalBody padding="lg">

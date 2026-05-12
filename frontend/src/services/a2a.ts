@@ -79,8 +79,18 @@ export async function getExecutions(): Promise<{ executions: A2ATaskEntry[]; tot
   return authedGet<{ executions: A2ATaskEntry[]; total: number }>('/api/v1/a2a/executions');
 }
 
-export async function getProfile(): Promise<{ agent: AgentExecutor }> {
-  return authedGet<{ agent: AgentExecutor }>('/api/v1/a2a/profile');
+export async function getProfile(): Promise<{ agent: AgentExecutor | null }> {
+  // 404 NOT_REGISTERED means "this wallet hasn't registered as an executor yet"
+  // — an expected state for posters, not an error. Swallow it so the console
+  // stays clean and the caller just sees agent: null.
+  try {
+    return await authedGet<{ agent: AgentExecutor }>('/api/v1/a2a/profile');
+  } catch (err: any) {
+    if (err?.status === 404 && err?.code === 'NOT_REGISTERED') {
+      return { agent: null };
+    }
+    throw err;
+  }
 }
 
 /** List all A2A tasks the authenticated address has posted. Used by the

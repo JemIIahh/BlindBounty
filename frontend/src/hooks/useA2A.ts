@@ -16,7 +16,7 @@ export function useBrowseAgentTasks(
   return useQuery({
     queryKey: ['a2a', 'tasks', capabilities, minReputation],
     queryFn: () => a2aService.browseAgentTasks(capabilities, minReputation),
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
     enabled: enabled ?? true,
   });
 }
@@ -25,7 +25,7 @@ export function useMyExecutions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['a2a', 'executions'],
     queryFn: () => a2aService.getExecutions(),
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
     enabled: options?.enabled ?? true,
   });
 }
@@ -65,7 +65,7 @@ export function usePostedTasks() {
   return useQuery({
     queryKey: ['a2a', 'posted'],
     queryFn: () => a2aService.getPostedTasks(),
-    refetchInterval: 10_000,
+    refetchInterval: 30_000,
   });
 }
 
