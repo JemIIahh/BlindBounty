@@ -9,19 +9,24 @@ export function useAgentProfile() {
   });
 }
 
-export function useBrowseAgentTasks(capabilities?: string[], minReputation?: number) {
+export function useBrowseAgentTasks(
+  options?: { capabilities?: string[]; minReputation?: number; enabled?: boolean },
+) {
+  const { capabilities, minReputation, enabled } = options ?? {};
   return useQuery({
     queryKey: ['a2a', 'tasks', capabilities, minReputation],
     queryFn: () => a2aService.browseAgentTasks(capabilities, minReputation),
     refetchInterval: 10_000,
+    enabled: enabled ?? true,
   });
 }
 
-export function useMyExecutions() {
+export function useMyExecutions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['a2a', 'executions'],
     queryFn: () => a2aService.getExecutions(),
     refetchInterval: 10_000,
+    enabled: options?.enabled ?? true,
   });
 }
 

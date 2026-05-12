@@ -50,6 +50,25 @@ export async function getMeta(taskId: string): Promise<A2ATaskMeta | undefined> 
   return raw ? (JSON.parse(raw) as A2ATaskMeta) : undefined;
 }
 
+/**
+ * Batch-check which taskHashes have A2A meta entries. Returns a Set of hashes
+ * (lowercased) that ARE indexed. Used by the tasks list to flag stranded tasks
+ * — on-chain tasks created before the current A2A code path was wired up have
+ * no meta and are therefore invisible to executor agents.
+ */
+export async function getIndexedHashes(taskHashes: string[]): Promise<Set<string>> {
+  if (taskHashes.length === 0) return new Set();
+  const pipe = redis.pipeline();
+  for (const h of taskHashes) pipe.exists(KEY.meta(h));
+  const results = await pipe.exec();
+  if (!results) return new Set();
+  const indexed = new Set<string>();
+  for (let i = 0; i < taskHashes.length; i++) {
+    if (results[i]?.[1] === 1) indexed.add(taskHashes[i].toLowerCase());
+  }
+  return indexed;
+}
+
 export async function getState(taskId: string): Promise<A2ATaskState | undefined> {
   const raw = await redis.get(KEY.state(taskId));
   return raw ? (JSON.parse(raw) as A2ATaskState) : undefined;
@@ -76,6 +95,72 @@ export async function updateState(
   }
   await pipe.exec();
   return updated;
+}
+
+/**
+ * Atomic open→accepted transition. The plain updateState() pattern is
+ * read-then-write with no atomicity, so two concurrent /accept requests can
+ * both pass the route's `state.status === 'open'` check and both write
+ * `accepted` with different executorAddresses — leaving Redis pointing at one
+ * executor while the on-chain assignment (whichever marketplaceAssign tx
+ * confirms first) points at the other. Surfaced by the multi-agent flow:
+ * the loser then gets a 403 on /submit because Redis says they're not the
+ * executor of record.
+ *
+ * Run the CAS inside a Lua script so the status check + state mutation +
+ * index updates all happen atomically on the Redis server. Returns:
+ *   - { ok: true,  state }  → transition succeeded, this caller is the executor
+ *   - { ok: false, currentStatus } → CAS lost; another caller got there first
+ */
+export async function tryAccept(
+  taskId: string,
+  executorAddress: string,
+  acceptedAt: string,
+): Promise<{ ok: true; state: A2ATaskState } | { ok: false; currentStatus: string }> {
+  // Lua: read state, verify status='open', merge patch, write back, update
+  // index sets. cjson is bundled with Redis 6+; if a deployment uses an older
+  // build the SET fails loudly and we'll surface it at boot.
+  const lua = `
+    local stateKey = KEYS[1]
+    local openSetKey = KEYS[2]
+    local executorSetKey = KEYS[3]
+    local taskId = ARGV[1]
+    local executorAddress = ARGV[2]
+    local acceptedAt = ARGV[3]
+
+    local raw = redis.call('GET', stateKey)
+    if not raw then return {'missing'} end
+
+    local s = cjson.decode(raw)
+    if s.status ~= 'open' then return {'lost', s.status} end
+
+    s.status = 'accepted'
+    s.executorAddress = executorAddress
+    s.acceptedAt = acceptedAt
+    redis.call('SET', stateKey, cjson.encode(s))
+    redis.call('SREM', openSetKey, taskId)
+    redis.call('SADD', executorSetKey, taskId)
+    return {'ok', cjson.encode(s)}
+  `;
+
+  const result = (await redis.eval(
+    lua,
+    3,
+    KEY.state(taskId),
+    KEY.open,
+    KEY.executor(executorAddress),
+    taskId,
+    executorAddress,
+    acceptedAt,
+  )) as [string, string?];
+
+  if (result[0] === 'ok') {
+    return { ok: true, state: JSON.parse(result[1]!) as A2ATaskState };
+  }
+  if (result[0] === 'missing') {
+    throw new Error(`No A2A state for task ${taskId}`);
+  }
+  return { ok: false, currentStatus: result[1] ?? 'unknown' };
 }
 
 /** Browse open agent-targeted tasks, optionally filtered by capabilities. */

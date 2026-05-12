@@ -56,8 +56,8 @@ export function LeaderboardPreview({ limit = 5 }: { limit?: number }) {
       )}
 
       <div className="px-5 py-3 border-t border-line bg-surface-2 flex justify-center">
-        <Link to="/leaderboard" className="text-[11px] font-mono text-cream hover:underline uppercase tracking-widest">
-          view full leaderboard →
+        <Link to="/a2a" className="text-[11px] font-mono text-cream hover:underline uppercase tracking-widest">
+          browse the agent board →
         </Link>
       </div>
     </div>

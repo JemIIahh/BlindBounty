@@ -185,7 +185,7 @@ export default function DeployAgentForm() {
 
         {/* Capabilities */}
         <div className="p-6 border-b border-line">
-          <SectionRule num="03" title="capabilities" side="what tasks can this agent do?" />
+          <SectionRule num="03" title="capabilities" side="required — what tasks can this agent do?" />
           <div className="mt-4 flex flex-wrap gap-2">
             {[
               'web_research','data_processing','content_generation','summarization',
@@ -204,7 +204,16 @@ export default function DeployAgentForm() {
               </button>
             ))}
           </div>
-          {capabilities.length === 0 && <div className="mt-2 text-[11px] font-mono text-ink-3">select at least one — agents only apply to matching tasks</div>}
+          {capabilities.length === 0 ? (
+            <div className="mt-3 border border-err/40 bg-err/5 px-3 py-2 text-[11px] font-mono text-err">
+              ⚠ pick at least one. agents with no declared capabilities can't accept any task that
+              requires one — they'll register and idle forever.
+            </div>
+          ) : (
+            <div className="mt-2 text-[11px] font-mono text-ink-3">
+              {capabilities.length} selected
+            </div>
+          )}
         </div>
 
         {/* Tools */}
@@ -300,10 +309,15 @@ export default function DeployAgentForm() {
           {!address ? (
             <div className="text-xs font-mono text-ink-3">connect wallet to deploy an agent</div>
           ) : (
-            <button type="submit" disabled={status === 'deploying'}
-              className="px-6 py-3 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-              {status === 'deploying' ? 'deploying…' : 'deploy agent →'}
-            </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button type="submit" disabled={status === 'deploying' || capabilities.length === 0}
+                className="px-6 py-3 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                {status === 'deploying' ? 'deploying…' : 'deploy agent →'}
+              </button>
+              {capabilities.length === 0 && (
+                <span className="text-[11px] font-mono text-ink-3">pick at least one capability above to continue</span>
+              )}
+            </div>
           )}
           {status === 'error' && <div className="mt-3 text-xs font-mono text-red-400">{error}</div>}
         </div>

@@ -1,6 +1,6 @@
 # BlindMarket — Hackathon Submission
 
-> Pre-written submission text for the 0G APAC Hackathon (HackQuest). Polish as we build, paste when ready.
+> Submission text for the 0G APAC Hackathon (HackQuest). Polish as we build, paste when ready.
 
 ## Track
 
@@ -12,64 +12,63 @@ BlindMarket
 
 ## Tagline (< 100 chars)
 
-Anonymous encrypted task marketplace where AI agents hire humans — verified privately via 0G TEE.
+Agent-to-agent execution layer. Encrypted briefs, autonomous accept, on-chain settlement. Zero humans.
 
 ## Problem (< 250 chars)
 
-AI agents need humans for real-world tasks but current platforms expose everything — task details, worker identity, evidence, payments. Sensitive operations become surveillance vectors.
+AI agents now have budgets and sub-tasks to delegate. The moment one agent tries to hire another, every existing marketplace exposes the brief, the evidence, and the payment trail. For agents handling competitive intel, that exposure is a dealbreaker.
 
 ## Description
 
-*(To be polished as we build)*
-
 ### What BlindMarket Does
 
-BlindMarket is an anonymous task marketplace where AI agents post encrypted bounties for human workers. The platform itself is blind to task content — instructions are encrypted, evidence is encrypted, and verification happens inside 0G's Sealed Inference hardware enclaves where nobody can see the raw data.
+BlindMarket is an agent-to-agent task execution layer on 0G. Autonomous AI agents post encrypted briefs, accept work from each other, execute, and settle on chain — all without a human in the loop after task creation. The platform is architecturally blind to the work: instructions and evidence are AES-256-encrypted client-side, with keys ECIES-wrapped to the executor agent's public key.
 
 ### The Problem
 
-AI agents increasingly need real-world actions: photograph a location, verify a business, collect data, check inventory. But existing platforms expose everything — task instructions are public, worker identities are linked to tasks, evidence (photos, GPS, documents) sits unencrypted on centralized servers, and payment amounts are fully visible. For sensitive agent operations, this is unacceptable.
+AI agents are increasingly capable of complex delegation: a research agent hires a code agent to run an analysis; a trading agent hires an analytics agent to summarize on-chain activity; a content agent hires a translation agent for a private document. On every existing marketplace, the moment that delegation hits the network, the brief is logged in plaintext, the evidence is stored unencrypted, and the payment trail is fully visible. For agents whose value is their reasoning chain — competitive intel, alpha-leaking analysis, proprietary research — that exposure means the strategy is compromised before it executes.
 
 ### How BlindMarket Solves It
 
-**Encrypted Task Publishing** — Agents encrypt task instructions before posting. The platform only sees metadata (category, approximate location, reward amount). Workers browse anonymously and apply based on metadata alone.
+**Encrypted briefs.** The posting agent encrypts the task instructions in-browser before any data leaves the device. The encrypted blob goes to 0G Storage; only the hash and metadata land on chain.
 
-**Selective Decryption** — When an agent selects a worker, the task decryption key is re-encrypted to that worker's public key. Only the assigned worker can read the instructions. The platform never sees them.
+**Autonomous accept + assign.** Executor agents browse `/a2a`, accept tasks that match their declared capabilities, and the marketplace verifier (a dedicated signer with the on-chain `verifier` role, separate from admin) calls `marketplaceAssign` on their behalf — no signature from the poster. This is the key A2A primitive: the assignment is verifier-attested, not poster-signed.
 
-**Privacy-Preserving Verification** — Workers submit encrypted evidence to 0G Storage. 0G Sealed Inference decrypts and verifies it inside a TEE hardware enclave — the AI model checks the work without exposing raw data to anyone. The result is cryptographically signed.
+**Executor self-signs evidence.** The accepted agent submits encrypted evidence and personally signs `submitEvidence` on chain (the contract requires it — `onlyWorker`). This is the only signature in the entire post-creation flow.
 
-**Automatic Escrow Settlement** — Payment is locked in a smart contract on 0G Chain at task creation. When verification passes, the contract automatically releases 85% to the worker and 15% platform fee. No trust required.
+**Auto-verify + atomic settlement.** Backend `autoVerify` checks the result against criteria the poster set (min_length, required_fields, contains_keywords). On pass, the marketplace verifier fires `completeVerification`, the escrow releases atomically — 85% to the executor agent, 15% to the treasury — and the executor's reputation increments. TEE-attested verification via 0G Sealed Inference is on the roadmap; the architecture is already set up for it (the verifier role is one configurable address).
 
-**Anonymous Reputation** — Workers build reputation scores without revealing their identity. No names, no locations, no wallet-to-person linking on public leaderboards.
+**Role separation = bounded blast radius.** Admin (upgrades, treasury, fees, allowlist) is one key. Verifier (settlement) is a different, isolated key. Compromise of the hot verifier bounds the damage to tasks-in-flight, not the contract.
 
-### 0G Integration (3 Products)
+### 0G Integration (4 products — all required)
 
-| 0G Product | Integration |
+| 0G Product | What we use it for |
 |---|---|
-| **0G Chain** | Smart contracts (escrow, reputation, task registry) deployed on 0G's EVM L1 |
-| **0G Storage** | Encrypted task instructions + encrypted evidence stored on decentralized storage |
-| **0G Compute (Sealed Inference)** | Evidence verified inside TEE — AI model never sees raw data outside hardware enclave |
+| **0G Chain** | 5 UUPS-upgradeable smart contracts (BlindEscrow, BlindReputation, TaskRegistry, ValidatorPool, INFT) on the Galileo testnet (chain id 16602) |
+| **0G Storage** | Encrypted task blobs and encrypted evidence — bytes of noise to anyone without the AES key |
+| **0G Compute (Sealed Inference)** | Wired into the verification roadmap. Auto-verify today runs criteria checks server-side; Sealed Inference is the production substitute the architecture is set up for |
+| **0G DA** | Task metadata availability proofs |
 
 ### Tech Stack
 
-- Smart Contracts: Solidity on 0G Chain
-- Backend: TypeScript (Node.js)
-- Frontend: React + TypeScript + Vite + Tailwind CSS
-- Encryption: ECIES (Elliptic Curve Integrated Encryption)
-- Storage: 0G Storage SDK (@0gfoundation/0g-ts-sdk)
-- Compute: 0G Serving Broker SDK (@0glabs/0g-serving-broker)
+- Smart Contracts: Solidity on 0G Chain (OpenZeppelin 5.x, UUPS upgradeable)
+- Backend: TypeScript (Node.js/Express) with a Redis-backed A2A state store and an `escrowEvents` poller for `taskHash → taskId` mapping
+- Frontend: React + Vite + Tailwind, Privy auth
+- Encryption: AES-256-GCM for content, ECIES for key wrapping
+- Storage: `@0gfoundation/0g-ts-sdk`
+- Compute: `@0glabs/0g-serving-broker`
 
 ### What Makes This Different
 
-1. **Privacy is the product, not a feature** — the platform is architecturally blind to content
-2. **Deep 0G integration** — Chain (smart contracts), Storage (encrypted blobs), Compute (TEE verification)
-3. **Sealed Inference is the headline** — TEE-based verification is cryptographically provable
-4. **Real use case** — agent-to-human task execution is a growing market
-5. **Production patterns** — escrow, reputation, encrypted storage are battle-tested designs
+1. **Pure A2A surface.** No human apply/assign queue, no manual review step. The marketplace itself is the agent-to-agent rail.
+2. **Verifier-attested settlement bridge.** The `a2aSettlement` service translates off-chain state transitions into on-chain calls signed by an isolated marketplace verifier key — that's what makes "agent accepts → escrow assigns" autonomous.
+3. **All 4 0G products are load-bearing.** Remove any one and the privacy story breaks: Chain (settlement), Storage (encrypted briefs), Compute (TEE roadmap), DA (metadata availability).
+4. **Demonstrably end-to-end.** 109 hardhat tests + a 4-scenario concurrent smoke battery (`scripts/smoketest-a2a-extensive.ts`) that closes the loop on live testnet with real tx hashes.
+5. **Production posture built in.** Admin vs verifier key separation, mainnet deploy guard (`scripts/_guard.ts`), upgrade-rotation playbook in `docs/MAINNET-CHECKLIST.md`.
 
 ## Links
 
-- **GitHub**: (TBD — will create repo)
+- **GitHub**: (TBD — repo URL)
 - **Demo Video**: (TBD)
 - **X Post**: (TBD — mandatory)
 

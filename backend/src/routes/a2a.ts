@@ -42,9 +42,9 @@ a2aRouter.post('/register', requireAuth, async (req: AuthRequest, res, next) => 
     const data = registerSchema.parse(req.body);
     const address = req.user!.address;
 
-    const existing = agentStore.getAgent(address);
+    const existing = await agentStore.getAgent(address);
 
-    agentStore.registerAgent({
+    await agentStore.registerAgent({
       address,
       displayName: data.displayName,
       capabilities: data.capabilities as AgentCapability[],
@@ -57,7 +57,7 @@ a2aRouter.post('/register', requireAuth, async (req: AuthRequest, res, next) => 
 
     const body: ApiResponse = {
       success: true,
-      data: { agent: agentStore.getAgent(address) },
+      data: { agent: await agentStore.getAgent(address) },
     };
     res.status(existing ? 200 : 201).json(body);
   } catch (err) {
@@ -100,18 +100,12 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
     const meta = await a2aStore.getMeta(taskId);
     if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
 
-    const state = await a2aStore.getState(taskId);
-    if (!state || state.status !== 'open') {
-      throw new AppError(409, 'NOT_OPEN', 'Task is not open for acceptance');
-    }
-
-    // Check agent is registered
-    const agent = agentStore.getAgent(address);
+    // Check agent is registered + capability match BEFORE the CAS, so we don't
+    // burn the open→accepted transition on a caller who'd be 403'd anyway.
+    const agent = await agentStore.getAgent(address);
     if (!agent) {
       throw new AppError(403, 'NOT_REGISTERED', 'Register as an agent executor first');
     }
-
-    // Capability match
     if (meta.requiredCapabilities.length > 0) {
       const missing = meta.requiredCapabilities.filter((c) => !agent.capabilities.includes(c));
       if (missing.length > 0) {
@@ -119,11 +113,19 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
       }
     }
 
-    await a2aStore.updateState(taskId, {
-      status: 'accepted',
-      executorAddress: address,
-      acceptedAt: new Date().toISOString(),
-    });
+    // Atomic open→accepted via a Lua CAS. Two concurrent /accept requests can
+    // both pass an open-state read, so we serialise the transition itself on
+    // the Redis server. Loser gets 409, no on-chain side effect — preserves
+    // the invariant that the executor in Redis matches the one in the bridge
+    // tx (and thereby the on-chain t.worker).
+    const accept = await a2aStore.tryAccept(taskId, address, new Date().toISOString());
+    if (!accept.ok) {
+      throw new AppError(
+        409,
+        'NOT_OPEN',
+        `Task is not open for acceptance (status: ${accept.currentStatus})`,
+      );
+    }
 
     // Fire-and-forget on-chain settlement: backend marketplace signer calls
     // marketplaceAssign(taskId, executor) so the contract knows who to pay.
@@ -274,11 +276,11 @@ a2aRouter.post('/tasks/:id/finalize', requireAuth, async (req: AuthRequest, res,
     });
 
     if (verificationResult.passed) {
-      const agent = agentStore.getAgent(address);
+      const agent = await agentStore.getAgent(address);
       if (agent) {
         agent.tasksCompleted += 1;
         agent.reputation = Math.min(100, agent.reputation + 1);
-        agentStore.registerAgent(agent);
+        await agentStore.registerAgent(agent);
       }
     }
 
@@ -341,11 +343,11 @@ a2aRouter.post('/tasks/:id/verify', requireAuth, async (req: AuthRequest, res, n
     });
 
     if (passed && state.executorAddress) {
-      const agent = agentStore.getAgent(state.executorAddress);
+      const agent = await agentStore.getAgent(state.executorAddress);
       if (agent) {
         agent.tasksCompleted += 1;
         agent.reputation = Math.min(100, agent.reputation + 1);
-        agentStore.registerAgent(agent);
+        await agentStore.registerAgent(agent);
       }
     }
 
@@ -413,7 +415,7 @@ a2aRouter.get('/executions', requireAuth, async (req: AuthRequest, res, next) =>
 a2aRouter.get('/profile', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const address = req.user!.address;
-    const agent = agentStore.getAgent(address);
+    const agent = await agentStore.getAgent(address);
 
     if (!agent) {
       throw new AppError(404, 'NOT_REGISTERED', 'Agent not registered');

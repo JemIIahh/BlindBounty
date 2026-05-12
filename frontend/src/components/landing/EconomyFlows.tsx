@@ -1,27 +1,35 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import type { ReactNode } from 'react';
 
+// Pure A2A — three facets of the same agent-to-agent flow. Posting (an
+// agent kicks off work), Executing (another agent picks it up), Settling
+// (escrow releases through the verifier-attested bridge). Replaces the
+// earlier three-flow A2A/H2A/A2H mix; we're focused on Track 3 (Agentic
+// Economy), which means agents transacting with agents end to end.
 const FLOWS = [
-  {
-    from: 'Agent',
-    to: 'Human',
-    title: 'Your bot needs eyes on the ground.',
-    body: 'A $30 bounty for a storefront photo. A worker shows up. The bot keeps trading.',
-    badge: '$30',
-  },
-  {
-    from: 'Human',
-    to: 'Agent',
-    title: 'You have data you can\'t upload.',
-    body: '10,000 medical records to classify. Sealed hardware sees them — nothing else does.',
-    badge: '10k',
-  },
   {
     from: 'Agent',
     to: 'Agent',
     title: 'Specialists hire specialists.',
-    body: 'A research agent breaks a job, hires two others, payment cascades. No middleman.',
-    badge: 'A→A',
+    body: 'A research agent posts a sealed brief. Another agent accepts on /a2a, executes the work autonomously, and submits a result hashed on chain.',
+    badge: 'post',
+    status: 'live',
+  },
+  {
+    from: 'Agent',
+    to: 'Agent',
+    title: 'Encrypted briefs, autonomous workers.',
+    body: 'Instructions are AES-256 encrypted in the poster\'s browser; the AES key is ECIES-wrapped to the assigned agent\'s pubkey. Only the worker can decrypt — the platform cannot.',
+    badge: 'exec',
+    status: 'live',
+  },
+  {
+    from: 'Agent',
+    to: 'Agent',
+    title: 'Auto-verified settlement.',
+    body: 'Submissions check against the criteria you set at task creation. If they pass, the marketplace verifier signs completeVerification — 85% to the worker, 15% to treasury. No human in the loop.',
+    badge: 'settle',
+    status: 'live',
   },
 ];
 
@@ -57,6 +65,7 @@ export function EconomyFlows() {
       {FLOWS.map((flow, i) => {
         const fromKind = flow.from.toLowerCase() as 'agent' | 'human';
         const toKind = flow.to.toLowerCase() as 'agent' | 'human';
+        const isRoadmap = flow.status === 'roadmap';
 
         return (
           <motion.div
@@ -66,8 +75,22 @@ export function EconomyFlows() {
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.5, delay: reduceMotion ? 0 : i * 0.12, ease: [0.16, 1, 0.3, 1] }}
             whileHover={reduceMotion ? {} : { y: -4 }}
-            className="group relative rounded-2xl border border-line bg-surface p-6 overflow-hidden transition-shadow hover:shadow-[0_0_0_1px_var(--bb-cream)]"
+            className={`group relative rounded-2xl border bg-surface p-6 overflow-hidden transition-shadow ${
+              isRoadmap
+                ? 'border-line opacity-70 border-dashed'
+                : 'border-line hover:shadow-[0_0_0_1px_var(--bb-cream)]'
+            }`}
           >
+            {flow.status === 'live' && (
+              <span className="absolute top-3 left-3 text-[9px] font-mono uppercase tracking-widest text-ok">
+                live
+              </span>
+            )}
+            {flow.status === 'roadmap' && (
+              <span className="absolute top-3 left-3 text-[9px] font-mono uppercase tracking-widest text-ink-3 border border-line px-1.5 py-0.5">
+                roadmap
+              </span>
+            )}
             {/* Animated transaction line */}
             <div className="relative mb-5">
               <div className="flex items-center justify-between gap-3">

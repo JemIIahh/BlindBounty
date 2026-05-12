@@ -15,6 +15,10 @@ interface Task {
   worker?: string;
   createdAt?: string;
   requiredCapabilities?: string[];
+  // Whether the backend's a2aStore has a meta entry for this task. False
+  // means the task is invisible to executor agents (created before the
+  // current A2A code path was wired up — see GET /api/v1/tasks enrichment).
+  a2aIndexed?: boolean;
 }
 
 const STATUS_LABELS: Record<number, string> = {
@@ -91,33 +95,68 @@ export default function MyTasks() {
             <Link to="/tasks/new" className="text-xs font-mono text-cream hover:underline">post your first task →</Link>
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-[80px_1fr_120px_140px_100px_60px] gap-4 px-5 py-3 border-t border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
-              <span>id</span><span>category · zone</span><span>reward</span><span>worker</span><span>status</span><span></span>
-            </div>
-            {tasks.map(t => (
-              <div key={t.taskId} className="grid grid-cols-[80px_1fr_120px_140px_100px_60px] gap-4 px-5 py-4 border-t border-line text-[13px] font-mono items-center">
-                <span className="text-ink-3">#{t.taskId}</span>
-                <div>
-                  <span className="text-ink">{t.category}</span>
-                  <span className="text-ink-3"> · {t.locationZone || 'global'}</span>
-                  {t.requiredCapabilities && t.requiredCapabilities.length > 0 && (
-                    <div className="flex gap-1 mt-1 flex-wrap">
-                      {t.requiredCapabilities.slice(0, 3).map(c => (
-                        <span key={c} className="text-[10px] font-mono text-ink-3 border border-line px-1">{c.replace(/_/g, ' ')}</span>
-                      ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-line border-t border-line">
+            {tasks.map(t => {
+              // A task is "stranded" when it's still Funded on chain but the
+              // A2A executor board doesn't know about it — agents can never
+              // accept it. Only flag for tasks that would otherwise look
+              // acceptable (open / no worker), to avoid confusing completed
+              // history with a problem.
+              const isStranded = t.a2aIndexed === false && t.status === 0;
+              return (
+                <Link
+                  key={t.taskId}
+                  to={`/tasks/${t.taskId}`}
+                  className={`group bg-bg hover:bg-surface-2 transition-colors p-5 flex flex-col gap-3 min-h-[180px] ${
+                    isStranded ? 'border-l-2 border-l-warn' : ''
+                  }`}
+                >
+                  {/* Top row — id + status */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-mono text-ink-3">#{t.taskId}</span>
+                    <div className="flex items-center gap-2">
+                      {isStranded && <Tag tone="warn">stranded</Tag>}
+                      <Tag tone={STATUS_TONE[t.status] ?? 'neutral'}>{STATUS_LABELS[t.status] ?? t.status}</Tag>
                     </div>
-                  )}
-                </div>
-                <span className="text-cream font-semibold">{formatReward(t.reward)}</span>
-                <span className="text-ink-3 text-[11px]">
-                  {t.worker ? `${t.worker.slice(0, 6)}…${t.worker.slice(-4)}` : '—'}
-                </span>
-                <Tag tone={STATUS_TONE[t.status] ?? 'neutral'}>{STATUS_LABELS[t.status] ?? t.status}</Tag>
-                <Link to={`/tasks/${t.taskId}`} className="text-[11px] font-mono text-cream hover:underline">view →</Link>
-              </div>
-            ))}
-          </>
+                  </div>
+
+                  {/* Title */}
+                  <div className="flex-1">
+                    <div className="text-sm font-mono text-ink">{t.category}</div>
+                    <div className="text-[11px] font-mono text-ink-3 mt-0.5">{t.locationZone || 'global'}</div>
+                    {t.requiredCapabilities && t.requiredCapabilities.length > 0 && (
+                      <div className="flex gap-1 mt-2 flex-wrap">
+                        {t.requiredCapabilities.slice(0, 4).map(c => (
+                          <span key={c} className="text-[10px] font-mono text-ink-3 border border-line px-1.5 py-0.5">
+                            {c.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {isStranded && (
+                      <div className="mt-3 text-[10px] font-mono text-warn leading-relaxed">
+                        not on the agent board — created before the current A2A indexer was wired up.
+                        no agent will pick this up. cancel & refund to reclaim escrow.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom row — reward + worker + view affordance */}
+                  <div className="pt-3 border-t border-line flex items-end justify-between">
+                    <div>
+                      <div className="text-lg font-mono font-semibold text-cream leading-none">{formatReward(t.reward)}</div>
+                      <div className="text-[10px] font-mono text-ink-3 mt-1.5 uppercase tracking-widest">
+                        {t.worker
+                          ? `worker · ${t.worker.slice(0, 6)}…${t.worker.slice(-4)}`
+                          : 'no worker yet'}
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-mono text-ink-3 group-hover:text-cream transition-colors">view →</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

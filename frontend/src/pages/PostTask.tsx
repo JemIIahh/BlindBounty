@@ -15,6 +15,31 @@ import { BLIND_ESCROW_ADDRESS } from '../config/constants';
 // are popular hints, not the full set. The category field is free-text
 // (backend accepts any string 1..64 chars) so the poster can describe whatever
 // their task actually is rather than being forced into "other".
+// BlindEscrow contract's hard bounds on `duration` (seconds).
+// Source: BlindEscrow.sol:64-65 — MIN_DEADLINE = 1 hours, MAX_DEADLINE = 90 days.
+const MIN_DURATION_SECONDS = 60 * 60;          // 1 hour
+const MAX_DURATION_SECONDS = 90 * 24 * 60 * 60; // 90 days
+
+/** Format a Date as the value `<input type="datetime-local">` expects: YYYY-MM-DDTHH:mm in local TZ. */
+function toDatetimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Default deadline: 24h from now. Calculated once at module load — fine
+ *  since the page is short-lived. */
+const DEFAULT_DEADLINE_AT = toDatetimeLocal(new Date(Date.now() + 24 * 60 * 60 * 1000));
+const MIN_DEADLINE_AT = toDatetimeLocal(new Date(Date.now() + MIN_DURATION_SECONDS * 1000));
+const MAX_DEADLINE_AT = toDatetimeLocal(new Date(Date.now() + MAX_DURATION_SECONDS * 1000));
+
+/** Human-readable "expires in 2 hours" / "expires in 3 days" hint. */
+function durationHint(secs: number): string {
+  if (secs <= 0) return 'in the past — pick a later time';
+  if (secs < 60 * 60) return `${Math.round(secs / 60)} minutes from now`;
+  if (secs < 24 * 60 * 60) return `${Math.round(secs / 3600)} hours from now`;
+  return `${Math.round(secs / 86400)} days from now`;
+}
+
 const CATEGORY_SUGGESTIONS = [
   'photography',
   'research',
@@ -26,6 +51,17 @@ const CATEGORY_SUGGESTIONS = [
   'code-review',
   'analysis',
 ];
+
+// Mirrors the backend AGENT_CAPABILITIES enum (backend/src/types.ts:86) and
+// the register-tab list in A2ADashboard.tsx. Tasks need at least one match
+// for an executor to surface them in the agent_board capability filter.
+const AGENT_CAPABILITIES = [
+  'data_processing', 'web_research', 'code_execution', 'content_generation',
+  'api_integration', 'text_analysis', 'translation', 'summarization',
+  'image_analysis', 'document_processing', 'math_computation', 'data_extraction',
+  'report_generation', 'code_review', 'testing', 'scheduling',
+  'email_drafting', 'social_media', 'market_research', 'competitive_analysis',
+] as const;
 const TOKEN = import.meta.env.VITE_MOCK_ERC20_ADDRESS ?? '0x3af9232009C5da30AdA366B6E09849A040162A1a';
 
 const ERC20_ABI = [
@@ -45,16 +81,23 @@ export default function PostTask() {
     category: '',
     locationZone: 'global',
     amount: '10',
-    duration: '86400',
-    executor: 'human' as 'human' | 'agent',
-    // Verification mode — only meaningful when executor === 'agent'.
-    //   manual: poster reviews the submission and clicks approve/reject (H2A)
-    //   auto:   backend runs autoVerify against criteria (A2A — no human needed)
-    verificationMode: 'manual' as 'manual' | 'auto',
+    // Stored as a datetime-local string (YYYY-MM-DDTHH:mm). Converted to a
+    // seconds-from-now duration at submit time — the contract takes duration,
+    // not an absolute date, so this is a UX layer over the on-chain primitive.
+    deadlineAt: DEFAULT_DEADLINE_AT,
   });
+  // Pure A2A surface — every task posted from this UI is an agent-targeted
+  // task that auto-verifies on submission. The executor toggle and
+  // verification-mode picker are removed; we hardcode the values that drive
+  // the autonomous flow. The H2A manual-approval path still lives in the
+  // backend (/a2a/verify) for the A2H roadmap; it's just not exposed here.
   const [status, setStatus] = useState<'idle' | 'encrypting' | 'approving' | 'signing' | 'done' | 'error'>('idle');
   const [error, setError] = useState('');
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [requiredCaps, setRequiredCaps] = useState<string[]>([]);
+
+  const toggleCap = (cap: string) =>
+    setRequiredCaps(prev => (prev.includes(cap) ? prev.filter(c => c !== cap) : [...prev, cap]));
 
   useEffect(() => {
     trackEvent('post_task_view');
@@ -68,28 +111,16 @@ export default function PostTask() {
       setStatus('encrypting');
       setError('');
 
-      // Manual token fetch to ensure we have it even if module-level getter is out of sync
+      if (requiredCaps.length === 0) {
+        throw new Error('Pick at least one required capability so executor agents can match your task.');
+      }
+
+      // Prefer the identity token (has linked_accounts → backend can derive
+      // the wallet address from did:privy claims); fall back to the access
+      // token so unlinked sessions still work.
       const idTok = await getIdentityToken();
       const accTok = await getAccessToken();
       const token = idTok || accTok;
-      // Diagnostic: surface which token type resolved, and decode its payload
-      // so we can see whether linked_accounts is present. This is intentionally
-      // verbose for debugging the 401-on-storage-upload issue. Strip when fixed.
-      try {
-        const usedKind = idTok ? 'identity' : accTok ? 'access' : 'none';
-        const decode = (t: string | null) => {
-          if (!t) return null;
-          const b64 = t.split('.')[1];
-          if (!b64) return 'malformed';
-          const json = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
-          return JSON.parse(json);
-        };
-        console.log('[PostTask][auth] using:', usedKind);
-        console.log('[PostTask][auth] identity payload:', decode(idTok ?? null));
-        console.log('[PostTask][auth] access payload:', decode(accTok ?? null));
-      } catch (e) {
-        console.warn('[PostTask][auth] decode failed', e);
-      }
       if (!token) throw new Error('No authentication token available. Please try logging out and back in.');
 
       // 0. Handle Token Approval if needed
@@ -144,33 +175,39 @@ export default function PostTask() {
       // 2. Upload encrypted blob to storage
       await authedPost<any>('/api/v1/storage/upload', { data: blob }, token);
 
-      // 3. Get unsigned tx from backend
+      // 3. Compute duration (seconds from now) from the chosen deadline.
+      //    Re-evaluate at submit time so the value is accurate even if the
+      //    form sat open for a while between picking the deadline and clicking
+      //    submit.
+      const deadlineMs = new Date(form.deadlineAt).getTime();
+      if (Number.isNaN(deadlineMs)) throw new Error('Invalid deadline — pick a date and time.');
+      const durationSecs = Math.floor((deadlineMs - Date.now()) / 1000);
+      if (durationSecs < MIN_DURATION_SECONDS) {
+        throw new Error(`Deadline must be at least 1 hour from now (got ${durationSecs}s).`);
+      }
+      if (durationSecs > MAX_DURATION_SECONDS) {
+        throw new Error('Deadline cannot be more than 90 days out.');
+      }
+
+      // 4. Get unsigned tx from backend
       const taskJson = await authedPost<any>('/api/v1/tasks', {
         taskHash,
         token: TOKEN,
         amount: amountWei.toString(),
         category: form.category,
         locationZone: form.locationZone,
-        duration: form.duration,
-        // When the poster targets agents, pass targetExecutorType so the
-        // backend mirrors the task into the A2A store (a2aStore.setMeta) and
-        // it shows up in /a2a's browse_tasks panel. Verification defaults to
-        // manual; the A2A submit endpoint also supports auto/oracle modes.
-        ...(form.executor === 'agent'
-          ? {
-              targetExecutorType: 'agent' as const,
-              verificationMode: form.verificationMode,
-              // Defaults for auto-verify — sensible criteria so the bridge has
-              // something to evaluate against. Posters with stricter needs can
-              // post via the API directly until we expose criteria editing.
-              ...(form.verificationMode === 'auto'
-                ? { verificationCriteria: { min_length: 10 } }
-                : {}),
-            }
-          : {}),
+        duration: String(durationSecs),
+        // Hardcoded A2A: every task posted from this UI targets agents and
+        // auto-verifies on submission. Settlement bridge closes the on-chain
+        // loop without further input. Posters who want manual review or
+        // human-targeted tasks would call /api/v1/tasks directly.
+        targetExecutorType: 'agent' as const,
+        verificationMode: 'auto' as const,
+        verificationCriteria: { min_length: 10 },
+        requiredCapabilities: requiredCaps,
       }, token);
 
-      // 4. Sign and send via MetaMask
+      // 5. Sign and send via MetaMask
       setStatus('signing');
       console.log(`[PostTask] Signing registration TX...`);
       const receipt = await signAndSendTx(signer, taskJson.unsignedTx);
@@ -184,7 +221,6 @@ export default function PostTask() {
         taskId: taskJson.taskId ?? null,
         category: form.category,
         amount: Number(form.amount),
-        executor: form.executor,
       });
     } catch (err) {
       setError((err as Error).message);
@@ -199,8 +235,8 @@ export default function PostTask() {
     <div>
       <Breadcrumb items={['tasks', 'post']} />
       <PageHeader
-        title="Post a task"
-        description="Encrypt your instructions and lock payment in escrow. Agents pick it up and complete it."
+        title="Post a task for agent execution"
+        description="Encrypt your instructions, lock payment in escrow. An autonomous agent accepts, completes, and auto-verifies — settlement happens on chain without you signing again."
       />
 
       <MintTestTokensCard />
@@ -284,58 +320,45 @@ export default function PostTask() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">execute by</label>
-                <div className="grid grid-cols-2 border border-line">
-                  {(['human', 'agent'] as const).map(opt => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setForm(f => ({ ...f, executor: opt }))}
-                      className={`px-4 py-3 text-[11px] font-mono uppercase tracking-widest transition-colors border-line ${opt === 'agent' ? 'border-l' : ''} ${
-                        form.executor === opt ? 'bg-cream text-bg' : 'text-ink-3 hover:text-ink hover:bg-surface-2'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+                <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">
+                  required capabilities <span className="text-cream">*</span>
+                  <span className="ml-2 normal-case tracking-normal text-ink-3/70">
+                    ({requiredCaps.length} selected — at least one required)
+                  </span>
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {AGENT_CAPABILITIES.map((cap) => {
+                    const active = requiredCaps.includes(cap);
+                    return (
+                      <button
+                        key={cap}
+                        type="button"
+                        onClick={() => toggleCap(cap)}
+                        className={`px-2.5 py-1 text-[11px] font-mono border transition-colors ${
+                          active
+                            ? 'bg-cream/10 border-cream/40 text-cream'
+                            : 'bg-surface-2 border-line text-ink-3 hover:text-ink-2'
+                        }`}
+                      >
+                        {cap}
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="mt-1 text-[11px] font-mono text-ink-3">
-                  {form.executor === 'agent'
-                    ? 'visible to A2A executors at /a2a · agents can browse, accept, and submit work'
-                    : 'visible in the human task feed at /tasks · humans apply and the poster assigns'}
+                  pick every skill your task needs. an executor agent matches if it has any one.
                 </div>
               </div>
 
-              {form.executor === 'agent' && (
-                <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">verification</label>
-                  <div className="grid grid-cols-2 border border-line">
-                    {([
-                      { value: 'manual', label: 'manual', hint: 'you review and approve submissions (H2A)' },
-                      { value: 'auto',   label: 'auto',   hint: 'backend verifies by criteria (A2A — no review)' },
-                    ] as const).map((opt, idx) => {
-                      const active = form.verificationMode === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() => setForm(f => ({ ...f, verificationMode: opt.value }))}
-                          className={`px-4 py-3 text-[11px] font-mono uppercase tracking-widest transition-colors ${idx === 1 ? 'border-l border-line' : ''} ${
-                            active ? 'bg-cream text-bg' : 'text-ink-3 hover:text-ink hover:bg-surface-2'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-1 text-[11px] font-mono text-ink-3">
-                    {form.verificationMode === 'manual'
-                      ? 'submissions land in your /a2a → to_review tab · you approve or reject before escrow releases'
-                      : 'submissions auto-verify against built-in criteria · escrow releases without your involvement'}
-                  </div>
-                </div>
-              )}
+              {/* A2A-only flow — explicit info banner replaces the old
+                  executor + verification pickers. Every task posted here
+                  targets an agent and auto-verifies on submission. */}
+              <div className="border border-line bg-surface-2 px-4 py-3 text-[11px] font-mono text-ink-3 leading-relaxed">
+                <span className="text-cream">a2a · auto-verify:</span> tasks
+                posted here are visible to autonomous agents at <code className="text-ink-2">/a2a</code>.
+                Submissions are checked against built-in criteria (min length, required fields)
+                and escrow releases automatically — no further input from you.
+              </div>
             </div>
           </div>
 
@@ -358,15 +381,26 @@ export default function PostTask() {
                 <div className="mt-1 text-[11px] font-mono text-ink-3">85% to worker · 15% protocol fee</div>
               </div>
               <div>
-                <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">deadline (seconds)</label>
+                <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">deadline</label>
                 <input
-                  type="number"
-                  min="3600"
-                  value={form.duration}
-                  onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
+                  type="datetime-local"
+                  min={MIN_DEADLINE_AT}
+                  max={MAX_DEADLINE_AT}
+                  required
+                  value={form.deadlineAt}
+                  onChange={e => setForm(f => ({ ...f, deadlineAt: e.target.value }))}
                   className="w-full bg-surface-2 border border-line px-4 py-3 text-xs font-mono text-ink focus:outline-none focus:border-cream"
                 />
-                <div className="mt-1 text-[11px] font-mono text-ink-3">86400 = 24h · 604800 = 7d</div>
+                {/* Live human-readable hint — recomputed each render so the
+                    user sees the offset shrink in real time if they're slow. */}
+                <div className="mt-1 text-[11px] font-mono text-ink-3">
+                  {(() => {
+                    const ms = new Date(form.deadlineAt).getTime();
+                    if (Number.isNaN(ms)) return 'pick a date and time · min 1 hour · max 90 days';
+                    const secs = Math.floor((ms - Date.now()) / 1000);
+                    return durationHint(secs);
+                  })()}
+                </div>
               </div>
             </div>
           </div>
@@ -377,7 +411,8 @@ export default function PostTask() {
             ) : (
               <button
                 type="submit"
-                disabled={busy}
+                disabled={busy || requiredCaps.length === 0}
+                title={requiredCaps.length === 0 ? 'select at least one required capability above' : undefined}
                 className="px-6 py-3 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {status === 'encrypting' ? 'encrypting…' : status === 'approving' ? 'approving…' : status === 'signing' ? 'sign in wallet…' : 'encrypt + post task →'}
