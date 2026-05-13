@@ -5,9 +5,9 @@ import { getIdentityToken, getAccessToken } from '@privy-io/react-auth';
 import { BrowserProvider, Contract, parseUnits, formatUnits } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule } from '../components/bb';
 import { MintTestTokensCard } from '../components/MintTestTokensCard';
-import { aesEncrypt, generateAesKey, sha256, toBase64, toBytes } from '../lib/crypto';
+import { aesEncrypt, eciesEncrypt, generateAesKey, sha256, toBase64, toBytes } from '../lib/crypto';
 import { signAndSendTx } from '../lib/txSigner';
-import { authedPost } from '../lib/api';
+import { authedGet, authedPost } from '../lib/api';
 import { trackEvent } from '../hooks/useAnalytics';
 import { BLIND_ESCROW_ADDRESS } from '../config/constants';
 
@@ -163,7 +163,26 @@ export default function PostTask() {
         throw new Error(`Failed to check/approve tokens: ${err.message || 'Unknown error'}. Is the token address ${TOKEN} correct for this network?`);
       }
 
-      // 1. Encrypt instructions browser-side
+      // 1. Discover eligible executors BEFORE encrypting — if no agent matches
+      //    the required caps, the task would be uncompletable. Fail fast with
+      //    a clear UX message instead of letting the user spend gas on an
+      //    escrow nobody can claim.
+      console.log('[PostTask] Looking up matching executors...');
+      const capsQS = encodeURIComponent(requiredCaps.join(','));
+      const execResp = await authedGet<{
+        success: boolean;
+        data: { executors: Array<{ address: string; publicKey: string; capabilities: string[]; reputation: number }> };
+      }>(`/api/v1/a2a/executors?capabilities=${capsQS}`, token);
+      const executors = execResp.data?.executors ?? [];
+      if (executors.length === 0) {
+        throw new Error(
+          `No registered agent has any of: ${requiredCaps.join(', ')}. ` +
+          `Deploy an agent with one of these capabilities first, or pick different caps.`,
+        );
+      }
+      console.log(`[PostTask] ${executors.length} matching executor(s) found`);
+
+      // 2. Encrypt instructions browser-side
       setStatus('encrypting');
       console.log('[PostTask] Encrypting instructions...');
       const key = generateAesKey();
@@ -172,10 +191,41 @@ export default function PostTask() {
       const blob = toBase64(ciphertext);
       const taskHash = '0x' + await sha256(ciphertext);
 
-      // 2. Upload encrypted blob to storage
-      await authedPost<any>('/api/v1/storage/upload', { data: blob }, token);
+      // 3. Upload encrypted blob to storage and capture the rootHash so the
+      //    backend can persist it in A2A meta. Without rootHash the executor
+      //    has no pointer to fetch the encrypted blob.
+      const uploadResp = await authedPost<{ success: boolean; data: { rootHash: string; txHash?: string } }>(
+        '/api/v1/storage/upload',
+        { data: blob },
+        token,
+      );
+      const rootHash = uploadResp.data?.rootHash;
+      if (!rootHash) throw new Error('Storage upload returned no rootHash');
+      console.log(`[PostTask] Encrypted blob uploaded — rootHash ${rootHash.slice(0, 12)}…`);
 
-      // 3. Compute duration (seconds from now) from the chosen deadline.
+      // 4. ECIES-wrap the AES key to each matching executor's pubkey. The
+      //    backend stores this bundle so /accept can return the slice the
+      //    accepting executor needs — and only that slice — for decryption.
+      //    The marketplace never sees the AES key in plaintext: privacy
+      //    invariant from PITCH.md preserved.
+      const wrappedKeys: Record<string, string> = {};
+      for (const exec of executors) {
+        try {
+          const wrappedBytes = await eciesEncrypt(key, exec.publicKey);
+          const wrappedHex = Array.from(wrappedBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+          wrappedKeys[exec.address.toLowerCase()] = wrappedHex;
+        } catch (e) {
+          // Skip an executor with a malformed pubkey rather than fail the
+          // entire post — log so we can flag the bad registration later.
+          console.warn(`[PostTask] Skipped ${exec.address} (wrap failed):`, (e as Error).message);
+        }
+      }
+      if (Object.keys(wrappedKeys).length === 0) {
+        throw new Error('Could not wrap the AES key to any executor (all pubkeys malformed). Refresh and try again.');
+      }
+      console.log(`[PostTask] AES key wrapped to ${Object.keys(wrappedKeys).length} executor(s)`);
+
+      // 5. Compute duration (seconds from now) from the chosen deadline.
       //    Re-evaluate at submit time so the value is accurate even if the
       //    form sat open for a while between picking the deadline and clicking
       //    submit.
@@ -189,7 +239,7 @@ export default function PostTask() {
         throw new Error('Deadline cannot be more than 90 days out.');
       }
 
-      // 4. Get unsigned tx from backend
+      // 6. Get unsigned tx from backend (with the rootHash + wrappedKeys bundle)
       const taskJson = await authedPost<any>('/api/v1/tasks', {
         taskHash,
         token: TOKEN,
@@ -205,9 +255,11 @@ export default function PostTask() {
         verificationMode: 'auto' as const,
         verificationCriteria: { min_length: 10 },
         requiredCapabilities: requiredCaps,
+        rootHash,
+        wrappedKeys,
       }, token);
 
-      // 5. Sign and send via MetaMask
+      // 7. Sign and send via MetaMask
       setStatus('signing');
       console.log(`[PostTask] Signing registration TX...`);
       const receipt = await signAndSendTx(signer, taskJson.unsignedTx);

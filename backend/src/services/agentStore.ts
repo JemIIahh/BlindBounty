@@ -43,3 +43,37 @@ export async function getAgent(address: string): Promise<AgentExecutor | undefin
   const raw = await redis.get(KEY.executor(address));
   return raw ? (JSON.parse(raw) as AgentExecutor) : undefined;
 }
+
+/**
+ * List all registered executors, optionally filtered by capability match.
+ *
+ * Matches the /accept gate's semantics (ANY of the required caps must be in
+ * the agent's set). Used by the frontend at task-creation time to discover
+ * which pubkeys to ECIES-wrap the AES key to.
+ *
+ * Returns at most MAX_AGENTS entries; small enough today that we don't
+ * paginate. If we ever scale past ~1k registered executors this should move
+ * to a Redis SCAN cursor + capability index.
+ */
+export async function listAgents(requiredCapabilities?: string[]): Promise<AgentExecutor[]> {
+  const addrs = await redis.smembers(KEY.all);
+  if (addrs.length === 0) return [];
+
+  const pipe = redis.pipeline();
+  for (const addr of addrs) pipe.get(KEY.executor(addr));
+  const rows = await pipe.exec();
+  if (!rows) return [];
+
+  const agents: AgentExecutor[] = [];
+  for (const [, raw] of rows) {
+    if (typeof raw !== 'string') continue;
+    try {
+      agents.push(JSON.parse(raw) as AgentExecutor);
+    } catch {
+      // Skip malformed rows rather than failing the whole listing.
+    }
+  }
+
+  if (!requiredCapabilities || requiredCapabilities.length === 0) return agents;
+  return agents.filter((a) => requiredCapabilities.some((c) => a.capabilities.includes(c as AgentExecutor['capabilities'][number])));
+}

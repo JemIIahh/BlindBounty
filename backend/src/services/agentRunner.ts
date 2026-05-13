@@ -143,6 +143,10 @@ export async function startAgent(id: string): Promise<void> {
       AGENT_PLATFORM_TOKEN: agent.platformToken,
       AGENT_WALLET: agent.walletAddress,
       AGENT_PRIVATE_KEY: agent.rawPrivateKey ?? '',
+      // Worker passes this to /a2a/register so posters can ECIES-wrap the AES
+      // key to it at task-creation time. Same format the backend ECIES expects:
+      // uncompressed secp256k1 hex, no 0x prefix.
+      AGENT_PUBLIC_KEY: agent.publicKey ?? '',
       OG_RPC_URL: config.ogRpcUrl,
       OG_CHAIN_ID: String(config.ogChainId),
       BACKEND_URL: `http://localhost:${config.port}`,

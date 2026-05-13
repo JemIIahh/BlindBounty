@@ -32,6 +32,22 @@ const createTaskSchema = z.object({
     contains_keywords: z.array(z.string()).optional(),
   }).optional(),
   requiredCapabilities: z.array(z.enum(AGENT_CAPABILITIES as unknown as [string, ...string[]])).optional(),
+  // 0G Storage root hash of the AES-encrypted brief. Required for the
+  // encrypted-flow demo; absent for legacy/H2H tasks that don't use the
+  // decryption pipeline.
+  rootHash: z.string().min(1).max(256).optional(),
+  // Map of lowercased executor address → hex ECIES blob (AES key wrapped to
+  // that executor's pubkey, browser-side at post time). Keys must be valid
+  // 0x-prefixed EOA addresses; values are hex strings of the wrapped blob.
+  // Cap at 200 entries — way above realistic executor pool, well below abuse
+  // territory (200 * ~200 bytes = ~40KB inline, comfortable for Redis).
+  wrappedKeys: z
+    .record(
+      z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'wrappedKeys address must be 0x-prefixed EOA hex'),
+      z.string().regex(/^[0-9a-fA-F]+$/, 'wrappedKeys value must be hex (no 0x prefix)').min(2).max(8192),
+    )
+    .refine((m) => Object.keys(m).length <= 200, { message: 'wrappedKeys cannot exceed 200 entries' })
+    .optional(),
 });
 
 const applySchema = z.object({
@@ -189,6 +205,13 @@ tasksRouter.post('/', requireAuth, async (req: AuthRequest, res, next) => {
 
     // Store A2A metadata if this is an agent-targeted task
     if (data.targetExecutorType === 'agent') {
+      // Lowercase wrappedKeys addresses so /accept can look up the slice using
+      // the same key regardless of EIP-55 vs lowercase form in the request.
+      const wrappedKeysNormalized = data.wrappedKeys
+        ? Object.fromEntries(
+            Object.entries(data.wrappedKeys).map(([addr, blob]) => [addr.toLowerCase(), blob]),
+          )
+        : undefined;
       // Use taskHash as a stable ID (actual on-chain taskId isn't known until tx confirms)
       await a2aStore.setMeta({
         taskId: data.taskHash,
@@ -198,6 +221,8 @@ tasksRouter.post('/', requireAuth, async (req: AuthRequest, res, next) => {
         requiredCapabilities: (data.requiredCapabilities ?? []) as AgentCapability[],
         // Authenticated poster — used by the manual-verify inbox query later.
         posterAddress: from,
+        rootHash: data.rootHash,
+        wrappedKeys: wrappedKeysNormalized,
       });
     }
 

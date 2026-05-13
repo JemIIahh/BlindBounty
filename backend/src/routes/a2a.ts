@@ -20,6 +20,14 @@ export const a2aRouter = Router();
 const registerSchema = z.object({
   displayName: z.string().min(1).max(100),
   capabilities: z.array(z.enum(AGENT_CAPABILITIES as unknown as [string, ...string[]])).min(1).max(20),
+  // Uncompressed secp256k1 hex (130 chars, leading `04`, no 0x prefix).
+  // Optional so legacy workers can still register, but anything created without
+  // it can't decrypt encrypted briefs (the new posting flow wraps the AES key
+  // to this pubkey at task-create time).
+  publicKey: z
+    .string()
+    .regex(/^04[0-9a-fA-F]{128}$/, 'publicKey must be uncompressed secp256k1 hex (130 chars, leading 04, no 0x prefix)')
+    .optional(),
   agentCardUrl: z.string().url().optional(),
   mcpEndpointUrl: z.string().url().optional(),
 });
@@ -48,6 +56,11 @@ a2aRouter.post('/register', requireAuth, async (req: AuthRequest, res, next) => 
       address,
       displayName: data.displayName,
       capabilities: data.capabilities as AgentCapability[],
+      // Preserve any prior pubkey on a re-register that omits it (back-compat
+      // path: old workers still call /register without the field). New workers
+      // always send it; this fall-through keeps the encrypted-task pipeline
+      // working across rolling worker restarts.
+      publicKey: data.publicKey ?? existing?.publicKey,
       agentCardUrl: data.agentCardUrl,
       mcpEndpointUrl: data.mcpEndpointUrl,
       reputation: existing?.reputation ?? 50, // start at 50
@@ -60,6 +73,47 @@ a2aRouter.post('/register', requireAuth, async (req: AuthRequest, res, next) => 
       data: { agent: await agentStore.getAgent(address) },
     };
     res.status(existing ? 200 : 201).json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v1/a2a/executors
+ * List registered A2A executors, optionally filtered by capability (ANY-match).
+ *
+ * Public — the executor set is not sensitive (you can see them all by polling
+ * /a2a/tasks accepts anyway). Used by the frontend at task-creation time to
+ * discover which pubkeys to ECIES-wrap the AES key to so each eligible
+ * executor can decrypt the brief.
+ *
+ * Response shape is intentionally narrow: only fields the wrap step needs.
+ */
+a2aRouter.get('/executors', async (req, res, next) => {
+  try {
+    const caps = req.query.capabilities
+      ? (req.query.capabilities as string).split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
+
+    const executors = await agentStore.listAgents(caps);
+
+    const body: ApiResponse = {
+      success: true,
+      data: {
+        executors: executors
+          // Only include executors that registered a pubkey — without one, the
+          // poster has no way to wrap the AES key to them, so listing them
+          // would silently include unreachable workers in the bundle.
+          .filter((e) => !!e.publicKey)
+          .map((e) => ({
+            address: e.address,
+            publicKey: e.publicKey,
+            capabilities: e.capabilities,
+            reputation: e.reputation,
+          })),
+      },
+    };
+    res.json(body);
   } catch (err) {
     next(err);
   }
@@ -107,9 +161,17 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
       throw new AppError(403, 'NOT_REGISTERED', 'Register as an agent executor first');
     }
     if (meta.requiredCapabilities.length > 0) {
-      const missing = meta.requiredCapabilities.filter((c) => !agent.capabilities.includes(c));
-      if (missing.length > 0) {
-        throw new AppError(403, 'CAPABILITY_MISMATCH', `Missing capabilities: ${missing.join(', ')}`);
+      // Match the PostTask UI copy: "an executor agent matches if it has any one".
+      // Tasks usually list multiple caps as hints, not strict requirements — a
+      // worker with summarization can take a task tagged web_research+summarization
+      // even if it doesn't claim web_research.
+      const hasAny = meta.requiredCapabilities.some((c) => agent.capabilities.includes(c));
+      if (!hasAny) {
+        throw new AppError(
+          403,
+          'CAPABILITY_MISMATCH',
+          `Need at least one of: ${meta.requiredCapabilities.join(', ')}`,
+        );
       }
     }
 
@@ -134,9 +196,21 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
     // persists the tx hash to a2aStore so clients can poll for confirmation.
     void settleAssignment(taskId, address);
 
+    // Encrypted-brief slice: return the caller's wrappedKey + rootHash so the
+    // worker can download from 0G Storage and AES-decrypt. The wrappedKey
+    // lookup is by lowercased address; posters wrapped to lowercased keys at
+    // task creation time. Both fields may be absent on legacy tasks created
+    // before the encrypted-flow shipped — the worker treats that as "no brief
+    // available, log and skip" rather than crashing.
+    const wrappedKey = meta.wrappedKeys?.[address.toLowerCase()];
     const body: ApiResponse = {
       success: true,
-      data: { taskId, status: 'accepted' },
+      data: {
+        taskId,
+        status: 'accepted',
+        rootHash: meta.rootHash,
+        wrappedKey,
+      },
     };
     res.json(body);
   } catch (err) {

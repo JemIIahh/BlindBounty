@@ -96,6 +96,12 @@ export interface AgentExecutor {
   address: string;
   displayName: string;
   capabilities: AgentCapability[];
+  // secp256k1 uncompressed hex (130 chars, leading `04`, no 0x prefix). Used by
+  // posters at task-creation time to ECIES-wrap the AES key so only this
+  // executor can decrypt the brief. Optional for back-compat with executors
+  // registered before this field existed — they can't accept encrypted tasks
+  // until they re-register.
+  publicKey?: string;
   agentCardUrl?: string;
   mcpEndpointUrl?: string;
   reputation: number; // 0-100
@@ -113,6 +119,17 @@ export interface A2ATaskMeta {
   // time). Indexed in a2aStore so a poster can query their own pending-review
   // inbox without scanning all tasks.
   posterAddress?: string;
+  // 0G Storage root hash of the AES-encrypted brief. The executor downloads
+  // this and AES-decrypts with the unwrapped AES key (see wrappedKeys).
+  // Optional for back-compat with H2H tasks and pre-pivot test data.
+  rootHash?: string;
+  // ECIES-wrapped AES key, one entry per eligible executor. Keys are
+  // lowercased EOA addresses; values are hex-encoded ECIES blobs. At /accept
+  // time the backend returns wrappedKeys[lowercased(caller_address)] so only
+  // the accepting executor receives a slice they can decrypt with their
+  // own private key. Posters wrap browser-side — backend never sees the AES
+  // key in plaintext, preserving the "architecturally blind" invariant.
+  wrappedKeys?: Record<string, string>;
 }
 
 export type A2ATaskStateStatus =
