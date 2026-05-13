@@ -24,9 +24,42 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createGroq } from '@ai-sdk/groq';
 import { z } from 'zod';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, createECDH, createDecipheriv, hkdfSync } from 'crypto';
 import { runInNewContext } from 'vm';
 import { ethers } from 'ethers';
+
+// ── ECIES + AES decrypt helpers — byte-compatible with backend/src/services/crypto.ts
+// and frontend/src/lib/crypto.ts. Used to unwrap the AES key the poster wrapped
+// to our pubkey at task-creation time, then decrypt the brief blob from 0G Storage.
+const ECIES_PUBKEY_LENGTH = 65;
+const IV_LENGTH = 12;
+const TAG_LENGTH = 16;
+const KEY_LENGTH = 32;
+const ECIES_HKDF_INFO = 'BlindMarket-ECIES-v1';
+
+function aesGcmDecrypt(blob, key) {
+  if (blob.length < IV_LENGTH + TAG_LENGTH) throw new Error('AES blob too short');
+  const iv = blob.subarray(0, IV_LENGTH);
+  const tag = blob.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
+  const ct = blob.subarray(IV_LENGTH + TAG_LENGTH);
+  const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: TAG_LENGTH });
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ct), decipher.final()]);
+}
+
+function eciesDecryptK1(blob, privKeyHex) {
+  if (blob.length < ECIES_PUBKEY_LENGTH + IV_LENGTH + TAG_LENGTH) {
+    throw new Error('ECIES blob too short');
+  }
+  const ephPub = blob.subarray(0, ECIES_PUBKEY_LENGTH);
+  const aesBlob = blob.subarray(ECIES_PUBKEY_LENGTH);
+  const ecdh = createECDH('secp256k1');
+  const clean = privKeyHex.startsWith('0x') ? privKeyHex.slice(2) : privKeyHex;
+  ecdh.setPrivateKey(Buffer.from(clean, 'hex'));
+  const shared = ecdh.computeSecret(ephPub);
+  const aesKey = Buffer.from(hkdfSync('sha256', shared, '', ECIES_HKDF_INFO, KEY_LENGTH));
+  return aesGcmDecrypt(aesBlob, aesKey);
+}
 
 const AGENT_ID = process.env.AGENT_ID ?? 'unknown';
 const AGENT_NAME = process.env.AGENT_NAME ?? 'Agent';
@@ -36,6 +69,11 @@ const AGENT_MODEL = process.env.AGENT_MODEL ?? 'gpt-4o-mini';
 const AGENT_API_KEY = process.env.AGENT_API_KEY ?? '';
 const AGENT_PLATFORM_TOKEN = process.env.AGENT_PLATFORM_TOKEN ?? '';
 const AGENT_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY ?? '';
+// Uncompressed secp256k1 hex (130 chars, leading 04, no 0x prefix). Sent to
+// /a2a/register so posters can wrap the AES key to it at task creation. Empty
+// string when missing — register schema treats it as optional and the executor
+// just won't be able to decrypt new encrypted-flow tasks until reconfigured.
+const AGENT_PUBLIC_KEY = process.env.AGENT_PUBLIC_KEY ?? '';
 const OG_RPC_URL = process.env.OG_RPC_URL ?? 'https://evmrpc-testnet.0g.ai';
 const OG_CHAIN_ID = Number(process.env.OG_CHAIN_ID ?? 16602);
 const AGENT_TOOLS_RAW = process.env.AGENT_TOOLS ?? '[]';
@@ -262,6 +300,11 @@ async function pollAndWork() {
     //    match or state changed under us — try the next.
     let acceptedTaskHash = null;
     let acceptedEntry = null;
+    // Captured from the accept response. Both may be absent for legacy/test
+    // tasks posted before the encrypted-brief pipeline existed — handled
+    // below by falling back to a non-decrypted prompt.
+    let acceptedRootHash = null;
+    let acceptedWrappedKey = null;
     for (const entry of available) {
       const taskHash = entry.meta.taskId;
       log(`accepting task ${taskHash.slice(0, 10)}…`);
@@ -276,6 +319,13 @@ async function pollAndWork() {
         appliedTasks.add(taskHash);
         acceptedTaskHash = taskHash;
         acceptedEntry = entry;
+        try {
+          const acceptJson = await acceptRes.json();
+          acceptedRootHash = acceptJson.data?.rootHash ?? null;
+          acceptedWrappedKey = acceptJson.data?.wrappedKey ?? null;
+        } catch {
+          // Non-JSON response body; treat as no brief available.
+        }
         break;
       }
       const err = await acceptRes.json().catch(() => ({}));
@@ -300,18 +350,53 @@ async function pollAndWork() {
     log(`waiting for on-chain assignment to confirm for ${acceptedTaskHash.slice(0, 10)}…`);
     await sleep(12_000);
 
-    // 4. Run the LLM. The result is an object so it shapes cleanly to the
-    //    submit endpoint's `resultData: Record<string, unknown>` schema and
-    //    plays well with autoVerify criteria like `min_length` (which operates
-    //    on JSON.stringify of the object).
-    const category = acceptedEntry.meta.targetExecutorType === 'agent'
-      ? (acceptedEntry.meta.requiredCapabilities?.join(', ') || 'general')
-      : 'general';
+    // 4. Decrypt the brief. The poster ECIES-wrapped the AES key to our
+    //    pubkey at task-creation time; the backend stored the encrypted blob
+    //    on 0G Storage and just handed us the rootHash + our wrappedKey slice
+    //    in the /accept response. We unwrap the AES key with our private
+    //    key, fetch the blob, AES-decrypt it, and the plaintext brief is
+    //    what we feed to the LLM as the user message.
+    let briefPlaintext = null;
+    if (acceptedRootHash && acceptedWrappedKey && AGENT_PRIVATE_KEY) {
+      try {
+        const wrappedBytes = Buffer.from(acceptedWrappedKey, 'hex');
+        const aesKey = eciesDecryptK1(wrappedBytes, AGENT_PRIVATE_KEY);
+        log(`unwrapped AES key for ${acceptedTaskHash.slice(0, 10)}… (${aesKey.length} bytes)`);
+
+        const dlRes = await fetch(`${BACKEND_URL}/api/v1/storage/${acceptedRootHash}`, {
+          headers: { 'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}` },
+        });
+        if (!dlRes.ok) {
+          throw new Error(`storage download ${dlRes.status}`);
+        }
+        const dlJson = await dlRes.json();
+        const b64 = dlJson.data?.blob;
+        if (!b64) throw new Error('storage response missing blob');
+        const ciphertext = Buffer.from(b64, 'base64');
+        const plaintext = aesGcmDecrypt(ciphertext, aesKey);
+        briefPlaintext = plaintext.toString('utf8');
+        log(`decrypted brief for ${acceptedTaskHash.slice(0, 10)}… (${briefPlaintext.length} chars)`);
+      } catch (e) {
+        // Decryption failure means we can't honestly complete the task. Skip
+        // rather than fabricate — the contract's claim-timeout path will
+        // reclaim the poster's escrow when the deadline passes.
+        log(`brief decrypt failed for ${acceptedTaskHash.slice(0, 10)}…: ${e.message}`);
+        return;
+      }
+    } else {
+      log(`no encrypted brief on accept (rootHash=${!!acceptedRootHash} wrappedKey=${!!acceptedWrappedKey}); skipping`);
+      return;
+    }
+
+    // 5. Run the LLM with the decrypted brief as the user prompt. The agent's
+    //    AGENT_INSTRUCTIONS stays as the system prompt so role + output-shape
+    //    constraints carry across every task. resultData is an object so it
+    //    plays well with autoVerify's required_fields / min_length checks.
     log(`working on task ${acceptedTaskHash.slice(0, 10)}…`);
     const { text } = await generateText({
       model: getModel(),
       system: AGENT_INSTRUCTIONS,
-      prompt: `Task: ${acceptedTaskHash}\nCapabilities required: ${category}\n\nProduce a result.`,
+      prompt: briefPlaintext,
       tools: buildTools(),
       maxSteps: 5,
     });
@@ -413,6 +498,10 @@ async function ensureRegisteredAsA2AExecutor() {
       body: JSON.stringify({
         displayName: AGENT_NAME,
         capabilities: agentCapabilities,
+        // Only include publicKey if we actually have one — empty strings would
+        // fail the strict regex on the backend (and break older worker images
+        // that haven't been redeployed yet).
+        ...(AGENT_PUBLIC_KEY ? { publicKey: AGENT_PUBLIC_KEY } : {}),
       }),
     });
     if (res.ok) {

@@ -1,14 +1,32 @@
 /**
- * Browser-side encryption utilities using the Web Crypto API.
+ * Browser-side encryption utilities for BlindMarket.
  *
+ * Byte-compatible with backend/src/services/crypto.ts and sdk/src/crypto.
  * Wire formats:
- *   AES:   [12 IV][ciphertext+16 tag]  (AES-256-GCM, key = 32-byte Uint8Array)
- *   ECIES: [65 ephemeral pubkey][12 IV][ciphertext+16 tag]
- *          (P-256 ECDH; public key = 65-byte hex string, private key = 32-byte hex string)
+ *   AES:   [12 IV][16 tag][ciphertext]   (AES-256-GCM, 32-byte key)
+ *   ECIES: [65 ephemeral pubkey][AES blob]
+ *          (secp256k1 ECDH → HKDF-SHA256("BlindMarket-ECIES-v1") → AES-256-GCM)
+ *
+ * Curve is secp256k1 — matches the agent wallet's pubkey so we can wrap the
+ * AES key directly to an executor's wallet public key with no second keypair.
+ * Web Crypto only natively supports P-256/P-384/P-521, so we use ethers'
+ * SigningKey for the ECDH step and Web Crypto for HKDF + AES-GCM.
  */
 
-function toArrayBuffer(data: Uint8Array): ArrayBuffer {
-  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
+import { SigningKey, Wallet } from 'ethers';
+
+const IV_LENGTH = 12;
+const TAG_LENGTH = 16;
+const KEY_LENGTH = 32;
+const ECIES_PUBKEY_LENGTH = 65;
+const ECIES_HKDF_INFO = new TextEncoder().encode('BlindMarket-ECIES-v1');
+
+// ── helpers ──────────────────────────────────────────────────────
+
+function toArrayBuffer(u: Uint8Array): ArrayBuffer {
+  const ab = new ArrayBuffer(u.byteLength);
+  new Uint8Array(ab).set(u);
+  return ab;
 }
 
 function hexToBytes(hex: string): Uint8Array {
@@ -18,120 +36,149 @@ function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function strip0x(hex: string): string {
+  return hex.startsWith('0x') ? hex.slice(2) : hex;
+}
+
 // ── AES-256-GCM ──────────────────────────────────────────────────
 
 /** Returns a random 32-byte AES key. */
 export function generateAesKey(): Uint8Array {
-  return crypto.getRandomValues(new Uint8Array(32));
-}
-
-export async function aesEncrypt(data: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
-  const cryptoKey = await crypto.subtle.importKey('raw', toArrayBuffer(key), 'AES-GCM', false, ['encrypt']);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, toArrayBuffer(data));
-  const out = new Uint8Array(12 + ct.byteLength);
-  out.set(iv);
-  out.set(new Uint8Array(ct), 12);
-  return out;
-}
-
-export async function aesDecrypt(data: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
-  const cryptoKey = await crypto.subtle.importKey('raw', toArrayBuffer(key), 'AES-GCM', false, ['decrypt']);
-  const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: data.slice(0, 12) },
-    cryptoKey,
-    toArrayBuffer(data.slice(12)),
-  );
-  return new Uint8Array(plaintext);
-}
-
-// ── ECIES (P-256 ECDH + AES-GCM) ─────────────────────────────────
-
-async function importP256Public(raw: Uint8Array): Promise<CryptoKey> {
-  return crypto.subtle.importKey('raw', toArrayBuffer(raw), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  return crypto.getRandomValues(new Uint8Array(KEY_LENGTH));
 }
 
 /**
- * Encrypt data for a recipient identified by their 65-byte uncompressed P-256 public key (hex).
- * Returns the ECIES envelope as Uint8Array.
+ * AES-256-GCM encrypt. Output: [12 IV][16 tag][ciphertext].
+ * Matches backend/SDK byte-for-byte so an executor decoding with the unwrapped
+ * AES key downstream gets the original plaintext.
  */
-export async function eciesEncrypt(data: Uint8Array, recipientPublicKeyHex: string): Promise<Uint8Array> {
-  const recipientPub = await importP256Public(hexToBytes(recipientPublicKeyHex));
-  const ephemeral = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
-  const sharedCryptoKey = await crypto.subtle.deriveKey(
-    { name: 'ECDH', public: recipientPub },
-    ephemeral.privateKey,
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt'],
+export async function aesEncrypt(plaintext: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
+  if (key.byteLength !== KEY_LENGTH) throw new Error(`AES key must be ${KEY_LENGTH} bytes`);
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+  const ck = await crypto.subtle.importKey('raw', toArrayBuffer(key), 'AES-GCM', false, ['encrypt']);
+  // WebCrypto returns [ciphertext || tag]; rewrite to [IV || tag || ciphertext].
+  const wc = new Uint8Array(
+    await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: toArrayBuffer(iv), tagLength: TAG_LENGTH * 8 },
+      ck,
+      toArrayBuffer(plaintext),
+    ),
   );
-  const sharedRaw = new Uint8Array(await crypto.subtle.exportKey('raw', sharedCryptoKey));
-  const ephPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', ephemeral.publicKey)); // 65 bytes
-  const encrypted = await aesEncrypt(data, sharedRaw);
-  const out = new Uint8Array(65 + encrypted.length);
-  out.set(ephPubRaw);
-  out.set(encrypted, 65);
+  const ctLen = wc.length - TAG_LENGTH;
+  const ct = wc.subarray(0, ctLen);
+  const tag = wc.subarray(ctLen);
+  const out = new Uint8Array(IV_LENGTH + TAG_LENGTH + ctLen);
+  out.set(iv, 0);
+  out.set(tag, IV_LENGTH);
+  out.set(ct, IV_LENGTH + TAG_LENGTH);
+  return out;
+}
+
+/** AES-256-GCM decrypt. Input: [12 IV][16 tag][ciphertext]. */
+export async function aesDecrypt(blob: Uint8Array, key: Uint8Array): Promise<Uint8Array> {
+  if (key.byteLength !== KEY_LENGTH) throw new Error(`AES key must be ${KEY_LENGTH} bytes`);
+  if (blob.byteLength < IV_LENGTH + TAG_LENGTH) throw new Error('AES blob too short');
+  const iv = blob.subarray(0, IV_LENGTH);
+  const tag = blob.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
+  const ct = blob.subarray(IV_LENGTH + TAG_LENGTH);
+  // WebCrypto expects [ciphertext || tag] — rewrite from our [IV][tag][ct].
+  const combined = new Uint8Array(ct.length + TAG_LENGTH);
+  combined.set(ct, 0);
+  combined.set(tag, ct.length);
+  const ck = await crypto.subtle.importKey('raw', toArrayBuffer(key), 'AES-GCM', false, ['decrypt']);
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: toArrayBuffer(iv), tagLength: TAG_LENGTH * 8 },
+    ck,
+    toArrayBuffer(combined),
+  );
+  return new Uint8Array(pt);
+}
+
+// ── HKDF-SHA256 ──────────────────────────────────────────────────
+
+async function hkdfSha256(ikm: Uint8Array, length = KEY_LENGTH): Promise<Uint8Array> {
+  const base = await crypto.subtle.importKey('raw', toArrayBuffer(ikm), 'HKDF', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      info: toArrayBuffer(ECIES_HKDF_INFO),
+      salt: toArrayBuffer(new Uint8Array(0)),
+    },
+    base,
+    length * 8,
+  );
+  return new Uint8Array(bits);
+}
+
+// ── ECIES (secp256k1) ────────────────────────────────────────────
+
+/**
+ * Compute the ECDH shared-secret X-coordinate (32 bytes) between a private key
+ * and a peer's secp256k1 public key. Matches the backend's
+ * createECDH('secp256k1').computeSecret() output byte-for-byte (ethers returns
+ * 0x04||X||Y; we slice X).
+ */
+function deriveSharedSecretX(privKeyHex: string, peerPubKeyHex: string): Uint8Array {
+  const sk = new SigningKey('0x' + strip0x(privKeyHex));
+  const shared = sk.computeSharedSecret('0x' + strip0x(peerPubKeyHex));
+  const bytes = hexToBytes(strip0x(shared));
+  if (bytes.byteLength !== ECIES_PUBKEY_LENGTH || bytes[0] !== 0x04) {
+    throw new Error(`Unexpected shared-secret shape (len=${bytes.byteLength})`);
+  }
+  return bytes.subarray(1, 33);
+}
+
+/**
+ * ECIES-secp256k1 encrypt. Wraps `plaintext` to an uncompressed secp256k1
+ * pubkey. Output: [65 ephemeral pubkey][AES blob].
+ *
+ * `recipientPubKeyHex` accepts both `04…` and `0x04…` forms (130 hex chars).
+ */
+export async function eciesEncrypt(plaintext: Uint8Array, recipientPubKeyHex: string): Promise<Uint8Array> {
+  const clean = strip0x(recipientPubKeyHex);
+  if (!/^04[0-9a-fA-F]{128}$/.test(clean)) {
+    throw new Error('eciesEncrypt: pubkey must be uncompressed secp256k1 hex (04 + 128 hex chars)');
+  }
+  const ephemeral = Wallet.createRandom();
+  const shared = deriveSharedSecretX(ephemeral.privateKey, '0x' + clean);
+  const aesKey = await hkdfSha256(shared, KEY_LENGTH);
+  const aesBlob = await aesEncrypt(plaintext, aesKey);
+  const ephPub = hexToBytes(strip0x(ephemeral.signingKey.publicKey));
+  if (ephPub.byteLength !== ECIES_PUBKEY_LENGTH) {
+    throw new Error(`Ephemeral pubkey wrong length (${ephPub.byteLength})`);
+  }
+  const out = new Uint8Array(ECIES_PUBKEY_LENGTH + aesBlob.byteLength);
+  out.set(ephPub, 0);
+  out.set(aesBlob, ECIES_PUBKEY_LENGTH);
   return out;
 }
 
 /**
- * Decrypt an ECIES envelope using the recipient's 32-byte P-256 private key (hex string).
- * Returns the decrypted AES key bytes (or any plaintext).
+ * ECIES-secp256k1 decrypt. Input: [65 ephemeral pubkey][AES blob].
+ * Useful client-side for testing the round-trip; production decryption
+ * happens inside the worker process.
  */
-export async function eciesDecrypt(data: Uint8Array, privateKeyHex: string): Promise<Uint8Array> {
-  const ephPubRaw = data.slice(0, 65);
-  const encrypted = data.slice(65);
-  const ephPub = await importP256Public(ephPubRaw);
-  const dBytes = hexToBytes(privateKeyHex);
-
-  // Build PKCS8 wrapper for the raw 32-byte P-256 private scalar
-  const oidEcPublicKey = [0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01];
-  const oidP256 = [0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07];
-  const ecPrivKey = [0x30, 0x31, 0x02, 0x01, 0x01, 0x04, 0x20, ...dBytes, 0xa0, 0x0a, 0x06, 0x08, ...oidP256];
-  const algId = [0x30, 0x13, 0x06, 0x07, ...oidEcPublicKey, 0x06, 0x08, ...oidP256];
-  const pkcs8Inner = [0x02, 0x01, 0x00, ...algId, 0x04, ecPrivKey.length, ...ecPrivKey];
-  const pkcs8 = [0x30, pkcs8Inner.length, ...pkcs8Inner];
-
-  const privKey = await crypto.subtle.importKey(
-    'pkcs8',
-    new Uint8Array(pkcs8).buffer as ArrayBuffer,
-    { name: 'ECDH', namedCurve: 'P-256' },
-    false,
-    ['deriveKey'],
-  );
-
-  const sharedCryptoKey = await crypto.subtle.deriveKey(
-    { name: 'ECDH', public: ephPub },
-    privKey,
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['decrypt'],
-  );
-  const sharedRaw = new Uint8Array(await crypto.subtle.exportKey('raw', sharedCryptoKey));
-  return aesDecrypt(encrypted, sharedRaw);
-}
-
-export interface KeyPair {
-  publicKeyHex: string;  // 65-byte uncompressed P-256, hex
-  privateKeyHex: string; // 32-byte scalar, hex
-}
-
-export async function generateKeyPair(): Promise<KeyPair> {
-  const pair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveKey']);
-  const pubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
-  const privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey) as JsonWebKey;
-  const privBytes = new Uint8Array(
-    Array.from(atob(privJwk.d!.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0)),
-  );
-  const toHex = (u8: Uint8Array) => Array.from(u8, (b) => b.toString(16).padStart(2, '0')).join('');
-  return { publicKeyHex: toHex(pubRaw), privateKeyHex: toHex(privBytes) };
+export async function eciesDecrypt(blob: Uint8Array, recipientPrivKeyHex: string): Promise<Uint8Array> {
+  if (blob.byteLength < ECIES_PUBKEY_LENGTH + IV_LENGTH + TAG_LENGTH) {
+    throw new Error('ECIES blob too short');
+  }
+  const ephPub = blob.subarray(0, ECIES_PUBKEY_LENGTH);
+  const aesBlob = blob.subarray(ECIES_PUBKEY_LENGTH);
+  const shared = deriveSharedSecretX(recipientPrivKeyHex, '0x' + bytesToHex(ephPub));
+  const aesKey = await hkdfSha256(shared, KEY_LENGTH);
+  return aesDecrypt(aesBlob, aesKey);
 }
 
 // ── SHA-256 ───────────────────────────────────────────────────────
 
 export async function sha256(data: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', toArrayBuffer(data));
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+  return bytesToHex(new Uint8Array(digest));
 }
 
 // ── Byte / text / base64 helpers ─────────────────────────────────
