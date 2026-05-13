@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { useSocket } from '../hooks/useSocket';
+import { useBidWatcher } from '../hooks/useBidWatcher';
 import { API_BASE_URL } from '../config/constants';
 
 interface Task {
@@ -54,6 +55,11 @@ export default function MyTasks() {
     'task:assigned': () => qc.invalidateQueries({ queryKey: ['my-tasks', address] }),
     'task:completed': () => qc.invalidateQueries({ queryKey: ['my-tasks', address] }),
   });
+
+  // Just-in-time wrap loop for tasks posted from this browser. Polls every
+  // task with a stashed AES key for new bidders and ECIES-wraps the key to
+  // them. Active for as long as this page is mounted.
+  useBidWatcher(!!address);
 
   const open = tasks.filter(t => t.status === 0).length;
   const active = tasks.filter(t => t.status === 1 || t.status === 2).length;

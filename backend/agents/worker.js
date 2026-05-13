@@ -110,6 +110,12 @@ if (AGENT_PRIVATE_KEY) {
 // Track tasks we've already applied to or are currently working on
 const appliedTasks = new Set();
 
+// Track tasks where we've already POSTed /bid after a NEEDS_WRAP. Re-bidding
+// is server-side idempotent but pointless — once the poster's frontend sees
+// our bid it'll wrap to us, and the next /accept will pass. Cleared only
+// when the worker process restarts (rare in normal operation).
+const bidPlacedTasks = new Set();
+
 // Exit if parent process disconnects (prevents orphans)
 process.on('disconnect', () => {
   log('parent disconnected, exiting');
@@ -330,7 +336,42 @@ async function pollAndWork() {
       }
       const err = await acceptRes.json().catch(() => ({}));
       log(`accept failed for ${taskHash.slice(0, 10)}…: ${acceptRes.status} ${err.error?.code || ''}`);
-      // Skip-and-continue on common terminal errors; bail on others.
+
+      // NEEDS_WRAP — the task was posted before this agent registered (or
+      // posted with no executors). Register intent via /bid; the poster's
+      // frontend will ECIES-wrap the AES key to us on its next polling
+      // cycle, and a later /accept attempt will succeed. Don't add to
+      // appliedTasks so we retry — but track the bid so we don't spam.
+      if (acceptRes.status === 403 && err.error?.code === 'NEEDS_WRAP') {
+        if (!bidPlacedTasks.has(taskHash)) {
+          try {
+            const bidRes = await fetch(`${BACKEND_URL}/api/v1/a2a/tasks/${taskHash}/bid`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}`,
+              },
+            });
+            if (bidRes.ok) {
+              bidPlacedTasks.add(taskHash);
+              log(`bid registered on ${taskHash.slice(0, 10)}… — awaiting wrap`);
+            } else {
+              const bidErr = await bidRes.json().catch(() => ({}));
+              log(`bid failed for ${taskHash.slice(0, 10)}…: ${bidRes.status} ${bidErr.error?.code || ''}`);
+              // CAPABILITY_MISMATCH / NOT_REGISTERED / NO_PUBKEY from /bid
+              // are terminal for us — stop retrying.
+              if (bidRes.status === 403 || bidRes.status === 400) {
+                appliedTasks.add(taskHash);
+              }
+            }
+          } catch (bidErr) {
+            log(`bid network error for ${taskHash.slice(0, 10)}…: ${bidErr.message || bidErr}`);
+          }
+        }
+        continue;
+      }
+
+      // Skip-and-continue on other 403/409s; bail on transient (5xx) errors.
       if (acceptRes.status === 403 || acceptRes.status === 409) {
         appliedTasks.add(taskHash);
         continue;

@@ -6,6 +6,7 @@ import { BrowserProvider, Contract, parseUnits, formatUnits } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule } from '../components/bb';
 import { MintTestTokensCard } from '../components/MintTestTokensCard';
 import { aesEncrypt, eciesEncrypt, generateAesKey, sha256, toBase64, toBytes } from '../lib/crypto';
+import { stashAesKey } from '../lib/keyStash';
 import { signAndSendTx } from '../lib/txSigner';
 import { authedGet, authedPost } from '../lib/api';
 import { trackEvent } from '../hooks/useAnalytics';
@@ -95,6 +96,11 @@ export default function PostTask() {
   const [error, setError] = useState('');
   const [taskId, setTaskId] = useState<string | null>(null);
   const [requiredCaps, setRequiredCaps] = useState<string[]>([]);
+  // Snapshot of how many executors the AES key was wrapped to at post time.
+  // Drives the post-success copy: a non-zero count means at least one agent
+  // can /accept immediately; zero means the task is awaiting bids and the
+  // poster has to revisit /my_tasks for useBidWatcher() to ship slices.
+  const [initialWrapCount, setInitialWrapCount] = useState<number>(0);
 
   const toggleCap = (cap: string) =>
     setRequiredCaps(prev => (prev.includes(cap) ? prev.filter(c => c !== cap) : [...prev, cap]));
@@ -163,10 +169,12 @@ export default function PostTask() {
         throw new Error(`Failed to check/approve tokens: ${err.message || 'Unknown error'}. Is the token address ${TOKEN} correct for this network?`);
       }
 
-      // 1. Discover eligible executors BEFORE encrypting — if no agent matches
-      //    the required caps, the task would be uncompletable. Fail fast with
-      //    a clear UX message instead of letting the user spend gas on an
-      //    escrow nobody can claim.
+      // 1. Discover eligible executors so we can wrap the AES key to anyone
+      //    who's *already* registered. Zero matches is OK now — the task
+      //    posts with an empty wrappedKeys map, the AES key persists in this
+      //    browser's localStorage, and useBidWatcher() wraps to new agents
+      //    as they /bid. Trade-off: poster must revisit /my_tasks (or stay
+      //    on /a2a) for the wrap to happen. Documented in PITCH.md.
       console.log('[PostTask] Looking up matching executors...');
       const capsQS = encodeURIComponent(requiredCaps.join(','));
       const execResp = await authedGet<{
@@ -174,13 +182,7 @@ export default function PostTask() {
         data: { executors: Array<{ address: string; publicKey: string; capabilities: string[]; reputation: number }> };
       }>(`/api/v1/a2a/executors?capabilities=${capsQS}`, token);
       const executors = execResp.data?.executors ?? [];
-      if (executors.length === 0) {
-        throw new Error(
-          `No registered agent has any of: ${requiredCaps.join(', ')}. ` +
-          `Deploy an agent with one of these capabilities first, or pick different caps.`,
-        );
-      }
-      console.log(`[PostTask] ${executors.length} matching executor(s) found`);
+      console.log(`[PostTask] ${executors.length} matching executor(s) found at post time`);
 
       // 2. Encrypt instructions browser-side
       setStatus('encrypting');
@@ -203,11 +205,17 @@ export default function PostTask() {
       if (!rootHash) throw new Error('Storage upload returned no rootHash');
       console.log(`[PostTask] Encrypted blob uploaded — rootHash ${rootHash.slice(0, 12)}…`);
 
-      // 4. ECIES-wrap the AES key to each matching executor's pubkey. The
+      // 4. ECIES-wrap the AES key to every currently-matching executor. The
       //    backend stores this bundle so /accept can return the slice the
       //    accepting executor needs — and only that slice — for decryption.
       //    The marketplace never sees the AES key in plaintext: privacy
       //    invariant from PITCH.md preserved.
+      //
+      //    If zero executors match (or all wraps fail), wrappedKeys is empty
+      //    and the task posts as "awaiting bids" — useBidWatcher() will wrap
+      //    to new bidders as they /bid. We stash the AES key locally first
+      //    so the watcher has something to wrap *with* on the next tick.
+      stashAesKey(taskHash, key);
       const wrappedKeys: Record<string, string> = {};
       for (const exec of executors) {
         try {
@@ -220,10 +228,10 @@ export default function PostTask() {
           console.warn(`[PostTask] Skipped ${exec.address} (wrap failed):`, (e as Error).message);
         }
       }
-      if (Object.keys(wrappedKeys).length === 0) {
-        throw new Error('Could not wrap the AES key to any executor (all pubkeys malformed). Refresh and try again.');
-      }
-      console.log(`[PostTask] AES key wrapped to ${Object.keys(wrappedKeys).length} executor(s)`);
+      console.log(
+        `[PostTask] AES key wrapped to ${Object.keys(wrappedKeys).length}/${executors.length} executor(s); ` +
+        `stashed locally for post-hoc bidders`,
+      );
 
       // 5. Compute duration (seconds from now) from the chosen deadline.
       //    Re-evaluate at submit time so the value is accurate even if the
@@ -268,6 +276,7 @@ export default function PostTask() {
       console.log('[PostTask] Task creation confirmed.');
 
       setTaskId(taskJson.taskId ?? null);
+      setInitialWrapCount(Object.keys(wrappedKeys).length);
       setStatus('done');
       trackEvent('task_posted', {
         taskId: taskJson.taskId ?? null,
@@ -298,11 +307,23 @@ export default function PostTask() {
           <div className="text-xs font-mono text-green-400 uppercase tracking-widest">✓ task posted</div>
           {taskId && <div className="text-xs font-mono text-ink-3">task #{taskId}</div>}
           <div className="text-xs font-mono text-ink-3">instructions encrypted · payment locked in escrow</div>
+          {initialWrapCount > 0 ? (
+            <div className="text-[11px] font-mono text-ink-3">
+              wrapped to {initialWrapCount} matching agent{initialWrapCount === 1 ? '' : 's'} — pickup imminent.
+            </div>
+          ) : (
+            <div className="border border-warn/40 bg-warn/5 px-4 py-3 text-[11px] font-mono text-warn leading-relaxed text-left">
+              <span className="uppercase tracking-widest">awaiting bids · </span>
+              no agent with matching capabilities is registered yet. Your AES key is stashed in this browser;
+              keep <code className="text-cream">my tasks</code> open and we'll wrap to bidders as they appear.
+              Closing the tab pauses wrapping — reopen to resume.
+            </div>
+          )}
           <button
-            onClick={() => navigate('/tasks')}
+            onClick={() => navigate('/tasks/mine')}
             className="mt-4 px-4 py-2 border border-line text-xs font-mono text-cream hover:bg-surface-2"
           >
-            view task feed →
+            view my tasks →
           </button>
         </div>
       ) : (

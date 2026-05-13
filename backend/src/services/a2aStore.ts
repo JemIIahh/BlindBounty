@@ -51,6 +51,29 @@ export async function getMeta(taskId: string): Promise<A2ATaskMeta | undefined> 
 }
 
 /**
+ * Merge additional ECIES-wrapped keys into the task's meta. Used by the
+ * just-in-time wrap flow: poster's frontend wakes up when a new agent bids,
+ * wraps the AES key to that bidder's pubkey, and POSTs the slice here.
+ * Existing entries are preserved (so bidders previously wrapped to don't
+ * lose their slice). Addresses are lowercased to match accept-time lookup.
+ */
+export async function mergeWrappedKeys(
+  taskId: string,
+  additions: Record<string, string>,
+): Promise<A2ATaskMeta | undefined> {
+  const raw = await redis.get(KEY.meta(taskId));
+  if (!raw) return undefined;
+  const meta = JSON.parse(raw) as A2ATaskMeta;
+  const merged = { ...(meta.wrappedKeys ?? {}) };
+  for (const [addr, blob] of Object.entries(additions)) {
+    merged[addr.toLowerCase()] = blob;
+  }
+  meta.wrappedKeys = merged;
+  await redis.set(KEY.meta(taskId), JSON.stringify(meta));
+  return meta;
+}
+
+/**
  * Batch-check which taskHashes have A2A meta entries. Returns a Set of hashes
  * (lowercased) that ARE indexed. Used by the tasks list to flag stranded tasks
  * — on-chain tasks created before the current A2A code path was wired up have

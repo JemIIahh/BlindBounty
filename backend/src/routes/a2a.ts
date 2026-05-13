@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { AppError } from '../middleware/errorHandler.js';
 import * as agentStore from '../services/agentStore.js';
 import * as a2aStore from '../services/a2aStore.js';
+import * as bidsStore from '../services/bidsStore.js';
 import { autoVerify } from '../services/autoVerify.js';
 import { settleAssignment, settleVerification } from '../services/a2aSettlement.js';
 import { getTaskIdByHash } from '../services/escrowEvents.js';
@@ -39,6 +40,21 @@ const submitSchema = z.object({
 const verifySchema = z.object({
   passed: z.boolean(),
   reasons: z.array(z.string()).max(20).optional(),
+});
+
+// POST /tasks/:id/wrap-to — poster pushes ECIES-wrapped AES slices to new
+// bidders that registered after the task was posted. Address keys are EOA
+// 0x-prefixed; values are the same hex wrapped-blob format used at task
+// creation (no 0x prefix). Bounded so a buggy client can't dump megabytes.
+const wrapToSchema = z.object({
+  wrappedKeys: z
+    .record(
+      z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'wrappedKeys address must be 0x-prefixed EOA hex'),
+      z.string().regex(/^[0-9a-fA-F]+$/, 'wrappedKeys value must be hex (no 0x prefix)').min(2).max(8192),
+    )
+    .refine((m) => Object.keys(m).length > 0 && Object.keys(m).length <= 50, {
+      message: 'wrap-to batch must include 1..50 entries',
+    }),
 });
 
 /**
@@ -175,6 +191,20 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
       }
     }
 
+    // NEEDS_WRAP gate — refuse BEFORE the CAS so the open→accepted transition
+    // isn't burned on a caller who can't actually decrypt the brief. The
+    // poster's frontend will see this agent's bid (if it bid first) and wrap
+    // the AES key to it; once meta.wrappedKeys[addr] is populated, the next
+    // accept attempt sails through. Skipping this check for tasks without a
+    // rootHash (legacy / unencrypted) keeps the back-compat path open.
+    if (meta.rootHash && !meta.wrappedKeys?.[address.toLowerCase()]) {
+      throw new AppError(
+        403,
+        'NEEDS_WRAP',
+        'Task brief is not yet wrapped to your pubkey — POST /a2a/tasks/:id/bid to register intent; the poster will wrap on their next polling cycle.',
+      );
+    }
+
     // Atomic open→accepted via a Lua CAS. Two concurrent /accept requests can
     // both pass an open-state read, so we serialise the transition itself on
     // the Redis server. Loser gets 409, no on-chain side effect — preserves
@@ -210,6 +240,153 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
         status: 'accepted',
         rootHash: meta.rootHash,
         wrappedKey,
+      },
+    };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/v1/a2a/tasks/:id/bid
+ *
+ * An executor registers intent to take a task whose brief hasn't been wrapped
+ * to them yet (e.g. they registered after the task was posted). Idempotent —
+ * re-bidding from the same address just refreshes the bidAt timestamp.
+ *
+ * Capability gate matches /accept (ANY-of). Bids on tasks the agent couldn't
+ * accept anyway are rejected at intent time so the poster's wrap step doesn't
+ * burn cycles wrapping to executors who can't legally accept.
+ */
+a2aRouter.post('/tasks/:id/bid', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = req.params.id as string;
+    const address = req.user!.address;
+
+    const meta = await a2aStore.getMeta(taskId);
+    if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
+
+    const agent = await agentStore.getAgent(address);
+    if (!agent) {
+      throw new AppError(403, 'NOT_REGISTERED', 'Register as an agent executor first');
+    }
+    if (!agent.publicKey) {
+      throw new AppError(
+        400,
+        'NO_PUBKEY',
+        'Your executor registration has no publicKey — re-register so posters can wrap to you',
+      );
+    }
+    if (meta.requiredCapabilities.length > 0) {
+      const hasAny = meta.requiredCapabilities.some((c) => agent.capabilities.includes(c));
+      if (!hasAny) {
+        throw new AppError(
+          403,
+          'CAPABILITY_MISMATCH',
+          `Need at least one of: ${meta.requiredCapabilities.join(', ')}`,
+        );
+      }
+    }
+
+    // If we already have a wrap for this address, the bid is moot — let the
+    // caller try /accept directly instead of round-tripping via the poster.
+    if (meta.wrappedKeys?.[address.toLowerCase()]) {
+      const body: ApiResponse = {
+        success: true,
+        data: { taskId, status: 'already_wrapped' },
+      };
+      res.json(body);
+      return;
+    }
+
+    await bidsStore.addBid(taskId, {
+      address: address.toLowerCase(),
+      publicKey: agent.publicKey,
+      capabilities: agent.capabilities,
+      bidAt: new Date().toISOString(),
+    });
+
+    const body: ApiResponse = {
+      success: true,
+      data: { taskId, status: 'bid_received' },
+    };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/v1/a2a/tasks/:id/bids
+ *
+ * Poster reads pending bids on their own task. Returns the bid set plus the
+ * set of addresses already wrapped, so the frontend can compute the delta
+ * (bidders missing a wrapped key) without a second round-trip.
+ *
+ * Gated to the poster — the bid list isn't sensitive but it's not useful to
+ * anyone else, and gating keeps it out of the public discovery surface.
+ */
+a2aRouter.get('/tasks/:id/bids', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = req.params.id as string;
+    const address = req.user!.address;
+
+    const meta = await a2aStore.getMeta(taskId);
+    if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
+    if (!meta.posterAddress || meta.posterAddress.toLowerCase() !== address.toLowerCase()) {
+      throw new AppError(403, 'NOT_POSTER', 'Only the task poster can read its bid list');
+    }
+
+    const bids = await bidsStore.listBids(taskId);
+    const wrapped = Object.keys(meta.wrappedKeys ?? {});
+
+    const body: ApiResponse = {
+      success: true,
+      data: { taskId, bids, wrapped },
+    };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/v1/a2a/tasks/:id/wrap-to
+ *
+ * Poster pushes ECIES-wrapped AES slices to bidders that registered after
+ * the task was posted. The AES key never leaves the poster's runtime in
+ * plaintext — the backend only ever sees opaque hex blobs.
+ *
+ * Merges into meta.wrappedKeys (existing slices preserved). Drops the bid
+ * records for addresses that got wrapped so the next /bids poll only
+ * surfaces still-pending bidders.
+ */
+a2aRouter.post('/tasks/:id/wrap-to', requireAuth, async (req: AuthRequest, res, next) => {
+  try {
+    const taskId = req.params.id as string;
+    const address = req.user!.address;
+    const data = wrapToSchema.parse(req.body);
+
+    const meta = await a2aStore.getMeta(taskId);
+    if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
+    if (!meta.posterAddress || meta.posterAddress.toLowerCase() !== address.toLowerCase()) {
+      throw new AppError(403, 'NOT_POSTER', 'Only the task poster can wrap new slices');
+    }
+
+    const updated = await a2aStore.mergeWrappedKeys(taskId, data.wrappedKeys);
+    if (!updated) throw new AppError(404, 'NOT_FOUND', 'Task meta vanished mid-update');
+
+    // Stale bid records are harmless — the wrap is what actually unlocks
+    // /accept. /bids returns `wrapped[]` alongside `bids[]` so the frontend
+    // can filter without a server-side cleanup.
+
+    const body: ApiResponse = {
+      success: true,
+      data: {
+        taskId,
+        totalWrapped: Object.keys(updated.wrappedKeys ?? {}).length,
+        added: Object.keys(data.wrappedKeys).length,
       },
     };
     res.json(body);
