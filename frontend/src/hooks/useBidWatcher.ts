@@ -64,9 +64,11 @@ export function useBidWatcher(enabled: boolean): void {
           const key = getAesKey(taskHash);
           if (!key) continue;
 
-          let resp: { success: boolean; data: BidsResp };
+          let resp: BidsResp;
           try {
-            resp = await authedGet<{ success: boolean; data: BidsResp }>(
+            // authedGet unwraps to `body.data` (see api.ts:23) — type T as the
+            // inner payload, not the {success, data} envelope.
+            resp = await authedGet<BidsResp>(
               `/api/v1/a2a/tasks/${taskHash}/bids`,
             );
           } catch (e: any) {
@@ -79,8 +81,8 @@ export function useBidWatcher(enabled: boolean): void {
             continue;
           }
 
-          const bids = resp.data?.bids ?? [];
-          const wrappedSet = new Set((resp.data?.wrapped ?? []).map((a) => a.toLowerCase()));
+          const bids = resp.bids ?? [];
+          const wrappedSet = new Set((resp.wrapped ?? []).map((a) => a.toLowerCase()));
           const pending = bids.filter((b) => !wrappedSet.has(b.address.toLowerCase()));
           if (pending.length === 0) continue;
 

@@ -177,11 +177,12 @@ export default function PostTask() {
       //    on /a2a) for the wrap to happen. Documented in PITCH.md.
       console.log('[PostTask] Looking up matching executors...');
       const capsQS = encodeURIComponent(requiredCaps.join(','));
+      // authedGet unwraps to `body.data` (see api.ts:23), so T is the inner
+      // payload — not the {success, data} envelope.
       const execResp = await authedGet<{
-        success: boolean;
-        data: { executors: Array<{ address: string; publicKey: string; capabilities: string[]; reputation: number }> };
+        executors: Array<{ address: string; publicKey: string; capabilities: string[]; reputation: number }>;
       }>(`/api/v1/a2a/executors?capabilities=${capsQS}`, token);
-      const executors = execResp.data?.executors ?? [];
+      const executors = execResp.executors ?? [];
       console.log(`[PostTask] ${executors.length} matching executor(s) found at post time`);
 
       // 2. Encrypt instructions browser-side
@@ -196,12 +197,12 @@ export default function PostTask() {
       // 3. Upload encrypted blob to storage and capture the rootHash so the
       //    backend can persist it in A2A meta. Without rootHash the executor
       //    has no pointer to fetch the encrypted blob.
-      const uploadResp = await authedPost<{ success: boolean; data: { rootHash: string; txHash?: string } }>(
+      const uploadResp = await authedPost<{ rootHash: string; txHash?: string }>(
         '/api/v1/storage/upload',
         { data: blob },
         token,
       );
-      const rootHash = uploadResp.data?.rootHash;
+      const rootHash = uploadResp.rootHash;
       if (!rootHash) throw new Error('Storage upload returned no rootHash');
       console.log(`[PostTask] Encrypted blob uploaded — rootHash ${rootHash.slice(0, 12)}…`);
 
