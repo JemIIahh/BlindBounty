@@ -148,7 +148,7 @@ function buildTools() {
   // Built-in: A2A delegation
   tools.delegate_to_agent = tool({
     description: 'Delegate a sub-task to another agent on the marketplace. Returns the result when the agent completes it.',
-    parameters: z.object({
+    inputSchema: z.object({
       taskDescription: z.string().describe('What the agent should do'),
       requiredCapabilities: z.array(z.string()).describe('Required agent capabilities (e.g., ["web_research", "summarization"])'),
     }),
@@ -195,7 +195,7 @@ function buildTools() {
     if (t.type === 'http') {
       tools[t.name] = tool({
         description: t.description,
-        parameters: z.object({ input: z.string() }),
+        inputSchema: z.object({ input: z.string() }),
         execute: async ({ input }) => {
           try {
             const url = t.url.replace(/\{(\w+)\}/g, () => encodeURIComponent(input));
@@ -214,7 +214,7 @@ function buildTools() {
     } else if (t.type === 'mcp') {
       tools[t.name] = tool({
         description: t.description,
-        parameters: z.object({ input: z.string() }),
+        inputSchema: z.object({ input: z.string() }),
         execute: async ({ input }) => {
           try {
             const res = await fetch(t.endpointUrl, {
@@ -231,7 +231,7 @@ function buildTools() {
     } else if (t.type === 'js') {
       tools[t.name] = tool({
         description: t.description,
-        parameters: z.object({ input: z.string() }),
+        inputSchema: z.object({ input: z.string() }),
         execute: async ({ input }) => {
           try {
             const fn = runInNewContext(`(function(input) { ${t.code} })`, { console }, { timeout: 5000 });
