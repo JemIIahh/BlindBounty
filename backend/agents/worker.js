@@ -25,6 +25,9 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createGroq } from '@ai-sdk/groq';
 import { z } from 'zod';
 import { createHash, randomBytes, createECDH, createDecipheriv, hkdfSync } from 'crypto';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname as pathDirname, join as pathJoin } from 'path';
 import { runInNewContext } from 'vm';
 import { ethers } from 'ethers';
 
@@ -105,6 +108,83 @@ if (AGENT_PRIVATE_KEY) {
   } catch (e) {
     console.error(`[agent:${(process.env.AGENT_ID ?? '').slice(0, 8)}] failed to init signer: ${e.message}`);
   }
+}
+
+// BlindEscrow Interface — used to decode custom-error reverts returned by
+// signerWallet.sendTransaction. Without it, ethers prints "unknown custom
+// error" because we send raw unsignedSubmitEvidence txs that have no local
+// contract instance / ABI attached. Loaded best-effort: if the file moves or
+// JSON parse fails, we just fall back to the raw shortMessage in catch blocks.
+let escrowIface = null;
+try {
+  const abiPath = pathJoin(
+    pathDirname(fileURLToPath(import.meta.url)),
+    '..',
+    'src',
+    'abi',
+    'BlindEscrow.json',
+  );
+  escrowIface = new ethers.Interface(JSON.parse(readFileSync(abiPath, 'utf-8')));
+} catch (e) {
+  console.warn(`[agent] could not load BlindEscrow ABI for revert decoding: ${e.message}`);
+}
+
+// TaskStatus enum mirror from BlindEscrow.sol. Used to render InvalidStatus
+// args as human-readable names instead of raw uint8s. Order must match the
+// Solidity enum — if you reorder the contract enum, update this too.
+const TASK_STATUS = ['Funded', 'Assigned', 'Submitted', 'Verified', 'Completed', 'Cancelled', 'Disputed'];
+
+/**
+ * Try to decode a CALL_EXCEPTION-style error's revert data against the
+ * BlindEscrow ABI. Returns { name, args } or null if no match. ethers v6 puts
+ * the data on `err.data`, but some provider chains nest it under
+ * `err.info.error.data` or `err.error.data`, so we probe all three.
+ */
+function decodeEscrowRevert(err) {
+  if (!escrowIface) return null;
+  const data = err?.data ?? err?.info?.error?.data ?? err?.error?.data;
+  if (typeof data !== 'string' || !data.startsWith('0x') || data.length < 10) return null;
+  try {
+    const parsed = escrowIface.parseError(data);
+    if (!parsed) return null;
+    return { name: parsed.name, args: parsed.args };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Render a decoded error as a one-line label for the log. For InvalidStatus
+ * we expand both enum args (current, required) so the message is actionable
+ * without needing to cross-reference the contract.
+ */
+function formatRevert(err) {
+  const decoded = decodeEscrowRevert(err);
+  if (!decoded) return err.shortMessage ?? err.message ?? String(err);
+  if (decoded.name === 'InvalidStatus') {
+    const cur = TASK_STATUS[Number(decoded.args[0])] ?? `enum=${decoded.args[0]}`;
+    const req = TASK_STATUS[Number(decoded.args[1])] ?? `enum=${decoded.args[1]}`;
+    return `InvalidStatus(current=${cur}, required=${req})`;
+  }
+  return `${decoded.name}()`;
+}
+
+/**
+ * NotWorker and InvalidStatus(Funded, Assigned) both indicate the bridge's
+ * marketplaceAssign tx hasn't confirmed yet — the contract still has
+ * t.worker == address(0) and t.status == Funded. Both clear once the
+ * assignment mines, so it's worth a couple of retries before giving up.
+ * Everything else (DeadlineReached, EmptyHash, paused, …) is permanent.
+ */
+function isTransientAssignmentRevert(err) {
+  const decoded = decodeEscrowRevert(err);
+  if (!decoded) return false;
+  if (decoded.name === 'NotWorker') return true;
+  if (decoded.name === 'InvalidStatus') {
+    const cur = Number(decoded.args[0]);
+    return cur === 0; // Funded — assignment not yet recorded on chain
+  }
+  return false;
 }
 
 // Track tasks we've already applied to or are currently working on
@@ -474,15 +554,35 @@ async function pollAndWork() {
       log(`cannot broadcast submitEvidence: signer not initialised (missing AGENT_PRIVATE_KEY)`);
       return;
     }
-    try {
-      const sent = await signerWallet.sendTransaction(unsignedSubmitEvidence);
-      log(`submitEvidence broadcast for ${acceptedTaskHash.slice(0, 10)}…: ${sent.hash}`);
-      const receipt = await sent.wait();
-      log(`submitEvidence confirmed for ${acceptedTaskHash.slice(0, 10)}…: block=${receipt?.blockNumber} status=${receipt?.status}`);
-    } catch (e) {
-      log(`submitEvidence broadcast failed for ${acceptedTaskHash.slice(0, 10)}…: ${e.shortMessage ?? e.message}`);
-      return;
+    // Retry on transient assignment reverts. ethers' sendTransaction does a
+    // pre-broadcast eth_call, so a revert surfaces immediately without
+    // burning gas — we just sleep one 0G block (~6s) and try again. Cap is
+    // small because if marketplaceAssign is genuinely broken (signer out of
+    // funds, waitForTaskId timed out), no amount of polling will fix it; the
+    // decoded error in the final log line will tell us which.
+    const MAX_SUBMIT_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 6_000;
+    let broadcastOk = false;
+    for (let attempt = 1; attempt <= MAX_SUBMIT_ATTEMPTS; attempt++) {
+      try {
+        const sent = await signerWallet.sendTransaction(unsignedSubmitEvidence);
+        log(`submitEvidence broadcast for ${acceptedTaskHash.slice(0, 10)}…: ${sent.hash}`);
+        const receipt = await sent.wait();
+        log(`submitEvidence confirmed for ${acceptedTaskHash.slice(0, 10)}…: block=${receipt?.blockNumber} status=${receipt?.status}`);
+        broadcastOk = true;
+        break;
+      } catch (e) {
+        const label = formatRevert(e);
+        if (isTransientAssignmentRevert(e) && attempt < MAX_SUBMIT_ATTEMPTS) {
+          log(`submitEvidence attempt ${attempt}/${MAX_SUBMIT_ATTEMPTS} for ${acceptedTaskHash.slice(0, 10)}…: ${label} — on-chain assignment not confirmed yet, retrying in ${RETRY_DELAY_MS / 1000}s`);
+          await sleep(RETRY_DELAY_MS);
+          continue;
+        }
+        log(`submitEvidence broadcast failed for ${acceptedTaskHash.slice(0, 10)}… after ${attempt} attempt(s): ${label}`);
+        return;
+      }
     }
+    if (!broadcastOk) return;
 
     // 7. Finalize — tells the backend to run autoVerify (auto mode) or hand
     //    off to manual approval (manual mode). For auto, the bridge then fires
