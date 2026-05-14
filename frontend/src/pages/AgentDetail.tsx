@@ -233,7 +233,13 @@ export default function AgentDetail() {
           </button>
           {topUpStatus === 'error' && <span className="text-red-400">{topUpError}</span>}
 
-          {agent.status === 'stopped' && (
+          {/* 0G recovery — show whenever the agent isn't actively running.
+              Paused agents have their child process killed and aren't polling
+              for new tasks, so they're safe to sweep too. The backend's
+              /recover-funds endpoint enforces the same `!= running` rule, so
+              this gate just matches it instead of being stricter for no
+              reason. */}
+          {agent.status !== 'running' && (
             <button
               onClick={handleRecoverFunds}
               disabled={recoverStatus === 'sending' || balanceEther < 0.0015}
@@ -248,10 +254,11 @@ export default function AgentDetail() {
           )}
           {recoverStatus === 'error' && <span className="text-red-400">{recoverError}</span>}
 
-          {/* USDC withdrawal — only when stopped, same race-condition reason
-              as the 0G recovery. Available even when 0G balance is low, as
-              long as it's enough to pay for one ERC20 transfer (~50k gas). */}
-          {agent.status === 'stopped' && parseFloat(agent.totalEarned ?? '0') > 0 && (
+          {/* USDC withdrawal — same `!= running` rule, with the additional
+              guard that the agent must have actually earned something. The
+              backend separately rejects the sweep with NO_GAS if the wallet
+              can't afford the ERC20 transfer's own gas (~50k). */}
+          {agent.status !== 'running' && parseFloat(agent.totalEarned ?? '0') > 0 && (
             <button
               onClick={handleSweepToken}
               disabled={sweepStatus === 'sending' || balanceEther < 0.0002}

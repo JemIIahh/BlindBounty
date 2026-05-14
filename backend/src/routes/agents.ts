@@ -375,11 +375,22 @@ agentsRouter.get('/:id', async (req, res) => {
   });
 });
 
+// Build the same enriched DTO the GET /:id endpoint returns. Used by
+// start/pause/stop so their action responses don't drop tasksCompleted +
+// totalEarned (the frontend's setAgent overwrites cached state with the
+// action response — without enrichment the earnings display resets to $0
+// even though Redis is fine; refreshing the page would restore it).
+async function buildActionResponse(id: string) {
+  const stripped = strip(await getAgent(id));
+  if (!stripped) return null;
+  return await withExecutorStats(stripped);
+}
+
 // POST /api/v1/agents/:id/start
 agentsRouter.post('/:id/start', async (req, res) => {
   try {
     await startAgent(req.params.id);
-    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
+    res.json({ success: true, data: await buildActionResponse(req.params.id) });
   } catch (e: unknown) {
     res.status(400).json({
       success: false,
@@ -392,7 +403,7 @@ agentsRouter.post('/:id/start', async (req, res) => {
 agentsRouter.post('/:id/pause', async (req, res) => {
   try {
     await pauseAgent(req.params.id);
-    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
+    res.json({ success: true, data: await buildActionResponse(req.params.id) });
   } catch (e: unknown) {
     res.status(400).json({
       success: false,
@@ -405,7 +416,7 @@ agentsRouter.post('/:id/pause', async (req, res) => {
 agentsRouter.post('/:id/stop', async (req, res) => {
   try {
     await stopAgent(req.params.id);
-    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
+    res.json({ success: true, data: await buildActionResponse(req.params.id) });
   } catch (e: unknown) {
     res.status(400).json({
       success: false,
