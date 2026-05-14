@@ -165,19 +165,16 @@ export default function MyTasks() {
               const status = effectiveStatus(t);
               const isDone = status === 3 || status === 4 || status === 6;
               const hasResult = !!t.state.resultData;
-              return (
-                <div key={t.meta.taskId} className="bg-bg p-5 flex flex-col gap-3 min-h-[200px]">
-                  {/* Top row — id + status */}
+              const taskUrl = t.onChain ? `/tasks/${t.onChain.taskId}` : null;
+              const cardClass = `bg-bg p-5 flex flex-col gap-3 min-h-[200px] ${taskUrl ? 'group hover:bg-surface-2 transition-colors cursor-pointer' : ''}`;
+              const cardContent = (
+                <>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-mono text-ink-3">{shortId(t)}</span>
                     <Tag tone={STATUS_TONE[status] ?? 'neutral'}>{STATUS_LABELS[status] ?? 'unknown'}</Tag>
                   </div>
-
-                  {/* Title / metadata */}
                   <div className="flex-1">
-                    <div className="text-sm font-mono text-ink break-all">
-                      {t.meta.taskId.slice(0, 18)}…
-                    </div>
+                    <div className="text-sm font-mono text-ink break-all">{t.meta.taskId.slice(0, 18)}…</div>
                     <div className="text-[11px] font-mono text-ink-3 mt-0.5">
                       {t.meta.verificationMode} verify · {t.meta.targetExecutorType}
                     </div>
@@ -196,8 +193,6 @@ export default function MyTasks() {
                       </div>
                     )}
                   </div>
-
-                  {/* Bottom row — reward + worker */}
                   <div className="pt-3 border-t border-line flex items-end justify-between">
                     <div>
                       <div className="text-lg font-mono font-semibold text-cream leading-none">
@@ -207,16 +202,13 @@ export default function MyTasks() {
                         {workerLabel(t)}
                       </div>
                     </div>
+                    {taskUrl && <span className="text-[11px] font-mono text-ink-3 group-hover:text-cream transition-colors">view →</span>}
                   </div>
-
-                  {/* Result viewer — only shown once the agent has submitted
-                      work. Uses native <details> so there's no extra React
-                      state needed and each card collapses independently. */}
                   {(hasResult || isDone) && (
-                    <details className="mt-1 border-t border-line pt-3 group">
+                    <details className="mt-1 border-t border-line pt-3 group/details" onClick={e => e.preventDefault()}>
                       <summary className="flex items-center justify-between cursor-pointer text-[11px] font-mono uppercase tracking-widest text-ink-3 hover:text-cream transition-colors list-none">
                         <span>view result</span>
-                        <span className="group-open:rotate-90 transition-transform">▸</span>
+                        <span className="group-open/details:rotate-90 transition-transform">▸</span>
                       </summary>
                       {hasResult ? (
                         <pre className="mt-3 max-h-72 overflow-auto bg-surface-2 border border-line p-3 text-[11px] font-mono text-ink leading-relaxed whitespace-pre-wrap break-words">
@@ -224,12 +216,17 @@ export default function MyTasks() {
                         </pre>
                       ) : (
                         <div className="mt-3 text-[11px] font-mono text-ink-3 leading-relaxed">
-                          no result data on file — task settled on chain but the off-chain payload wasn't recorded (likely a legacy task posted before the encrypted-result pipeline).
+                          no result data on file.
                         </div>
                       )}
                     </details>
                   )}
-                </div>
+                </>
+              );
+              return taskUrl ? (
+                <Link key={t.meta.taskId} to={taskUrl} className={cardClass}>{cardContent}</Link>
+              ) : (
+                <div key={t.meta.taskId} className={cardClass}>{cardContent}</div>
               );
             })}
           </div>
