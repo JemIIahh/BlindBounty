@@ -51,6 +51,36 @@ export interface OnChainTask {
   // False means no agent can see it on /a2a/tasks — typically a task created
   // before the current code path was wired up.
   a2aIndexed?: boolean;
+  // Enriched A2A data from backend
+  a2aState?: A2ATaskState;
+  a2aMeta?: A2ATaskMeta;
+}
+
+/** A2A State tracked in Redis */
+export interface A2ATaskState {
+  taskId: string;
+  status: 'open' | 'accepted' | 'in_progress' | 'submitted' | 'verified' | 'failed' | 'cancelled';
+  executorAddress?: string;
+  acceptedAt?: string;
+  submittedAt?: string;
+  resultData?: Record<string, any> | null;
+  verificationResult?: {
+    passed: boolean;
+    reasons: string[];
+  };
+  assignTxHash?: string;
+  verifyTxHash?: string;
+}
+
+/** A2A Metadata tracked in Redis */
+export interface A2ATaskMeta {
+  taskId: string;
+  targetExecutorType: 'agent' | 'human';
+  verificationMode: 'manual' | 'auto' | 'oracle';
+  verificationCriteria: Record<string, any>;
+  requiredCapabilities: string[];
+  posterAddress?: string;
+  rootHash?: string;
 }
 
 /** Task metadata from TaskRegistry */
@@ -64,6 +94,7 @@ export interface TaskMeta {
   isOpen: boolean;
   rootHash?: string;
   requiredCapabilities?: string[];
+  decimals?: number;
 }
 
 /** Reputation from BlindReputation */

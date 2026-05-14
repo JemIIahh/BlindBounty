@@ -69,19 +69,10 @@ export default function TaskDetail() {
   // `onChain.agent` is the contract's name for the task poster — keep the
   // boolean named isPoster to make the intent clear in UI conditions.
   const isPoster = address?.toLowerCase() === onChain.agent?.toLowerCase();
-  const decimals = (meta as any).decimals ?? 18;
+  const decimals = meta.decimals ?? 18;
   const reward = Number(meta.reward) / (10 ** decimals);
 
-  const a2aState = (onChain as any).a2aState as {
-    status: string;
-    resultData?: Record<string, unknown> | null;
-    verificationResult?: { passed: boolean; reasons: string[] };
-    acceptedAt?: string;
-    submittedAt?: string;
-    executorAddress?: string;
-    assignTxHash?: string;
-    verifyTxHash?: string;
-  } | null;
+  const a2aState = onChain.a2aState;
 
   const isExpired = Date.now() > Number(onChain.deadline) * 1000;
   const canTimeout = isExpired && [
@@ -201,11 +192,11 @@ export default function TaskDetail() {
                 </div>
                 <div>
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Verification Mode</span>
-                  <p className="text-sm text-neutral-300 mt-1 capitalize">{(data.meta as any).verificationMode || 'manual'}</p>
+                  <p className="text-sm text-neutral-300 mt-1 capitalize">{meta.verificationMode || 'manual'}</p>
                 </div>
                 <div>
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Executor Type</span>
-                  <p className="text-sm text-neutral-300 mt-1 capitalize">{(data.meta as any).targetExecutorType || 'human'}</p>
+                  <p className="text-sm text-neutral-300 mt-1 capitalize">{meta.targetExecutorType || 'human'}</p>
                 </div>
                 <div className="col-span-2">
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Evidence Hash</span>
@@ -262,7 +253,7 @@ export default function TaskDetail() {
                 <div className="mt-6 pt-6 border-t border-neutral-800">
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Required Capabilities</span>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {meta.requiredCapabilities.map((cap: string) => (
+                    {meta.requiredCapabilities.map((cap) => (
                       <span key={cap} className="px-2 py-1 bg-neutral-900 border border-neutral-800 text-[10px] font-mono text-neutral-400 rounded">
                         {cap.replace(/_/g, ' ')}
                       </span>
