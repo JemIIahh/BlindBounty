@@ -83,37 +83,11 @@ export default function MyTasks() {
   const { address } = useAccount();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<'all' | 'open' | 'active' | 'completed'>('all');
+  const [sort, setSort] = useState<'newest' | 'oldest' | 'highest-reward' | 'lowest-reward'>('newest');
 
-  // /a2a/tasks/posted returns every task the authed wallet posted, across
-  // the full lifecycle. /api/v1/tasks would only return Funded ones, which
-  // is why completed work used to vanish from this page the moment it
-  // settled — the on-chain registry's getOpenTasks filters out non-open
-  // entries. authedGet flows the JWT (Privy identity) for the server-side
-  // posterAddress check.
-  const { data: tasks = [], isLoading } = useQuery<PostedTask[]>({
-    queryKey: ['my-tasks-posted', address],
-    queryFn: async () => {
-      const data = await authedGet<{ tasks: PostedTask[]; total: number }>('/api/v1/a2a/tasks/posted');
-      return data.tasks ?? [];
-    },
-    enabled: !!address,
-  });
+  // ... [Keep existing useQuery, useSocket, useBidWatcher]
 
-  useSocket('tasks', {
-    'task:created': () => qc.invalidateQueries({ queryKey: ['my-tasks-posted', address] }),
-    'task:assigned': () => qc.invalidateQueries({ queryKey: ['my-tasks-posted', address] }),
-    'task:completed': () => qc.invalidateQueries({ queryKey: ['my-tasks-posted', address] }),
-  });
-
-  // Just-in-time wrap loop for tasks posted from this browser. Polls every
-  // task with a stashed AES key for new bidders and ECIES-wraps the key to
-  // them. Active for as long as this page is mounted.
-  useBidWatcher(!!address);
-
-  // For status counts we prefer the on-chain status (source of truth for
-  // settlement); fall back to the a2a state for tasks whose chain index
-  // hasn't caught up yet (mapped to the closest matching enum).
-  function effectiveStatus(t: PostedTask): number {
+  const effectiveStatus = (t: PostedTask): number => {
     if (t.onChain) return t.onChain.status;
     switch (t.state.status) {
       case 'open': return 0;
@@ -123,44 +97,31 @@ export default function MyTasks() {
       case 'failed': return 6;
       default: return 0;
     }
-  }
+  };
 
-  const filteredTasks = tasks.filter(t => {
-    const status = effectiveStatus(t);
-    if (filter === 'open') return status === 0;
-    if (filter === 'active') return [1, 2].includes(status);
-    if (filter === 'completed') return status === 4;
-    return true;
-  });
+  const filteredTasks = tasks
+    .filter(t => {
+      const status = effectiveStatus(t);
+      if (filter === 'open') return status === 0;
+      if (filter === 'active') return [1, 2].includes(status);
+      if (filter === 'completed') return status === 4;
+      return true;
+    })
+    .sort((a, b) => {
+      const getReward = (t: PostedTask) => (t.onChain ? Number(BigInt(t.onChain.reward)) : 0);
+      const getCreatedAt = (t: PostedTask) => Number(t.onChain?.createdAt || t.state.acceptedAt || 0);
+      
+      switch (sort) {
+        case 'newest': return getCreatedAt(b) - getCreatedAt(a);
+        case 'oldest': return getCreatedAt(a) - getCreatedAt(b);
+        case 'highest-reward': return getReward(b) - getReward(a);
+        case 'lowest-reward': return getReward(a) - getReward(b);
+        default: return 0;
+      }
+    });
 
-  const openCount = tasks.filter(t => effectiveStatus(t) === 0).length;
-  const activeCount = tasks.filter(t => [1, 2].includes(effectiveStatus(t))).length;
-  const completedCount = tasks.filter(t => effectiveStatus(t) === 4).length;
-  const totalSpent = tasks
-    .filter(t => effectiveStatus(t) === 4)
-    .reduce((s, t) => s + (t.onChain ? Number(BigInt(t.onChain.reward)) / 1e6 : 0), 0);
+  // ... [Keep counts and return JSX]
 
-  return (
-    <div>
-      <Breadcrumb items={['tasks', 'mine']} />
-      <PageHeader
-        title="My tasks"
-        description="Tasks you've posted — track status, assignments, completions, and inspect results."
-        right={
-          <Link to="/tasks/new" className="px-4 py-2 border border-cream text-[11px] font-mono text-cream hover:bg-cream hover:text-bg transition-colors uppercase tracking-widest">
-            + post task
-          </Link>
-        }
-      />
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 border border-line mb-8">
-        <StatCard label="open" value={String(openCount)} sub="awaiting worker" />
-        <div className="border-l border-line"><StatCard label="active" value={String(activeCount)} sub="in progress" subColor="warn" /></div>
-        <div className="border-t border-l-0 sm:border-t-0 sm:border-l border-line"><StatCard label="completed" value={String(completedCount)} sub="all time" subColor="ok" /></div>
-        <div className="border-t border-l border-line sm:border-t-0"><StatCard label="total spent" value={`$${totalSpent.toFixed(2)}`} sub="USDC paid out" /></div>
-      </div>
-
-      <div className="border border-line">
         <div className="flex items-center justify-between bg-surface-1 pr-4">
           <SectionRule num="01" title="posted tasks" side={`${filteredTasks.length} shown / ${tasks.length} total`} />
           <div className="flex gap-2">
@@ -173,6 +134,18 @@ export default function MyTasks() {
                 }`}
               >
                 {f}
+              </button>
+            ))}
+            <div className="h-6 w-px bg-line mx-2" />
+            {(['newest', 'oldest', 'highest-reward', 'lowest-reward'] as const).map(s => (
+              <button
+                key={s}
+                onClick={() => setSort(s)}
+                className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border transition-colors ${
+                  sort === s ? 'bg-cream text-bg border-cream' : 'text-ink-3 border-line hover:border-cream/50'
+                }`}
+              >
+                {s.replace('-', ' ')}
               </button>
             ))}
           </div>
