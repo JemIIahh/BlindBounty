@@ -4,22 +4,41 @@ import { Link } from 'react-router-dom';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { useSocket } from '../hooks/useSocket';
 import { useBidWatcher } from '../hooks/useBidWatcher';
-import { API_BASE_URL } from '../config/constants';
+import { authedGet } from '../lib/api';
 
-interface Task {
-  taskId: string;
-  category: string;
-  locationZone: string;
-  reward: string;
-  status: number;
-  agent: string;
-  worker?: string;
-  createdAt?: string;
-  requiredCapabilities?: string[];
-  // Whether the backend's a2aStore has a meta entry for this task. False
-  // means the task is invisible to executor agents (created before the
-  // current A2A code path was wired up — see GET /api/v1/tasks enrichment).
-  a2aIndexed?: boolean;
+// ── Shapes returned by GET /api/v1/a2a/tasks/posted ──────────────────────
+//
+// The backend enriches each Redis-side task with its on-chain record so we
+// have status + reward + worker in a single call. `onChain` is null when the
+// task hasn't been indexed yet (createTask in flight) or never confirmed.
+
+interface PostedTask {
+  meta: {
+    taskId: string;           // taskHash, bytes32 hex
+    targetExecutorType: 'agent' | 'human';
+    verificationMode: 'manual' | 'auto' | 'oracle';
+    requiredCapabilities: string[];
+    posterAddress?: string;
+    rootHash?: string;
+  };
+  state: {
+    taskId: string;
+    status: 'open' | 'accepted' | 'submitted' | 'verified' | 'failed' | 'in_progress';
+    executorAddress?: string;
+    acceptedAt?: string;
+    submittedAt?: string;
+    resultData?: Record<string, unknown>;
+    verificationResult?: { passed: boolean; reasons?: string[] };
+  };
+  onChain: null | {
+    taskId: string;           // numeric on-chain id, as string
+    status: number;           // 0=Funded 1=Assigned 2=Submitted 3=Verified 4=Completed 5=Cancelled 6=Disputed
+    reward: string;           // raw bigint as string
+    token: string;
+    worker: string;
+    createdAt: string;
+    deadline: string;
+  };
 }
 
 const STATUS_LABELS: Record<number, string> = {
@@ -29,31 +48,56 @@ const STATUS_TONE: Record<number, 'ok' | 'warn' | 'err' | 'neutral'> = {
   0: 'neutral', 1: 'warn', 2: 'warn', 3: 'ok', 4: 'ok', 5: 'err', 6: 'err',
 };
 
-function formatReward(wei: string) {
-  try { return `$${(Number(BigInt(wei)) / 1e6).toFixed(2)}`; } catch { return wei; }
+// Marketplace token is the canonical USDC — six decimals. The original wei
+// formatter assumed 18 decimals which displayed e.g. $0.000010 for a $10 task.
+function formatReward(raw: string | undefined) {
+  if (!raw) return '—';
+  try {
+    const n = Number(BigInt(raw)) / 1e6;
+    return `$${n.toFixed(2)}`;
+  } catch {
+    return raw;
+  }
+}
+
+// Short id for the visible task identifier — we display the on-chain numeric
+// id when available (familiar #42 form), otherwise the truncated hash.
+function shortId(t: PostedTask): string {
+  if (t.onChain) return `#${t.onChain.taskId}`;
+  return `${t.meta.taskId.slice(0, 10)}…`;
+}
+
+// On-chain ZERO worker = "no one assigned yet". A non-zero, non-poster
+// worker address means an executor has been assigned via marketplaceAssign.
+function workerLabel(t: PostedTask): string {
+  const w = t.onChain?.worker;
+  if (!w || /^0x0+$/.test(w)) return 'no worker yet';
+  return `worker · ${w.slice(0, 6)}…${w.slice(-4)}`;
 }
 
 export default function MyTasks() {
   const { address } = useAccount();
   const qc = useQueryClient();
 
-  const { data: tasks = [], isLoading } = useQuery<Task[]>({
-    queryKey: ['my-tasks', address],
+  // /a2a/tasks/posted returns every task the authed wallet posted, across
+  // the full lifecycle. /api/v1/tasks would only return Funded ones, which
+  // is why completed work used to vanish from this page the moment it
+  // settled — the on-chain registry's getOpenTasks filters out non-open
+  // entries. authedGet flows the JWT (Privy identity) for the server-side
+  // posterAddress check.
+  const { data: tasks = [], isLoading } = useQuery<PostedTask[]>({
+    queryKey: ['my-tasks-posted', address],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/v1/tasks?limit=100`);
-      const json = await res.json();
-      if (!json.success) return [];
-      return (json.data?.tasks ?? []).filter(
-        (t: Task) => t.agent?.toLowerCase() === address?.toLowerCase()
-      );
+      const data = await authedGet<{ tasks: PostedTask[]; total: number }>('/api/v1/a2a/tasks/posted');
+      return data.tasks ?? [];
     },
     enabled: !!address,
   });
 
   useSocket('tasks', {
-    'task:created': () => qc.invalidateQueries({ queryKey: ['my-tasks', address] }),
-    'task:assigned': () => qc.invalidateQueries({ queryKey: ['my-tasks', address] }),
-    'task:completed': () => qc.invalidateQueries({ queryKey: ['my-tasks', address] }),
+    'task:created': () => qc.invalidateQueries({ queryKey: ['my-tasks-posted', address] }),
+    'task:assigned': () => qc.invalidateQueries({ queryKey: ['my-tasks-posted', address] }),
+    'task:completed': () => qc.invalidateQueries({ queryKey: ['my-tasks-posted', address] }),
   });
 
   // Just-in-time wrap loop for tasks posted from this browser. Polls every
@@ -61,19 +105,34 @@ export default function MyTasks() {
   // them. Active for as long as this page is mounted.
   useBidWatcher(!!address);
 
-  const open = tasks.filter(t => t.status === 0).length;
-  const active = tasks.filter(t => t.status === 1 || t.status === 2).length;
-  const completed = tasks.filter(t => t.status === 4).length;
+  // For status counts we prefer the on-chain status (source of truth for
+  // settlement); fall back to the a2a state for tasks whose chain index
+  // hasn't caught up yet (mapped to the closest matching enum).
+  function effectiveStatus(t: PostedTask): number {
+    if (t.onChain) return t.onChain.status;
+    switch (t.state.status) {
+      case 'open': return 0;
+      case 'accepted': case 'in_progress': return 1;
+      case 'submitted': return 2;
+      case 'verified': return 3;
+      case 'failed': return 6;
+      default: return 0;
+    }
+  }
+
+  const open = tasks.filter(t => effectiveStatus(t) === 0).length;
+  const active = tasks.filter(t => [1, 2].includes(effectiveStatus(t))).length;
+  const completed = tasks.filter(t => effectiveStatus(t) === 4).length;
   const totalSpent = tasks
-    .filter(t => t.status === 4)
-    .reduce((s, t) => s + Number(BigInt(t.reward || '0')) / 1e6, 0);
+    .filter(t => effectiveStatus(t) === 4)
+    .reduce((s, t) => s + (t.onChain ? Number(BigInt(t.onChain.reward)) / 1e6 : 0), 0);
 
   return (
     <div>
       <Breadcrumb items={['tasks', 'mine']} />
       <PageHeader
         title="My tasks"
-        description="Tasks you've posted — track status, assignments, and completions."
+        description="Tasks you've posted — track status, assignments, completions, and inspect results."
         right={
           <Link to="/tasks/new" className="px-4 py-2 border border-cream text-[11px] font-mono text-cream hover:bg-cream hover:text-bg transition-colors uppercase tracking-widest">
             + post task
@@ -103,63 +162,74 @@ export default function MyTasks() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-line border-t border-line">
             {tasks.map(t => {
-              // A task is "stranded" when it's still Funded on chain but the
-              // A2A executor board doesn't know about it — agents can never
-              // accept it. Only flag for tasks that would otherwise look
-              // acceptable (open / no worker), to avoid confusing completed
-              // history with a problem.
-              const isStranded = t.a2aIndexed === false && t.status === 0;
+              const status = effectiveStatus(t);
+              const isDone = status === 3 || status === 4 || status === 6;
+              const hasResult = !!t.state.resultData;
               return (
-                <Link
-                  key={t.taskId}
-                  to={`/tasks/${t.taskId}`}
-                  className={`group bg-bg hover:bg-surface-2 transition-colors p-5 flex flex-col gap-3 min-h-[180px] ${
-                    isStranded ? 'border-l-2 border-l-warn' : ''
-                  }`}
-                >
+                <div key={t.meta.taskId} className="bg-bg p-5 flex flex-col gap-3 min-h-[200px]">
                   {/* Top row — id + status */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-mono text-ink-3">#{t.taskId}</span>
-                    <div className="flex items-center gap-2">
-                      {isStranded && <Tag tone="warn">stranded</Tag>}
-                      <Tag tone={STATUS_TONE[t.status] ?? 'neutral'}>{STATUS_LABELS[t.status] ?? t.status}</Tag>
-                    </div>
+                    <span className="text-[11px] font-mono text-ink-3">{shortId(t)}</span>
+                    <Tag tone={STATUS_TONE[status] ?? 'neutral'}>{STATUS_LABELS[status] ?? 'unknown'}</Tag>
                   </div>
 
-                  {/* Title */}
+                  {/* Title / metadata */}
                   <div className="flex-1">
-                    <div className="text-sm font-mono text-ink">{t.category}</div>
-                    <div className="text-[11px] font-mono text-ink-3 mt-0.5">{t.locationZone || 'global'}</div>
-                    {t.requiredCapabilities && t.requiredCapabilities.length > 0 && (
+                    <div className="text-sm font-mono text-ink break-all">
+                      {t.meta.taskId.slice(0, 18)}…
+                    </div>
+                    <div className="text-[11px] font-mono text-ink-3 mt-0.5">
+                      {t.meta.verificationMode} verify · {t.meta.targetExecutorType}
+                    </div>
+                    {t.meta.requiredCapabilities && t.meta.requiredCapabilities.length > 0 && (
                       <div className="flex gap-1 mt-2 flex-wrap">
-                        {t.requiredCapabilities.slice(0, 4).map(c => (
+                        {t.meta.requiredCapabilities.slice(0, 4).map(c => (
                           <span key={c} className="text-[10px] font-mono text-ink-3 border border-line px-1.5 py-0.5">
                             {c.replace(/_/g, ' ')}
                           </span>
                         ))}
                       </div>
                     )}
-                    {isStranded && (
-                      <div className="mt-3 text-[10px] font-mono text-warn leading-relaxed">
-                        not on the agent board — created before the current A2A indexer was wired up.
-                        no agent will pick this up. cancel & refund to reclaim escrow.
+                    {t.state.verificationResult?.passed === false && t.state.verificationResult.reasons && t.state.verificationResult.reasons.length > 0 && (
+                      <div className="mt-2 text-[10px] font-mono text-err leading-relaxed">
+                        failed: {t.state.verificationResult.reasons.join(' · ')}
                       </div>
                     )}
                   </div>
 
-                  {/* Bottom row — reward + worker + view affordance */}
+                  {/* Bottom row — reward + worker */}
                   <div className="pt-3 border-t border-line flex items-end justify-between">
                     <div>
-                      <div className="text-lg font-mono font-semibold text-cream leading-none">{formatReward(t.reward)}</div>
+                      <div className="text-lg font-mono font-semibold text-cream leading-none">
+                        {formatReward(t.onChain?.reward)}
+                      </div>
                       <div className="text-[10px] font-mono text-ink-3 mt-1.5 uppercase tracking-widest">
-                        {t.worker
-                          ? `worker · ${t.worker.slice(0, 6)}…${t.worker.slice(-4)}`
-                          : 'no worker yet'}
+                        {workerLabel(t)}
                       </div>
                     </div>
-                    <span className="text-[11px] font-mono text-ink-3 group-hover:text-cream transition-colors">view →</span>
                   </div>
-                </Link>
+
+                  {/* Result viewer — only shown once the agent has submitted
+                      work. Uses native <details> so there's no extra React
+                      state needed and each card collapses independently. */}
+                  {(hasResult || isDone) && (
+                    <details className="mt-1 border-t border-line pt-3 group">
+                      <summary className="flex items-center justify-between cursor-pointer text-[11px] font-mono uppercase tracking-widest text-ink-3 hover:text-cream transition-colors list-none">
+                        <span>view result</span>
+                        <span className="group-open:rotate-90 transition-transform">▸</span>
+                      </summary>
+                      {hasResult ? (
+                        <pre className="mt-3 max-h-72 overflow-auto bg-surface-2 border border-line p-3 text-[11px] font-mono text-ink leading-relaxed whitespace-pre-wrap break-words">
+                          {JSON.stringify(t.state.resultData, null, 2)}
+                        </pre>
+                      ) : (
+                        <div className="mt-3 text-[11px] font-mono text-ink-3 leading-relaxed">
+                          no result data on file — task settled on chain but the off-chain payload wasn't recorded (likely a legacy task posted before the encrypted-result pipeline).
+                        </div>
+                      )}
+                    </details>
+                  )}
+                </div>
               );
             })}
           </div>

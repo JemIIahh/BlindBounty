@@ -33,7 +33,24 @@ async function authorizeOwner(req: AuthRequest, res: import('express').Response,
     return null;
   }
   if (authed.toLowerCase() !== agent.ownerAddress.toLowerCase()) {
-    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only the agent owner can perform this action' } });
+    // Surface both addresses so the user can immediately see whether their
+    // session resolved to a different wallet than the one that deployed the
+    // agent. Common cause: Privy users with multiple linked wallets — the
+    // JWT's first wallet entry isn't guaranteed to be the one used at deploy.
+    // Truncated for log brevity; both are public blockchain addresses so no
+    // privacy concern.
+    const tr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+    res.status(403).json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: `Only the agent owner can perform this action. You are signed in as ${tr(authed)} but this agent's owner is ${tr(agent.ownerAddress)}. If those are both yours, re-link wallets in Privy or sign in with the wallet that originally deployed the agent.`,
+        details: {
+          authenticatedAs: authed,
+          agentOwner: agent.ownerAddress,
+        },
+      },
+    });
     return null;
   }
   return agent;
@@ -375,11 +392,22 @@ agentsRouter.get('/:id', async (req, res) => {
   });
 });
 
+// Build the same enriched DTO the GET /:id endpoint returns. Used by
+// start/pause/stop so their action responses don't drop tasksCompleted +
+// totalEarned (the frontend's setAgent overwrites cached state with the
+// action response — without enrichment the earnings display resets to $0
+// even though Redis is fine; refreshing the page would restore it).
+async function buildActionResponse(id: string) {
+  const stripped = strip(await getAgent(id));
+  if (!stripped) return null;
+  return await withExecutorStats(stripped);
+}
+
 // POST /api/v1/agents/:id/start
 agentsRouter.post('/:id/start', async (req, res) => {
   try {
     await startAgent(req.params.id);
-    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
+    res.json({ success: true, data: await buildActionResponse(req.params.id) });
   } catch (e: unknown) {
     res.status(400).json({
       success: false,
@@ -392,7 +420,7 @@ agentsRouter.post('/:id/start', async (req, res) => {
 agentsRouter.post('/:id/pause', async (req, res) => {
   try {
     await pauseAgent(req.params.id);
-    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
+    res.json({ success: true, data: await buildActionResponse(req.params.id) });
   } catch (e: unknown) {
     res.status(400).json({
       success: false,
@@ -405,7 +433,7 @@ agentsRouter.post('/:id/pause', async (req, res) => {
 agentsRouter.post('/:id/stop', async (req, res) => {
   try {
     await stopAgent(req.params.id);
-    res.json({ success: true, data: strip(await getAgent(req.params.id)) });
+    res.json({ success: true, data: await buildActionResponse(req.params.id) });
   } catch (e: unknown) {
     res.status(400).json({
       success: false,

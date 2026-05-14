@@ -84,6 +84,40 @@ const AGENT_CAPABILITIES_RAW = process.env.AGENT_CAPABILITIES ?? '[]';
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 30_000);
 
+// ── Logging helpers ──────────────────────────────────────────────────────
+//
+// These MUST be declared above any module-level code that calls log(). `const`
+// declarations are not hoisted — referencing ANSI_DIM from inside log() before
+// its declaration line ran would throw `Cannot access 'ANSI_DIM' before
+// initialization` (temporal dead zone). The previous tries (helpers at the
+// bottom of the file, then helpers above the startup log) both missed the
+// AGENT_TOOLS-parse catch at line ~205 which also calls log(). Anchoring the
+// block right after the env-var reads is the only safe spot — every later
+// module-level statement is below.
+
+// Pretty timestamp for log lines. ISO-ish, trimmed to the second so the UI's
+// monospace column stays narrow. Always UTC so logs from different timezones
+// line up.
+function nowStamp() {
+  return new Date().toISOString().slice(0, 19) + 'Z';
+}
+
+// ANSI colors are useful when a developer tails the worker locally, but the
+// agent runs as a forked child piping stdout to the parent process, which
+// streams it to the browser. Browsers don't interpret terminal escape codes —
+// they render `\x1b[2m` as literal `[2m`. Detect "am I attached to a TTY?" and
+// skip colors when we're not.
+const COLORED = !!process.stdout.isTTY;
+const ANSI_DIM   = COLORED ? '\x1b[2m'  : '';
+const ANSI_CYAN  = COLORED ? '\x1b[36m' : '';
+const ANSI_RESET = COLORED ? '\x1b[0m'  : '';
+
+function log(msg) {
+  console.log(
+    `${ANSI_DIM}${nowStamp()} [agent:${ANSI_CYAN}${AGENT_ID.slice(0, 8)}${ANSI_RESET}${ANSI_DIM}]${ANSI_RESET} ${msg}`
+  );
+}
+
 // Capabilities the parent agentRunner declares for us at deploy time. Used to
 // auto-register as an A2A executor on startup (without registration the
 // /a2a/tasks/:hash/accept handler refuses our calls with 403 NOT_REGISTERED).
@@ -414,6 +448,11 @@ async function pollAndWork() {
         }
         break;
       }
+      // Note: we record the per-task start clock AFTER the accept-success break
+      // below, not here — we don't want failed accept attempts on tasks we
+      // can't actually claim (CAPABILITY_MISMATCH, NEEDS_WRAP) to skew the
+      // "task done in Xs" line. Only the successfully-accepted task gets a
+      // start time.
       const err = await acceptRes.json().catch(() => ({}));
       log(`accept failed for ${taskHash.slice(0, 10)}…: ${acceptRes.status} ${err.error?.code || ''}`);
 
@@ -463,6 +502,11 @@ async function pollAndWork() {
       log(`could not accept any of the ${available.length} available tasks`);
       return;
     }
+
+    // Capture the per-task start clock now that we've actually claimed a
+    // task. Used at the end of the run to emit a "task done in Xs" summary
+    // alongside the per-stage timestamps each log line already carries.
+    const taskStartedAt = Date.now();
 
     // 3. Wait briefly for the bridge's marketplaceAssign to confirm on chain.
     //    Without this, submitEvidence broadcasts before the contract status is
@@ -514,6 +558,7 @@ async function pollAndWork() {
     //    constraints carry across every task. resultData is an object so it
     //    plays well with autoVerify's required_fields / min_length checks.
     log(`working on task ${acceptedTaskHash.slice(0, 10)}…`);
+    const llmStartedAt = Date.now();
     const { text } = await generateText({
       model: getModel(),
       system: AGENT_INSTRUCTIONS,
@@ -521,6 +566,8 @@ async function pollAndWork() {
       tools: buildTools(),
       maxSteps: 5,
     });
+    const llmElapsed = ((Date.now() - llmStartedAt) / 1000).toFixed(1);
+    log(`LLM finished for ${acceptedTaskHash.slice(0, 10)}… in ${llmElapsed}s (${text.length} chars)`);
     const resultData = { output: text, agent: AGENT_ID };
 
     // 5. POST /submit — backend persists resultData and returns the unsigned
@@ -602,6 +649,14 @@ async function pollAndWork() {
     }
     const finalizeJson = await finalizeRes.json();
     log(`finalize result for ${acceptedTaskHash.slice(0, 10)}…: ${JSON.stringify(finalizeJson.data)}`);
+
+    // ── Per-task elapsed summary ──────────────────────────────────────────
+    // Single-line wrap-up so operators can see at a glance how long the full
+    // accept→submit→finalize cycle took. Per-stage timing is already
+    // recoverable from the timestamps on individual log lines; this line is
+    // the quick-look version most users actually want.
+    const totalElapsed = ((Date.now() - taskStartedAt) / 1000).toFixed(1);
+    log(`task ${acceptedTaskHash.slice(0, 10)}… done in ${totalElapsed}s (LLM ${llmElapsed}s)`);
   } catch (err) {
     log(`error: ${err.message}`);
   }
@@ -611,11 +666,6 @@ function sendHeartbeat() {
   if (process.send) {
     process.send({ type: 'heartbeat', timestamp: Date.now() });
   }
-}
-
-function log(msg) {
-  const dim = '\x1b[2m', cyan = '\x1b[36m', reset = '\x1b[0m';
-  console.log(`${dim}[agent:${cyan}${AGENT_ID.slice(0, 8)}${reset}${dim}]${reset} ${msg}`);
 }
 
 function sleep(ms) {

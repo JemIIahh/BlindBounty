@@ -6,7 +6,7 @@ import { BrowserProvider, parseEther } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
 import { get, post, patch, authedPost } from '../lib/api';
-import { API_BASE_URL } from '../config/constants';
+import { API_BASE_URL, MARKETPLACE_TOKEN_ADDRESS } from '../config/constants';
 
 // Top-up amount when the agent runs low on gas. Same default as the deploy
 // funding step — round trip + LLM call + submitEvidence costs ~0.0004 0G, so
@@ -159,12 +159,16 @@ export default function AgentDetail() {
     setSweepStatus('sending');
     setSweepError('');
     try {
+      // Pass tokenAddress explicitly so the endpoint works regardless of
+      // whether the backend's MOCK_ERC20_ADDRESS env var is set. The
+      // canonical address lives in constants.ts; same value the post-task
+      // approve flow uses.
       const data = await authedPost<{
         txHash: string;
         amountFormatted: string;
         amountRaw: string;
         recipient: string;
-      }>(`/api/v1/agents/${id}/sweep-token`, {});
+      }>(`/api/v1/agents/${id}/sweep-token`, { tokenAddress: MARKETPLACE_TOKEN_ADDRESS });
       setSweepInfo({ txHash: data.txHash, amount: data.amountFormatted });
       setSweepStatus('done');
       // Refresh agent record so the earned/totalEarned display picks up the
@@ -233,7 +237,13 @@ export default function AgentDetail() {
           </button>
           {topUpStatus === 'error' && <span className="text-red-400">{topUpError}</span>}
 
-          {agent.status === 'stopped' && (
+          {/* 0G recovery — show whenever the agent isn't actively running.
+              Paused agents have their child process killed and aren't polling
+              for new tasks, so they're safe to sweep too. The backend's
+              /recover-funds endpoint enforces the same `!= running` rule, so
+              this gate just matches it instead of being stricter for no
+              reason. */}
+          {agent.status !== 'running' && (
             <button
               onClick={handleRecoverFunds}
               disabled={recoverStatus === 'sending' || balanceEther < 0.0015}
@@ -248,10 +258,11 @@ export default function AgentDetail() {
           )}
           {recoverStatus === 'error' && <span className="text-red-400">{recoverError}</span>}
 
-          {/* USDC withdrawal — only when stopped, same race-condition reason
-              as the 0G recovery. Available even when 0G balance is low, as
-              long as it's enough to pay for one ERC20 transfer (~50k gas). */}
-          {agent.status === 'stopped' && parseFloat(agent.totalEarned ?? '0') > 0 && (
+          {/* USDC withdrawal — same `!= running` rule, with the additional
+              guard that the agent must have actually earned something. The
+              backend separately rejects the sweep with NO_GAS if the wallet
+              can't afford the ERC20 transfer's own gas (~50k). */}
+          {agent.status !== 'running' && parseFloat(agent.totalEarned ?? '0') > 0 && (
             <button
               onClick={handleSweepToken}
               disabled={sweepStatus === 'sending' || balanceEther < 0.0002}
@@ -300,9 +311,37 @@ export default function AgentDetail() {
 
           <div className="flex-1 p-5 overflow-y-auto max-h-[520px]">
             {tab === 'logs' && (
-              logs.length > 0 ? logs.map((line, i) => (
-                <div key={i} className={`px-3 py-1.5 text-xs font-mono ${line.includes('[err]') ? 'text-red-400 bg-red-900/10' : 'text-ink-3 hover:bg-surface-2'}`}>{line}</div>
-              )) : (
+              logs.length > 0 ? logs.map((line, i) => {
+                // Strip any leftover ANSI escape sequences from older buffered
+                // log lines (the worker no longer emits them when forked, but
+                // Redis may still hold pre-fix entries until the ring rotates).
+                const clean = line.replace(/\x1b\[[0-9;]*m/g, '');
+
+                // Worker emits each line as `YYYY-MM-DDTHH:MM:SSZ ...`. Pull
+                // out the timestamp so we can render it dimmed and aligned,
+                // making the actual message easier to scan. Lines without a
+                // timestamp (startup errors, legacy entries) just render whole.
+                const tsMatch = clean.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s+(.*)$/);
+                const isErr = clean.includes('[err]');
+                return (
+                  <div key={i} className={`px-3 py-1.5 text-xs font-mono flex gap-3 ${isErr ? 'text-red-400 bg-red-900/10' : 'text-ink-3 hover:bg-surface-2'}`}>
+                    {tsMatch ? (
+                      <>
+                        {/* Local-time render of the UTC stamp so the time the
+                            user reads matches the wall clock they're looking
+                            at. We keep the iso form in the title for the
+                            "what time was this in UTC?" power use case. */}
+                        <span className="text-ink-3/60 shrink-0" title={tsMatch[1]}>
+                          {new Date(tsMatch[1]).toLocaleTimeString([], { hour12: false })}
+                        </span>
+                        <span className="break-all">{tsMatch[2]}</span>
+                      </>
+                    ) : (
+                      <span className="break-all">{clean}</span>
+                    )}
+                  </div>
+                );
+              }) : (
                 <div className="text-center py-16 text-xs font-mono text-ink-3">
                   {agent.status === 'running' ? 'waiting for logs…' : 'start the agent to see logs'}
                 </div>
