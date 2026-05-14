@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BrowserProvider, parseEther } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
-import { get, post, patch } from '../lib/api';
+import { get, post, patch, authedPost } from '../lib/api';
 import { API_BASE_URL } from '../config/constants';
 
 // Top-up amount when the agent runs low on gas. Same default as the deploy
@@ -51,6 +51,11 @@ export default function AgentDetail() {
   const [recoverStatus, setRecoverStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
   const [recoverInfo, setRecoverInfo] = useState<{ txHash: string; amount: string } | null>(null);
   const [recoverError, setRecoverError] = useState('');
+  // USDC sweep state — same shape as the 0G recovery flow, separate so the
+  // two operations can run independently and show their own status.
+  const [sweepStatus, setSweepStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+  const [sweepInfo, setSweepInfo] = useState<{ txHash: string; amount: string } | null>(null);
+  const [sweepError, setSweepError] = useState('');
 
   const { data: balance, refetch: refetchBalance } = useBalance({
     address: agent?.walletAddress as `0x${string}` | undefined,
@@ -124,19 +129,53 @@ export default function AgentDetail() {
   // sends the wallet's balance (minus a small gas reserve) back to the owner.
   // Only valid when the agent is stopped — sweeping a running agent would
   // race with its in-flight submitEvidence txs.
+  //
+  // Uses authedPost so the JWT (Privy identity) flows to the backend, where
+  // requireAuth + authorizeOwner verify the caller is the agent's owner. The
+  // previous "ownerAddress in body" claim is no longer trusted server-side.
   async function handleRecoverFunds() {
     if (!address || !id) return;
     if (!confirm(`Recover remaining 0G from this agent's wallet back to ${address.slice(0, 8)}…? This cannot be undone.`)) return;
     setRecoverStatus('sending');
     setRecoverError('');
     try {
-      const data = await post<{ txHash: string; amountSent: string; recipient: string }>(`/api/v1/agents/${id}/recover-funds`, { ownerAddress: address });
+      const data = await authedPost<{ txHash: string; amountSent: string; recipient: string }>(`/api/v1/agents/${id}/recover-funds`, {});
       setRecoverInfo({ txHash: data.txHash, amount: data.amountSent });
       setRecoverStatus('done');
       await refetchBalance();
     } catch (err) {
       setRecoverError((err as Error).message || 'recover failed');
       setRecoverStatus('error');
+    }
+  }
+
+  // Sweep accumulated marketplace-token (USDC) earnings from the agent wallet
+  // back to the owner. Same auth model as handleRecoverFunds — backend gates
+  // on the authenticated wallet matching agent.ownerAddress, and refuses while
+  // the agent is running (could race with an in-flight payout from escrow).
+  async function handleSweepToken() {
+    if (!address || !id) return;
+    if (!confirm(`Withdraw all USDC earnings from this agent's wallet back to ${address.slice(0, 8)}…? This cannot be undone.`)) return;
+    setSweepStatus('sending');
+    setSweepError('');
+    try {
+      const data = await authedPost<{
+        txHash: string;
+        amountFormatted: string;
+        amountRaw: string;
+        recipient: string;
+      }>(`/api/v1/agents/${id}/sweep-token`, {});
+      setSweepInfo({ txHash: data.txHash, amount: data.amountFormatted });
+      setSweepStatus('done');
+      // Refresh agent record so the earned/totalEarned display picks up the
+      // post-sweep balance on next render.
+      try {
+        const fresh = await get<AgentDetails>(`/api/v1/agents/${id}`);
+        setAgent(fresh);
+      } catch { /* non-blocking */ }
+    } catch (err) {
+      setSweepError((err as Error).message || 'sweep failed');
+      setSweepStatus('error');
     }
   }
 
@@ -199,7 +238,7 @@ export default function AgentDetail() {
               onClick={handleRecoverFunds}
               disabled={recoverStatus === 'sending' || balanceEther < 0.0015}
               className="px-3 py-1.5 border border-line text-ink-3 hover:border-red-400 hover:text-red-400 transition-colors disabled:opacity-40">
-              {recoverStatus === 'sending' ? 'sweeping…' : 'recover funds → owner'}
+              {recoverStatus === 'sending' ? 'sweeping…' : 'recover 0G → owner'}
             </button>
           )}
           {recoverStatus === 'done' && recoverInfo && (
@@ -208,6 +247,25 @@ export default function AgentDetail() {
             </span>
           )}
           {recoverStatus === 'error' && <span className="text-red-400">{recoverError}</span>}
+
+          {/* USDC withdrawal — only when stopped, same race-condition reason
+              as the 0G recovery. Available even when 0G balance is low, as
+              long as it's enough to pay for one ERC20 transfer (~50k gas). */}
+          {agent.status === 'stopped' && parseFloat(agent.totalEarned ?? '0') > 0 && (
+            <button
+              onClick={handleSweepToken}
+              disabled={sweepStatus === 'sending' || balanceEther < 0.0002}
+              className="px-3 py-1.5 border border-cream text-cream hover:bg-cream hover:text-bg transition-colors disabled:opacity-40">
+              {sweepStatus === 'sending' ? 'withdrawing…' : `withdraw USDC → owner`}
+            </button>
+          )}
+          {sweepStatus === 'done' && sweepInfo && (
+            <span className="text-green-400">
+              withdrew ${parseFloat(sweepInfo.amount).toFixed(2)} USDC · tx {sweepInfo.txHash.slice(0, 10)}…
+            </span>
+          )}
+          {sweepStatus === 'error' && <span className="text-red-400">{sweepError}</span>}
+
           {isLowGas && agent.status !== 'stopped' && (
             <span className="text-yellow-400">⚠ agent will fail to submit evidence below {LOW_GAS_THRESHOLD} 0G</span>
           )}

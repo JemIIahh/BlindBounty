@@ -253,6 +253,72 @@ Run all of these against the live mainnet contract before announcing:
 
 ---
 
+## 5b. Agent-wallet custody — REQUIRED before serious mainnet usage
+
+The hackathon backend currently holds `rawPrivateKey` in cleartext for every
+deployed agent, and uses that key to sign sweep / payout / submitEvidence
+transactions on the agent's behalf. This is a **custodial** design — convenient
+for the demo, but it concentrates risk in the backend DB. Before mainnet you
+should walk this back to a non-custodial model.
+
+### 5b.1 Endpoint authorization (DONE for the funds endpoints, NOT for the rest)
+
+- [x] `POST /agents/:id/recover-funds` — JWT-gated, verifies `req.user.address`
+      matches `agent.ownerAddress`. Refuses while agent is running.
+- [x] `POST /agents/:id/sweep-token` — same gate as above. Withdraws ERC20
+      earnings (USDC) back to the owner.
+- [x] `POST /agents/:id/export-key` — JWT-gated.
+- [ ] `POST /agents/:id/start | pause | stop` — still trust `req.body.ownerAddress`
+      as a plaintext claim. Not fund-moving but trivially griefable. Apply the
+      same `requireAuth + authorizeOwner` pattern before mainnet.
+- [ ] `PATCH /agents/:id` — same flaw, same fix.
+
+  **Why this matters:** without auth, anyone on the internet who can name an
+  agent ID (visible in `/agents` listings) can start/stop/edit it. Funds aren't
+  directly at risk because the proceeds go to the stored owner, but operations
+  can be disrupted.
+
+### 5b.2 Drop `rawPrivateKey` from the schema
+
+- [ ] Backend should keep only `encryptedPrivateKey` (passphrase-protected, owner
+      holds the passphrase). Sweep and submitEvidence endpoints should take the
+      passphrase per-request, decrypt in-memory, sign, and discard. Never
+      persist the unencrypted form.
+
+  **Why this matters:** today, a DB compromise or backend `.env` leak hands
+  every agent's funds to the attacker. Encrypted-at-rest with passphrase the
+  backend doesn't store means a DB leak is recoverable.
+
+### 5b.3 Move agent funds into a smart contract (preferred long-term)
+
+- [ ] Replace the EOA agent wallet model with an `AgentVault` contract per agent:
+      - `executeOp(...)` callable by the agent's runtime key (for submitEvidence)
+      - `withdraw(...)` callable only by the owner with an EIP-712 signature
+      - Owner can rotate the runtime key without losing accumulated USDC
+
+  **Why this matters:** today the chain has no notion of "owner controls these
+  funds." It just sees a wallet whose key the backend happens to hold. A vault
+  contract makes ownership cryptographically enforced rather than custodially
+  trusted.
+
+### 5b.4 Signed authorization for all fund-moving actions
+
+- [ ] Before mainnet, replace the "JWT proves identity" pattern with EIP-712
+      signed authorization on the wallet side for every withdrawal-class action.
+      Owner signs `{action, agentId, nonce, deadline}` → backend verifies on
+      `recoverSigner` → executes. Protects against compromised JWTs / cookies.
+
+### 5b.5 Time delay for large withdrawals
+
+- [ ] When `AgentVault` is in place, add a challenge-period delay (1–24h) for
+      withdrawals above a configurable threshold. Gives the owner time to
+      detect and cancel a malicious sweep if their session token is compromised.
+
+  **Why this matters:** without a delay, a single compromised JWT drains
+  everything instantly. A delay buys time for human-in-the-loop intervention.
+
+---
+
 ## 6. Out of scope for this checklist (but worth doing)
 
 These are real money-protection measures that aren't free, listed for
