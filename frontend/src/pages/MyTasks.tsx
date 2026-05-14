@@ -30,7 +30,7 @@ const STATUS_TONE: Record<number, 'ok' | 'warn' | 'err' | 'neutral'> = {
 };
 
 function formatReward(wei: string) {
-  try { return `$${(Number(BigInt(wei)) / 1e18).toFixed(2)}`; } catch { return wei; }
+  try { return `$${(Number(BigInt(wei)) / 1e6).toFixed(2)}`; } catch { return wei; }
 }
 
 export default function MyTasks() {
@@ -66,7 +66,7 @@ export default function MyTasks() {
   const completed = tasks.filter(t => t.status === 4).length;
   const totalSpent = tasks
     .filter(t => t.status === 4)
-    .reduce((s, t) => s + Number(BigInt(t.reward || '0')) / 1e18, 0);
+    .reduce((s, t) => s + Number(BigInt(t.reward || '0')) / 1e6, 0);
 
   return (
     <div>

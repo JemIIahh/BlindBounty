@@ -72,6 +72,15 @@ export default function TaskDetail() {
   const decimals = (meta as any).decimals ?? 18;
   const reward = Number(meta.reward) / (10 ** decimals);
 
+  const a2aState = (onChain as any).a2aState as {
+    status: string;
+    resultData?: Record<string, unknown> | null;
+    verificationResult?: { passed: boolean; reasons: string[] };
+    acceptedAt?: string;
+    submittedAt?: string;
+    executorAddress?: string;
+  } | null;
+
   const isExpired = Date.now() > Number(onChain.deadline) * 1000;
   const canTimeout = isExpired && [
     TaskStatus.Assigned,
@@ -244,6 +253,39 @@ export default function TaskDetail() {
               </p>
             )}
           </div>
+
+          {/* Agent output — shown when A2A state has resultData */}
+          {a2aState?.resultData && (
+            <div className="card-dark mb-6 overflow-hidden">
+              <div className="px-6 py-4 border-b border-neutral-800 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-white">Agent Output</h2>
+                {a2aState.verificationResult && (
+                  <span className={`text-xs font-mono ${a2aState.verificationResult.passed ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {a2aState.verificationResult.passed ? '✓ verified' : '✗ failed'}
+                  </span>
+                )}
+              </div>
+              <div className="px-6 py-5 space-y-4">
+                {typeof a2aState.resultData.output === 'string' ? (
+                  <p className="text-sm text-neutral-300 whitespace-pre-wrap leading-relaxed">{a2aState.resultData.output}</p>
+                ) : (
+                  <pre className="text-xs font-mono text-neutral-300 bg-neutral-900 rounded p-4 overflow-x-auto whitespace-pre-wrap">
+                    {JSON.stringify(a2aState.resultData, null, 2)}
+                  </pre>
+                )}
+                {a2aState.verificationResult?.reasons && a2aState.verificationResult.reasons.length > 0 && (
+                  <div className="pt-3 border-t border-neutral-800">
+                    <div className="text-[10px] uppercase tracking-wider text-neutral-600 mb-2">Verification notes</div>
+                    <ul className="space-y-1">
+                      {a2aState.verificationResult.reasons.map((r, i) => (
+                        <li key={i} className="text-xs text-neutral-400 font-mono">· {r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Poster: Cancel / Timeout actions */}
           {isPoster && (onChain.status === TaskStatus.Funded || canTimeout) && (

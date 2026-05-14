@@ -241,7 +241,11 @@ export default function A2ADashboard() {
           {/* Mobile cards */}
           <div className="md:hidden">
             {browse?.tasks?.map((entry) => (
-              <div key={entry.meta.taskId} className="border-b border-line last:border-b-0 px-5 py-4 space-y-2">
+              <Link
+                key={entry.meta.taskId}
+                to={(entry as any).onChainTaskId ? `/tasks/${(entry as any).onChainTaskId}` : '#'}
+                className="block border-b border-line last:border-b-0 px-5 py-4 space-y-2 hover:bg-surface-2 transition-colors"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-[11px] font-mono text-ink-3 truncate">{entry.meta.taskId.slice(0, 14)}…</span>
                   <Tag tone={statusTone[entry.state.status] ?? 'neutral'}>{entry.state.status}</Tag>
@@ -254,7 +258,7 @@ export default function A2ADashboard() {
                   <Tag tone="neutral">{entry.meta.verificationMode}</Tag>
                   <Tag tone="info">{entry.meta.targetExecutorType}</Tag>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
 
@@ -264,13 +268,17 @@ export default function A2ADashboard() {
               <span>id</span><span>required caps</span><span>verification</span><span>target</span><span>status</span>
             </div>
             {browse?.tasks?.map((entry) => (
-              <div key={entry.meta.taskId} className="grid grid-cols-[120px_1fr_120px_120px_90px] gap-6 px-5 py-4 border-b border-line last:border-b-0 text-[13px] font-mono">
+              <Link
+                key={entry.meta.taskId}
+                to={(entry as any).onChainTaskId ? `/tasks/${(entry as any).onChainTaskId}` : '#'}
+                className="grid grid-cols-[120px_1fr_120px_120px_90px] gap-6 px-5 py-4 border-b border-line last:border-b-0 text-[13px] font-mono hover:bg-surface-2 transition-colors"
+              >
                 <span className="text-ink-3">{entry.meta.taskId.slice(0, 10)}…</span>
                 <span className="text-ink truncate">{entry.meta.requiredCapabilities.join(', ') || '—'}</span>
                 <Tag tone="neutral">{entry.meta.verificationMode}</Tag>
                 <Tag tone="info">{entry.meta.targetExecutorType}</Tag>
                 <Tag tone={statusTone[entry.state.status] ?? 'neutral'}>{entry.state.status}</Tag>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -299,7 +307,11 @@ export default function A2ADashboard() {
               {/* Mobile cards */}
               <div className="md:hidden">
                 {execs.executions.map((e) => (
-                  <div key={e.meta.taskId} className="border-b border-line last:border-b-0 px-5 py-4 space-y-2">
+                  <Link
+                    key={e.meta.taskId}
+                    to={(e as any).onChainTaskId ? `/tasks/${(e as any).onChainTaskId}` : '#'}
+                    className="block border-b border-line last:border-b-0 px-5 py-4 space-y-2 hover:bg-surface-2 transition-colors"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <span className="text-[11px] font-mono text-ink-3 truncate">{e.meta.taskId.slice(0, 14)}…</span>
                       <Tag tone={statusTone[e.state.status] ?? 'neutral'}>{e.state.status}</Tag>
@@ -318,7 +330,7 @@ export default function A2ADashboard() {
                       <span className="text-ink-3">verified: </span>
                       <span className={e.state.verificationResult?.passed ? 'text-ok' : 'text-ink-3'}>{e.state.verificationResult?.passed ? '✓' : '—'}</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
 
@@ -328,13 +340,17 @@ export default function A2ADashboard() {
                   <span>task</span><span>accepted</span><span>status</span><span>submitted</span><span>verified</span>
                 </div>
                 {execs.executions.map((e) => (
-                  <div key={e.meta.taskId} className="grid grid-cols-[80px_1fr_100px_120px_90px] gap-4 px-5 py-3 border-b border-line last:border-b-0 text-[12px] font-mono">
+                  <Link
+                    key={e.meta.taskId}
+                    to={(e as any).onChainTaskId ? `/tasks/${(e as any).onChainTaskId}` : '#'}
+                    className="grid grid-cols-[80px_1fr_100px_120px_90px] gap-4 px-5 py-3 border-b border-line last:border-b-0 text-[12px] font-mono hover:bg-surface-2 transition-colors"
+                  >
                     <span className="text-ink-3">{e.meta.taskId.slice(0, 10)}…</span>
                     <span className="text-ink-3">{e.state.acceptedAt ? new Date(e.state.acceptedAt).toLocaleString() : '—'}</span>
                     <Tag tone={statusTone[e.state.status] ?? 'neutral'}>{e.state.status}</Tag>
                     <span className="text-ink-3">{e.state.submittedAt ? new Date(e.state.submittedAt).toLocaleString() : '—'}</span>
                     <span className="text-ink-3">{e.state.verificationResult?.passed ? '✓' : '—'}</span>
-                  </div>
+                  </Link>
                 ))}
               </div>
             </div>
