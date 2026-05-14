@@ -298,44 +298,77 @@ export default function A2ADashboard() {
             <div className="border border-line">
               {/* Mobile cards */}
               <div className="md:hidden">
-                {execs.executions.map((e) => (
-                  <div key={e.meta.taskId} className="border-b border-line last:border-b-0 px-5 py-4 space-y-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="text-[11px] font-mono text-ink-3 truncate">{e.meta.taskId.slice(0, 14)}…</span>
-                      <Tag tone={statusTone[e.state.status] ?? 'neutral'}>{e.state.status}</Tag>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 pt-1 text-[11px] font-mono">
-                      <div>
-                        <div className="text-ink-3 uppercase tracking-widest text-[10px]">accepted</div>
-                        <div className="text-ink-2 mt-0.5">{e.state.acceptedAt ? new Date(e.state.acceptedAt).toLocaleString() : '—'}</div>
+                {execs.executions.map((e) => {
+                  const hasResult = !!e.state.resultData;
+                  return (
+                    <div key={e.meta.taskId} className="border-b border-line last:border-b-0 px-5 py-4 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-[11px] font-mono text-ink-3 truncate">{e.meta.taskId.slice(0, 14)}…</span>
+                        <Tag tone={statusTone[e.state.status] ?? 'neutral'}>{e.state.status}</Tag>
                       </div>
-                      <div>
-                        <div className="text-ink-3 uppercase tracking-widest text-[10px]">submitted</div>
-                        <div className="text-ink-2 mt-0.5">{e.state.submittedAt ? new Date(e.state.submittedAt).toLocaleString() : '—'}</div>
+                      <div className="grid grid-cols-2 gap-3 pt-1 text-[11px] font-mono">
+                        <div>
+                          <div className="text-ink-3 uppercase tracking-widest text-[10px]">accepted</div>
+                          <div className="text-ink-2 mt-0.5">{e.state.acceptedAt ? new Date(e.state.acceptedAt).toLocaleString() : '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-ink-3 uppercase tracking-widest text-[10px]">submitted</div>
+                          <div className="text-ink-2 mt-0.5">{e.state.submittedAt ? new Date(e.state.submittedAt).toLocaleString() : '—'}</div>
+                        </div>
                       </div>
+                      <div className="text-[11px] font-mono">
+                        <span className="text-ink-3">verified: </span>
+                        <span className={e.state.verificationResult?.passed ? 'text-ok' : 'text-ink-3'}>{e.state.verificationResult?.passed ? '✓' : '—'}</span>
+                      </div>
+                      {hasResult && (
+                        <details className="pt-2 border-t border-line/50 group">
+                          <summary className="flex items-center justify-between cursor-pointer text-[11px] font-mono uppercase tracking-widest text-ink-3 hover:text-cream transition-colors list-none">
+                            <span>view result</span>
+                            <span className="group-open:rotate-90 transition-transform">▸</span>
+                          </summary>
+                          <pre className="mt-2 max-h-64 overflow-auto bg-surface-2 border border-line p-3 text-[11px] font-mono text-ink leading-relaxed whitespace-pre-wrap break-words">
+                            {JSON.stringify(e.state.resultData, null, 2)}
+                          </pre>
+                        </details>
+                      )}
                     </div>
-                    <div className="text-[11px] font-mono">
-                      <span className="text-ink-3">verified: </span>
-                      <span className={e.state.verificationResult?.passed ? 'text-ok' : 'text-ink-3'}>{e.state.verificationResult?.passed ? '✓' : '—'}</span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              {/* Desktop table */}
+              {/* Desktop table — each row is wrapped in <details> so the
+                  submitted result expands inline below the row when clicked.
+                  Keeps the dense tabular view while making the work visible. */}
               <div className="hidden md:block">
-                <div className="grid grid-cols-[80px_1fr_100px_120px_90px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
-                  <span>task</span><span>accepted</span><span>status</span><span>submitted</span><span>verified</span>
+                <div className="grid grid-cols-[80px_1fr_100px_120px_90px_70px] gap-4 px-5 py-3 border-b border-line text-[11px] font-mono font-semibold uppercase tracking-widest text-ink-3">
+                  <span>task</span><span>accepted</span><span>status</span><span>submitted</span><span>verified</span><span>result</span>
                 </div>
-                {execs.executions.map((e) => (
-                  <div key={e.meta.taskId} className="grid grid-cols-[80px_1fr_100px_120px_90px] gap-4 px-5 py-3 border-b border-line last:border-b-0 text-[12px] font-mono">
-                    <span className="text-ink-3">{e.meta.taskId.slice(0, 10)}…</span>
-                    <span className="text-ink-3">{e.state.acceptedAt ? new Date(e.state.acceptedAt).toLocaleString() : '—'}</span>
-                    <Tag tone={statusTone[e.state.status] ?? 'neutral'}>{e.state.status}</Tag>
-                    <span className="text-ink-3">{e.state.submittedAt ? new Date(e.state.submittedAt).toLocaleString() : '—'}</span>
-                    <span className="text-ink-3">{e.state.verificationResult?.passed ? '✓' : '—'}</span>
-                  </div>
-                ))}
+                {execs.executions.map((e) => {
+                  const hasResult = !!e.state.resultData;
+                  return (
+                    <details key={e.meta.taskId} className="border-b border-line last:border-b-0 group">
+                      <summary className={`grid grid-cols-[80px_1fr_100px_120px_90px_70px] gap-4 px-5 py-3 text-[12px] font-mono list-none ${hasResult ? 'cursor-pointer hover:bg-surface-2' : 'cursor-default'} transition-colors`}>
+                        <span className="text-ink-3">{e.meta.taskId.slice(0, 10)}…</span>
+                        <span className="text-ink-3">{e.state.acceptedAt ? new Date(e.state.acceptedAt).toLocaleString() : '—'}</span>
+                        <Tag tone={statusTone[e.state.status] ?? 'neutral'}>{e.state.status}</Tag>
+                        <span className="text-ink-3">{e.state.submittedAt ? new Date(e.state.submittedAt).toLocaleString() : '—'}</span>
+                        <span className="text-ink-3">{e.state.verificationResult?.passed ? '✓' : '—'}</span>
+                        <span className={`uppercase tracking-widest text-[10px] ${hasResult ? 'text-cream group-open:text-ink' : 'text-ink-3/50'}`}>
+                          {hasResult ? (
+                            <>view <span className="group-open:rotate-90 inline-block transition-transform">▸</span></>
+                          ) : '—'}
+                        </span>
+                      </summary>
+                      {hasResult && (
+                        <div className="px-5 pb-4 -mt-1">
+                          <pre className="max-h-80 overflow-auto bg-surface-2 border border-line p-4 text-[11px] font-mono text-ink leading-relaxed whitespace-pre-wrap break-words">
+                            {JSON.stringify(e.state.resultData, null, 2)}
+                          </pre>
+                        </div>
+                      )}
+                    </details>
+                  );
+                })}
               </div>
             </div>
           )}

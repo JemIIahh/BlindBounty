@@ -682,18 +682,58 @@ a2aRouter.post('/tasks/:id/verify', requireAuth, async (req: AuthRequest, res, n
 
 /**
  * GET /api/v1/a2a/tasks/posted
- * Returns all A2A tasks posted by the authenticated address. Drives the
- * poster's /a2a → to_review inbox (client-side filters for state==submitted
- * and verificationMode==manual).
+ *
+ * Returns every A2A task posted by the authenticated address, across the
+ * full lifecycle (open → accepted → submitted → verified/failed). Each entry
+ * is enriched with the on-chain task record (status, reward, deadline) so the
+ * frontend has everything it needs in one round-trip — `state.resultData` for
+ * the inline result viewer, plus the on-chain status for the lifecycle chip.
+ *
+ * This is the right data source for `/tasks/mine`: the bare on-chain
+ * `/api/v1/tasks` endpoint returns only Funded tasks (per
+ * `registry.getOpenTasks`), so completed work would otherwise vanish from the
+ * poster's inbox the moment it settled. Reading off Redis here gives us the
+ * full audit trail.
  */
 a2aRouter.get('/tasks/posted', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const address = req.user!.address;
     const tasks = await a2aStore.getPosterTasks(address);
 
+    // Enrich each task with its on-chain record so the UI doesn't need a
+    // second per-task fetch. Wrapped in try/catch per task — a missing
+    // on-chain task (e.g. createTask never confirmed) shouldn't blank out
+    // the entire list. Sequential because a typical user has <50 posts;
+    // if this grows, batch via Multicall.
+    const enriched = await Promise.all(
+      tasks.map(async (t) => {
+        try {
+          const onChainId = await getTaskIdByHash(t.meta.taskId);
+          if (!onChainId) return { ...t, onChain: null };
+          const onChainTask = await escrowService.getTask(Number(onChainId));
+          return {
+            ...t,
+            onChain: {
+              taskId: onChainId.toString(),
+              status: onChainTask.status,
+              reward: onChainTask.amount.toString(),
+              token: onChainTask.token,
+              worker: onChainTask.worker,
+              createdAt: onChainTask.createdAt.toString(),
+              deadline: onChainTask.deadline.toString(),
+            },
+          };
+        } catch {
+          // Indexer hasn't caught up, or createTask reverted — return the
+          // Redis-only view so the user at least sees the task exists.
+          return { ...t, onChain: null };
+        }
+      }),
+    );
+
     const body: ApiResponse = {
       success: true,
-      data: { tasks, total: tasks.length },
+      data: { tasks: enriched, total: enriched.length },
     };
     res.json(body);
   } catch (err) {
