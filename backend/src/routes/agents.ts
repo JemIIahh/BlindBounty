@@ -33,7 +33,24 @@ async function authorizeOwner(req: AuthRequest, res: import('express').Response,
     return null;
   }
   if (authed.toLowerCase() !== agent.ownerAddress.toLowerCase()) {
-    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only the agent owner can perform this action' } });
+    // Surface both addresses so the user can immediately see whether their
+    // session resolved to a different wallet than the one that deployed the
+    // agent. Common cause: Privy users with multiple linked wallets — the
+    // JWT's first wallet entry isn't guaranteed to be the one used at deploy.
+    // Truncated for log brevity; both are public blockchain addresses so no
+    // privacy concern.
+    const tr = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+    res.status(403).json({
+      success: false,
+      error: {
+        code: 'FORBIDDEN',
+        message: `Only the agent owner can perform this action. You are signed in as ${tr(authed)} but this agent's owner is ${tr(agent.ownerAddress)}. If those are both yours, re-link wallets in Privy or sign in with the wallet that originally deployed the agent.`,
+        details: {
+          authenticatedAs: authed,
+          agentOwner: agent.ownerAddress,
+        },
+      },
+    });
     return null;
   }
   return agent;
