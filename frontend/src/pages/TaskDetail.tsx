@@ -164,7 +164,9 @@ export default function TaskDetail() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">On-chain ID</span>
-                  <p className="text-sm text-neutral-300 font-mono mt-1">{onChain.taskId || 'Not assigned yet'}</p>
+                  <p className="text-sm text-neutral-300 font-mono mt-1">
+                    {onChain.taskId ? `#${onChain.taskId}` : (onChain as any).id ? `#${(onChain as any).id}` : 'Not assigned yet'}
+                  </p>
                 </div>
                 <div>
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Task Hash</span>

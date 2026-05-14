@@ -3,9 +3,10 @@ import type { OnChainTask } from '../types.js';
 import { ethers } from 'ethers';
 
 /** Read a single task from BlindEscrow */
-export async function getTask(taskId: number): Promise<OnChainTask> {
+export async function getTask(taskId: number): Promise<OnChainTask & { taskId: string }> {
   const t = await escrow.getTask(taskId);
   return {
+    taskId: taskId.toString(),
     agent: t.agent,
     worker: t.worker,
     token: t.token,

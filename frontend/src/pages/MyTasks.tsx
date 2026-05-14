@@ -64,11 +64,11 @@ function formatReward(raw: string | undefined) {
 // Short id for the visible task identifier — we display the on-chain numeric
 // id when available (familiar #42 form), otherwise the truncated hash.
 function shortId(t: PostedTask): string {
-  // Try onChain first, then fallback to meta.taskId (which is also the numeric ID from the registry)
+  // Use onChain taskId first, then fall back to meta.taskId (also numeric)
   const numericId = t.onChain?.taskId || t.meta.taskId;
-  // bytes32 hashes are length 66 (0x + 64 hex chars). Numeric IDs are much shorter.
-  if (numericId && numericId.length < 20) return `#${numericId}`;
-  return `${numericId.slice(0, 10)}…`;
+  // If it's a small number/string, it's our sequential ID
+  if (numericId && numericId.length < 10) return `#${numericId}`;
+  return `${t.meta.taskId.slice(0, 10)}…`;
 }
 
 // On-chain ZERO worker = "no one assigned yet". A non-zero, non-poster
@@ -193,8 +193,9 @@ export default function MyTasks() {
               const status = effectiveStatus(t);
               const isDone = status === 3 || status === 4 || status === 6;
               const hasResult = !!t.state.resultData;
-              const taskUrl = t.onChain ? `/tasks/${t.onChain.taskId}` : null;
-              const cardClass = `bg-bg p-5 flex flex-col gap-3 min-h-[200px] ${taskUrl ? 'group hover:bg-surface-2 transition-colors cursor-pointer' : ''}`;
+              const taskId = t.onChain?.taskId || t.meta.taskId;
+              const taskUrl = `/tasks/${taskId}`;
+              const cardClass = `bg-bg p-5 flex flex-col gap-3 min-h-[200px] group hover:bg-surface-2 transition-colors cursor-pointer`;
               const cardContent = (
                 <>
                   <div className="flex items-center justify-between gap-2">
@@ -230,7 +231,7 @@ export default function MyTasks() {
                         {workerLabel(t)}
                       </div>
                     </div>
-                    {taskUrl && <span className="text-[11px] font-mono text-ink-3 group-hover:text-cream transition-colors">view →</span>}
+                    <span className="text-[11px] font-mono text-ink-3 group-hover:text-cream transition-colors">view →</span>
                   </div>
                   {(hasResult || isDone) && (
                     <details className="mt-1 border-t border-line pt-3 group/details" onClick={e => e.preventDefault()}>
@@ -251,10 +252,8 @@ export default function MyTasks() {
                   )}
                 </>
               );
-              return taskUrl ? (
+              return (
                 <Link key={t.meta.taskId} to={taskUrl} className={cardClass}>{cardContent}</Link>
-              ) : (
-                <div key={t.meta.taskId} className={cardClass}>{cardContent}</div>
               );
             })}
           </div>
