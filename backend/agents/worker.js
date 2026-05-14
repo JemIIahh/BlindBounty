@@ -84,6 +84,40 @@ const AGENT_CAPABILITIES_RAW = process.env.AGENT_CAPABILITIES ?? '[]';
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS ?? 30_000);
 
+// ── Logging helpers ──────────────────────────────────────────────────────
+//
+// These MUST be declared above any module-level code that calls log(). `const`
+// declarations are not hoisted — referencing ANSI_DIM from inside log() before
+// its declaration line ran would throw `Cannot access 'ANSI_DIM' before
+// initialization` (temporal dead zone). The previous tries (helpers at the
+// bottom of the file, then helpers above the startup log) both missed the
+// AGENT_TOOLS-parse catch at line ~205 which also calls log(). Anchoring the
+// block right after the env-var reads is the only safe spot — every later
+// module-level statement is below.
+
+// Pretty timestamp for log lines. ISO-ish, trimmed to the second so the UI's
+// monospace column stays narrow. Always UTC so logs from different timezones
+// line up.
+function nowStamp() {
+  return new Date().toISOString().slice(0, 19) + 'Z';
+}
+
+// ANSI colors are useful when a developer tails the worker locally, but the
+// agent runs as a forked child piping stdout to the parent process, which
+// streams it to the browser. Browsers don't interpret terminal escape codes —
+// they render `\x1b[2m` as literal `[2m`. Detect "am I attached to a TTY?" and
+// skip colors when we're not.
+const COLORED = !!process.stdout.isTTY;
+const ANSI_DIM   = COLORED ? '\x1b[2m'  : '';
+const ANSI_CYAN  = COLORED ? '\x1b[36m' : '';
+const ANSI_RESET = COLORED ? '\x1b[0m'  : '';
+
+function log(msg) {
+  console.log(
+    `${ANSI_DIM}${nowStamp()} [agent:${ANSI_CYAN}${AGENT_ID.slice(0, 8)}${ANSI_RESET}${ANSI_DIM}]${ANSI_RESET} ${msg}`
+  );
+}
+
 // Capabilities the parent agentRunner declares for us at deploy time. Used to
 // auto-register as an A2A executor on startup (without registration the
 // /a2a/tasks/:hash/accept handler refuses our calls with 403 NOT_REGISTERED).
@@ -216,35 +250,6 @@ function getModel() {
     case 'gemini':    return createGoogleGenerativeAI({ apiKey: AGENT_API_KEY })(AGENT_MODEL);
     default:          return createOpenAI({ apiKey: AGENT_API_KEY })(AGENT_MODEL);
   }
-}
-
-// ── Logging helpers ──────────────────────────────────────────────────────
-// MUST be declared above the first log() call below. `const` declarations
-// are not hoisted — putting these further down causes a TDZ
-// ReferenceError when the startup log fires.
-
-// Pretty timestamp for log lines. ISO-ish but trimmed to the second so the
-// UI's monospace column stays narrow — `2026-05-14T10:48:05Z` rather than
-// the full millisecond form. We always emit UTC so logs collected from
-// different timezones line up.
-function nowStamp() {
-  return new Date().toISOString().slice(0, 19) + 'Z';
-}
-
-// ANSI colors are useful when a developer tails the worker locally, but the
-// agent runs as a forked child piping stdout to the parent process, which
-// streams it to the browser. Browsers don't interpret terminal escape codes
-// — they render `\x1b[2m` as literal `[2m`. Detect "am I attached to a TTY?"
-// and skip colors when we're not.
-const COLORED = !!process.stdout.isTTY;
-const ANSI_DIM   = COLORED ? '\x1b[2m'  : '';
-const ANSI_CYAN  = COLORED ? '\x1b[36m' : '';
-const ANSI_RESET = COLORED ? '\x1b[0m'  : '';
-
-function log(msg) {
-  console.log(
-    `${ANSI_DIM}${nowStamp()} [agent:${ANSI_CYAN}${AGENT_ID.slice(0, 8)}${ANSI_RESET}${ANSI_DIM}]${ANSI_RESET} ${msg}`
-  );
 }
 
 log(`started | provider=${AGENT_PROVIDER} model=${AGENT_MODEL} tools=${agentTools.length}`);
