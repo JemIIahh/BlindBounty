@@ -691,9 +691,16 @@ a2aRouter.get('/tasks/posted', requireAuth, async (req: AuthRequest, res, next) 
     const address = req.user!.address;
     const tasks = await a2aStore.getPosterTasks(address);
 
+    const enriched = await Promise.all(
+      tasks.map(async (t) => ({
+        ...t,
+        onChainTaskId: (await getTaskIdByHash(t.meta.taskId)) ?? undefined,
+      })),
+    );
+
     const body: ApiResponse = {
       success: true,
-      data: { tasks, total: tasks.length },
+      data: { tasks: enriched, total: enriched.length },
     };
     res.json(body);
   } catch (err) {
@@ -719,9 +726,16 @@ a2aRouter.get('/executions', requireAuth, async (req: AuthRequest, res, next) =>
     const address = queryAddr ?? req.user!.address;
     const tasks = await a2aStore.getExecutorTasks(address);
 
+    const enriched = await Promise.all(
+      tasks.map(async (t) => ({
+        ...t,
+        onChainTaskId: (await getTaskIdByHash(t.meta.taskId)) ?? undefined,
+      })),
+    );
+
     const body: ApiResponse = {
       success: true,
-      data: { executions: tasks, total: tasks.length },
+      data: { executions: enriched, total: enriched.length },
     };
     res.json(body);
   } catch (err) {

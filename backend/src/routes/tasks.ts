@@ -166,11 +166,19 @@ tasksRouter.get('/:id', async (req, res, next) => {
     const indexedSet = await a2aStore.getIndexedHashes([task.taskHash]);
     const a2aIndexed = indexedSet.has(task.taskHash.toLowerCase());
 
+    // Fetch A2A off-chain state so TaskDetail can show agent output / verification result
+    const [a2aMeta, a2aState] = await Promise.all([
+      a2aStore.getMeta(task.taskHash),
+      a2aStore.getState(task.taskHash),
+    ]);
+
     const body: ApiResponse = {
       success: true,
       data: {
         ...serializeBigInts(task as unknown as Record<string, unknown>),
         a2aIndexed,
+        a2aMeta: a2aMeta ?? null,
+        a2aState: a2aState ? { ...a2aState, resultData: a2aState.resultData ?? null } : null,
         meta: meta ? {
           ...serializeBigInts(meta as unknown as Record<string, unknown>),
           decimals,

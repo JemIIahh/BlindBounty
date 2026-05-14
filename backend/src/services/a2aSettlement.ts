@@ -27,6 +27,7 @@ import type { ContractTransactionResponse } from 'ethers';
 import { escrowAsMarketplace, marketplaceSigner } from './chain.js';
 import { getTaskIdByHash } from './escrowEvents.js';
 import * as a2aStore from './a2aStore.js';
+import { rooms } from './socket.js';
 
 // How long to wait for the TaskCreated event listener to populate the
 // taskHash → taskId mapping before giving up on a settlement attempt.
@@ -183,6 +184,11 @@ export async function settleVerification(taskHash: string, passed: boolean): Pro
     console.log(
       `[a2aSettlement] completeVerification confirmed taskId=${taskId} passed=${passed} block=${receipt?.blockNumber} status=${receipt?.status}`,
     );
+
+    if (passed) {
+      rooms.tasks('task:completed', { taskId });
+      rooms.task(taskId, 'task:completed', { taskId });
+    }
   } catch (err) {
     console.error(
       `[a2aSettlement] verification failed for hash=${taskHash.slice(0, 10)}…:`,

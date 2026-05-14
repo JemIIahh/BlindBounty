@@ -40,7 +40,7 @@ export function recordTransaction(tx: {
 
   db.prepare(
     'INSERT INTO transactions (address, role, task_id, type, amount, fee, net, status, tx_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-  ).run(tx.address, tx.role, tx.taskId ?? null, tx.type, tx.amount, fee, net, tx.status ?? 'confirmed', tx.txHash ?? null);
+  ).run(tx.address.toLowerCase(), tx.role, tx.taskId ?? null, tx.type, tx.amount, fee, net, tx.status ?? 'confirmed', tx.txHash ?? null);
 
   return db.prepare('SELECT * FROM transactions ORDER BY id DESC LIMIT 1').get() as Transaction;
 }
@@ -53,7 +53,7 @@ export function getTransactions(
 ): { transactions: Transaction[]; total: number } {
   const db = getDb();
   let query = 'SELECT * FROM transactions WHERE address = ?';
-  const params: (string | number)[] = [address];
+  const params: (string | number)[] = [address.toLowerCase()];
 
   if (from) {
     query += ' AND created_at >= ?';
@@ -80,7 +80,7 @@ export function getTransactions(
 export function getSummary(address: string, from?: string, to?: string): TransactionSummary {
   const db = getDb();
   let query = 'SELECT type, SUM(amount) as total_amount, SUM(fee) as total_fee, SUM(net) as total_net, COUNT(*) as cnt FROM transactions WHERE address = ?';
-  const params: string[] = [address];
+  const params: string[] = [address.toLowerCase()];
 
   if (from) {
     query += ' AND created_at >= ?';

@@ -157,6 +157,11 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_analytics_session ON analytics_events(session_id);
     `,
   },
+  {
+    id: 7,
+    name: 'lowercase_transaction_addresses',
+    sql: `UPDATE transactions SET address = LOWER(address) WHERE address != LOWER(address);`,
+  },
 ];
 
 function runMigrations(database: Database.Database): void {
