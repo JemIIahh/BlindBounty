@@ -5,6 +5,7 @@ import { recoverPublicKey, hashMessage } from 'viem';
 import { BrowserProvider, parseEther, formatEther } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule } from '../components/bb';
 import { get, post } from '../lib/api';
+import { AGENT_CAPABILITIES } from '../config/capabilities';
 
 // How much native 0G to send to a freshly-deployed agent wallet so it can pay
 // gas for its on-chain actions (submitEvidence, USDC sweep, etc). 0.05 0G
@@ -264,12 +265,7 @@ export default function DeployAgentForm() {
         <div className="p-6 border-b border-line">
           <SectionRule num="03" title="capabilities" side="required — what tasks can this agent do?" />
           <div className="mt-4 flex flex-wrap gap-2">
-            {[
-              'web_research','data_processing','content_generation','summarization',
-              'text_analysis','translation','code_execution','code_review',
-              'image_analysis','document_processing','api_integration','data_extraction',
-              'report_generation','market_research','competitive_analysis','testing',
-            ].map(cap => (
+            {AGENT_CAPABILITIES.map(cap => (
               <button key={cap} type="button"
                 onClick={() => setCapabilities(cs => cs.includes(cap) ? cs.filter(c => c !== cap) : [...cs, cap])}
                 className={`px-3 py-1 text-[11px] font-mono border transition-colors ${
