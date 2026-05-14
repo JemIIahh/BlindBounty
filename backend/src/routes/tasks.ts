@@ -160,16 +160,17 @@ tasksRouter.get('/:id', async (req, res, next) => {
       registryService.getTaskMeta(taskId).catch(() => null),
     ]);
 
+    const taskHash = task.taskHash.toLowerCase();
     const decimals = await getTokenDecimals(task.token);
     // Same flag as the list endpoint — lets the detail page surface the
     // stranded notice when a Funded task can never be picked up by an agent.
-    const indexedSet = await a2aStore.getIndexedHashes([task.taskHash]);
-    const a2aIndexed = indexedSet.has(task.taskHash.toLowerCase());
+    const indexedSet = await a2aStore.getIndexedHashes([taskHash]);
+    const a2aIndexed = indexedSet.has(taskHash);
 
     // Fetch A2A off-chain state so TaskDetail can show agent output / verification result
     const [a2aMeta, a2aState] = await Promise.all([
-      a2aStore.getMeta(task.taskHash),
-      a2aStore.getState(task.taskHash),
+      a2aStore.getMeta(taskHash),
+      a2aStore.getState(taskHash),
     ]);
 
     const body: ApiResponse = {

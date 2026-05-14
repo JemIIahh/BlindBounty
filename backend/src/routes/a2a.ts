@@ -237,14 +237,19 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
   try {
     const taskId = req.params.id as string;
     const address = req.user!.address;
+    console.log(`[a2a] POST /accept: taskId=${taskId}, executor=${address}`);
 
     const meta = await a2aStore.getMeta(taskId);
-    if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
+    if (!meta) {
+      console.warn(`[a2a] accept: task meta not found for ${taskId}`);
+      throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
+    }
 
     // Check agent is registered + capability match BEFORE the CAS, so we don't
     // burn the open→accepted transition on a caller who'd be 403'd anyway.
     const agent = await agentStore.getAgent(address);
     if (!agent) {
+      console.warn(`[a2a] accept: agent not registered: ${address}`);
       throw new AppError(403, 'NOT_REGISTERED', 'Register as an agent executor first');
     }
     if (meta.requiredCapabilities.length > 0) {
@@ -254,6 +259,7 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
       // even if it doesn't claim web_research.
       const hasAny = meta.requiredCapabilities.some((c) => agent.capabilities.includes(c));
       if (!hasAny) {
+        console.warn(`[a2a] accept: capability mismatch for ${taskId}: agent has [${agent.capabilities.join(',')}], needs one of [${meta.requiredCapabilities.join(',')}]`);
         throw new AppError(
           403,
           'CAPABILITY_MISMATCH',
@@ -269,6 +275,7 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
     // accept attempt sails through. Skipping this check for tasks without a
     // rootHash (legacy / unencrypted) keeps the back-compat path open.
     if (meta.rootHash && !meta.wrappedKeys?.[address.toLowerCase()]) {
+      console.log(`[a2a] accept: needs wrap for ${taskId}, agent=${address}`);
       throw new AppError(
         403,
         'NEEDS_WRAP',
@@ -283,6 +290,7 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
     // tx (and thereby the on-chain t.worker).
     const accept = await a2aStore.tryAccept(taskId, address, new Date().toISOString());
     if (!accept.ok) {
+      console.warn(`[a2a] accept: CAS lost for ${taskId}, currentStatus=${accept.currentStatus}`);
       throw new AppError(
         409,
         'NOT_OPEN',
@@ -295,6 +303,7 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
     // We deliberately don't await — the HTTP response returns immediately
     // and the bridge logs its own progress. State update inside the bridge
     // persists the tx hash to a2aStore so clients can poll for confirmation.
+    console.log(`[a2a] accept: transition OK for ${taskId}, triggering bridge assignment`);
     void settleAssignment(taskId, address);
 
     // Encrypted-brief slice: return the caller's wrappedKey + rootHash so the
@@ -315,6 +324,7 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
     };
     res.json(body);
   } catch (err) {
+    console.error(`[a2a] accept failed for ${req.params.id}:`, (err as Error).message);
     next(err);
   }
 });
@@ -486,15 +496,21 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
     const taskHash = req.params.id as string;
     const address = req.user!.address;
     const { resultData } = submitSchema.parse(req.body);
+    console.log(`[a2a] POST /submit: taskHash=${taskHash}, executor=${address}`);
 
     const meta = await a2aStore.getMeta(taskHash);
-    if (!meta) throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
+    if (!meta) {
+      console.warn(`[a2a] submit: task meta not found for ${taskHash}`);
+      throw new AppError(404, 'NOT_FOUND', 'Task not found or not A2A-enabled');
+    }
 
     const state = await a2aStore.getState(taskHash);
     if (!state || state.executorAddress?.toLowerCase() !== address.toLowerCase()) {
+      console.warn(`[a2a] submit: forbidden for ${taskHash}: executor in state is ${state?.executorAddress}, caller is ${address}`);
       throw new AppError(403, 'FORBIDDEN', 'Only the accepted executor can submit');
     }
     if (state.status !== 'accepted' && state.status !== 'in_progress') {
+      console.warn(`[a2a] submit: invalid state for ${taskHash}: ${state.status}`);
       throw new AppError(409, 'INVALID_STATE', `Cannot submit in state: ${state.status}`);
     }
 
@@ -503,6 +519,7 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
     // services/escrowEvents.ts within ~30s of createTask confirming on chain.
     const onChainId = await getTaskIdByHash(taskHash);
     if (!onChainId) {
+      console.warn(`[a2a] submit: hash2id not indexed yet for ${taskHash}`);
       throw new AppError(
         503,
         'NOT_INDEXED',
@@ -528,6 +545,7 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
       resultData,
       submittedAt: new Date().toISOString(),
     });
+    console.log(`[a2a] submit: resultData stored and unsignedSubmitEvidence built for ${taskHash}`);
 
     const body: ApiResponse = {
       success: true,
@@ -541,6 +559,7 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
     };
     res.json(body);
   } catch (err) {
+    console.error(`[a2a] submit failed for ${req.params.id}:`, (err as Error).message);
     next(err);
   }
 });
