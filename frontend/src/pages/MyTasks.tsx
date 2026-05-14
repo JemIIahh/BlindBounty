@@ -78,6 +78,7 @@ function workerLabel(t: PostedTask): string {
 export default function MyTasks() {
   const { address } = useAccount();
   const qc = useQueryClient();
+  const [filter, setFilter] = useState<'all' | 'open' | 'active' | 'completed'>('all');
 
   // /a2a/tasks/posted returns every task the authed wallet posted, across
   // the full lifecycle. /api/v1/tasks would only return Funded ones, which
@@ -120,9 +121,17 @@ export default function MyTasks() {
     }
   }
 
-  const open = tasks.filter(t => effectiveStatus(t) === 0).length;
-  const active = tasks.filter(t => [1, 2].includes(effectiveStatus(t))).length;
-  const completed = tasks.filter(t => effectiveStatus(t) === 4).length;
+  const filteredTasks = tasks.filter(t => {
+    const status = effectiveStatus(t);
+    if (filter === 'open') return status === 0;
+    if (filter === 'active') return [1, 2].includes(status);
+    if (filter === 'completed') return status === 4;
+    return true;
+  });
+
+  const openCount = tasks.filter(t => effectiveStatus(t) === 0).length;
+  const activeCount = tasks.filter(t => [1, 2].includes(effectiveStatus(t))).length;
+  const completedCount = tasks.filter(t => effectiveStatus(t) === 4).length;
   const totalSpent = tasks
     .filter(t => effectiveStatus(t) === 4)
     .reduce((s, t) => s + (t.onChain ? Number(BigInt(t.onChain.reward)) / 1e6 : 0), 0);
@@ -141,27 +150,42 @@ export default function MyTasks() {
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 border border-line mb-8">
-        <StatCard label="open" value={String(open)} sub="awaiting worker" />
-        <div className="border-l border-line"><StatCard label="active" value={String(active)} sub="in progress" subColor="warn" /></div>
-        <div className="border-t border-l-0 sm:border-t-0 sm:border-l border-line"><StatCard label="completed" value={String(completed)} sub="all time" subColor="ok" /></div>
+        <StatCard label="open" value={String(openCount)} sub="awaiting worker" />
+        <div className="border-l border-line"><StatCard label="active" value={String(activeCount)} sub="in progress" subColor="warn" /></div>
+        <div className="border-t border-l-0 sm:border-t-0 sm:border-l border-line"><StatCard label="completed" value={String(completedCount)} sub="all time" subColor="ok" /></div>
         <div className="border-t border-l border-line sm:border-t-0"><StatCard label="total spent" value={`$${totalSpent.toFixed(2)}`} sub="USDC paid out" /></div>
       </div>
 
       <div className="border border-line">
-        <SectionRule num="01" title="posted tasks" side={`${tasks.length} total`} />
+        <div className="flex items-center justify-between bg-surface-1 pr-4">
+          <SectionRule num="01" title="posted tasks" side={`${filteredTasks.length} shown / ${tasks.length} total`} />
+          <div className="flex gap-2">
+            {(['all', 'open', 'active', 'completed'] as const).map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 border transition-colors ${
+                  filter === f ? 'bg-cream text-bg border-cream' : 'text-ink-3 border-line hover:border-cream/50'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {!address ? (
           <div className="px-5 py-10 text-center text-xs font-mono text-ink-3">connect wallet to see your tasks</div>
         ) : isLoading ? (
           <div className="px-5 py-10 text-center text-xs font-mono text-ink-3">loading…</div>
-        ) : tasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <div className="px-5 py-10 flex flex-col items-center gap-3">
-            <p className="text-xs font-mono text-ink-3">no tasks posted yet.</p>
-            <Link to="/tasks/new" className="text-xs font-mono text-cream hover:underline">post your first task →</Link>
+            <p className="text-xs font-mono text-ink-3">no {filter !== 'all' ? filter : ''} tasks found.</p>
+            {filter === 'all' && <Link to="/tasks/new" className="text-xs font-mono text-cream hover:underline">post your first task →</Link>}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-line border-t border-line">
-            {tasks.map(t => {
+            {filteredTasks.map(t => {
               const status = effectiveStatus(t);
               const isDone = status === 3 || status === 4 || status === 6;
               const hasResult = !!t.state.resultData;

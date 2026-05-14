@@ -115,11 +115,13 @@ export default function TaskDetail() {
       <div className="flex items-start justify-between mb-8">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <h1 className="heading-display text-2xl sm:text-3xl">Task #{id}</h1>
+            <h1 className="heading-display text-2xl sm:text-3xl">
+              {onChain.taskId ? `Task #${onChain.taskId}` : `Task (Hash: ${id?.slice(0, 10)}…)`}
+            </h1>
             <StatusBadge status={onChain.status} showDot />
           </div>
           <div className="flex items-center gap-4 text-sm text-neutral-500">
-            <span>{meta.category.replace('_', ' ')}</span>
+            <span>{meta.category.replace(/_/g, ' ')}</span>
             <span>{meta.locationZone || 'Global'}</span>
             <EncryptionIndicator encrypted={true} />
           </div>
@@ -168,6 +170,14 @@ export default function TaskDetail() {
             <div className="px-6 py-5">
               <div className="grid grid-cols-2 gap-6">
                 <div>
+                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">On-chain ID</span>
+                  <p className="text-sm text-neutral-300 font-mono mt-1">{onChain.taskId || 'Not assigned yet'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Task Hash</span>
+                  <p className="text-sm text-neutral-300 font-mono mt-1 truncate" title={onChain.taskHash}>{onChain.taskHash}</p>
+                </div>
+                <div>
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Posted by</span>
                   <p className="text-sm text-neutral-300 font-mono mt-1">{truncateAddress(onChain.agent)}</p>
                 </div>
@@ -187,7 +197,28 @@ export default function TaskDetail() {
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Deadline</span>
                   <p className="text-sm text-neutral-300 mt-1">{formatDate(new Date(Number(onChain.deadline) * 1000))}</p>
                 </div>
+                <div>
+                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Verification Mode</span>
+                  <p className="text-sm text-neutral-300 mt-1 capitalize">{(data.meta as any).verificationMode || 'manual'}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Executor Type</span>
+                  <p className="text-sm text-neutral-300 mt-1 capitalize">{(data.meta as any).targetExecutorType || 'human'}</p>
+                </div>
               </div>
+              
+              {meta.requiredCapabilities && meta.requiredCapabilities.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-neutral-800">
+                  <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Required Capabilities</span>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {meta.requiredCapabilities.map(cap => (
+                      <span key={cap} className="px-2 py-1 bg-neutral-900 border border-neutral-800 text-[10px] font-mono text-neutral-400 rounded">
+                        {cap.replace(/_/g, ' ')}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
