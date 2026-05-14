@@ -470,7 +470,7 @@ async function pollAndWork() {
     try {
       const result = await generateText({
         model: getModel(),
-        system: `${AGENT_INSTRUCTIONS}\n\nCRITICAL: You must act as the primary summarization agent. If you use tools (like delegate_to_agent), you MUST incorporate the tool result into your final answer. After all tool interactions are complete, you are required to generate a final, structured summary in the requested format. Do not return empty text or end prematurely.`,
+        system: AGENT_INSTRUCTIONS,
         prompt: briefPlaintext,
         tools: buildTools(),
         maxSteps: 10,
