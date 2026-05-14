@@ -36,6 +36,7 @@ export const TaskStatusLabels: Record<TaskStatus, string> = {
 
 /** On-chain task struct (mirrors BlindEscrow.Task) */
 export interface OnChainTask {
+  taskId?: string; // numeric id
   agent: string;
   worker: string;
   token: string;
@@ -61,6 +62,8 @@ export interface TaskMeta {
   reward: string;
   createdAt: string;
   isOpen: boolean;
+  rootHash?: string;
+  requiredCapabilities?: string[];
 }
 
 /** Reputation from BlindReputation */

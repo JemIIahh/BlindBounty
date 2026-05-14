@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';

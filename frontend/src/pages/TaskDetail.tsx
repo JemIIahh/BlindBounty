@@ -79,6 +79,8 @@ export default function TaskDetail() {
     acceptedAt?: string;
     submittedAt?: string;
     executorAddress?: string;
+    assignTxHash?: string;
+    verifyTxHash?: string;
   } | null;
 
   const isExpired = Date.now() > Number(onChain.deadline) * 1000;
@@ -108,7 +110,7 @@ export default function TaskDetail() {
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
         </svg>
-        <span className="text-neutral-300">Task #{id}</span>
+        <span className="text-neutral-300">Task #{onChain.taskId || id?.slice(0, 10)}</span>
       </div>
 
       {/* Header */}
@@ -260,7 +262,7 @@ export default function TaskDetail() {
                 <div className="mt-6 pt-6 border-t border-neutral-800">
                   <span className="text-[10px] text-neutral-600 uppercase tracking-wider">Required Capabilities</span>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {meta.requiredCapabilities.map(cap => (
+                    {meta.requiredCapabilities.map((cap: string) => (
                       <span key={cap} className="px-2 py-1 bg-neutral-900 border border-neutral-800 text-[10px] font-mono text-neutral-400 rounded">
                         {cap.replace(/_/g, ' ')}
                       </span>
