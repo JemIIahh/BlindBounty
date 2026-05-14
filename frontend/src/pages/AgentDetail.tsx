@@ -6,7 +6,7 @@ import { BrowserProvider, parseEther } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
 import { get, post, patch, authedPost } from '../lib/api';
-import { API_BASE_URL } from '../config/constants';
+import { API_BASE_URL, MARKETPLACE_TOKEN_ADDRESS } from '../config/constants';
 
 // Top-up amount when the agent runs low on gas. Same default as the deploy
 // funding step — round trip + LLM call + submitEvidence costs ~0.0004 0G, so
@@ -159,12 +159,16 @@ export default function AgentDetail() {
     setSweepStatus('sending');
     setSweepError('');
     try {
+      // Pass tokenAddress explicitly so the endpoint works regardless of
+      // whether the backend's MOCK_ERC20_ADDRESS env var is set. The
+      // canonical address lives in constants.ts; same value the post-task
+      // approve flow uses.
       const data = await authedPost<{
         txHash: string;
         amountFormatted: string;
         amountRaw: string;
         recipient: string;
-      }>(`/api/v1/agents/${id}/sweep-token`, {});
+      }>(`/api/v1/agents/${id}/sweep-token`, { tokenAddress: MARKETPLACE_TOKEN_ADDRESS });
       setSweepInfo({ txHash: data.txHash, amount: data.amountFormatted });
       setSweepStatus('done');
       // Refresh agent record so the earned/totalEarned display picks up the

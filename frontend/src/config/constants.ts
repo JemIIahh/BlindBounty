@@ -7,6 +7,16 @@ export const BLIND_ESCROW_ADDRESS = import.meta.env.VITE_BLIND_ESCROW_ADDRESS ||
 export const TASK_REGISTRY_ADDRESS = import.meta.env.VITE_TASK_REGISTRY_ADDRESS || '';
 export const BLIND_REPUTATION_ADDRESS = import.meta.env.VITE_BLIND_REPUTATION_ADDRESS || '';
 
+// MockERC20 (canonical marketplace bounty token on 0G testnet — six decimals,
+// USDC-shaped). Sourced from VITE_MOCK_ERC20_ADDRESS with a deployed-testnet
+// fallback so the app works out of the box. Used by PostTask (approve +
+// escrow deposit) and AgentDetail (USDC sweep request body). The backend has
+// the same env var (MOCK_ERC20_ADDRESS); the frontend passes this explicitly
+// in /sweep-token so the endpoint works even when the backend env is unset.
+export const MARKETPLACE_TOKEN_ADDRESS =
+  (import.meta.env.VITE_MOCK_ERC20_ADDRESS as string | undefined) ||
+  '0x3af9232009C5da30AdA366B6E09849A040162A1a';
+
 // Founder addresses (comma-separated, lowercase). Used to gate the /metrics page.
 // The backend enforces the same allowlist via FOUNDER_ADDRESSES — the env var
 // here is purely for UX ("Not authorized" vs. wallet-not-connected).

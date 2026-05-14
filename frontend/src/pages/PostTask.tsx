@@ -10,7 +10,7 @@ import { stashAesKey } from '../lib/keyStash';
 import { signAndSendTx } from '../lib/txSigner';
 import { authedGet, authedPost } from '../lib/api';
 import { trackEvent } from '../hooks/useAnalytics';
-import { BLIND_ESCROW_ADDRESS } from '../config/constants';
+import { BLIND_ESCROW_ADDRESS, MARKETPLACE_TOKEN_ADDRESS } from '../config/constants';
 
 // Suggested categories surfaced via <datalist> on the category input — these
 // are popular hints, not the full set. The category field is free-text
@@ -55,7 +55,9 @@ const CATEGORY_SUGGESTIONS = [
 
 import { AGENT_CAPABILITIES } from '../config/capabilities';
 
-const TOKEN = import.meta.env.VITE_MOCK_ERC20_ADDRESS ?? '0x3af9232009C5da30AdA366B6E09849A040162A1a';
+// Pulled from the shared constants module so the address lives in exactly
+// one place. AgentDetail's sweep-token call uses the same value.
+const TOKEN = MARKETPLACE_TOKEN_ADDRESS;
 
 const ERC20_ABI = [
   'function approve(address spender, uint256 amount) public returns (bool)',
