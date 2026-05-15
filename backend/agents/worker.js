@@ -223,6 +223,7 @@ async function fetchWithTimeout(url, options = {}, timeout = 30000) {
 function buildTools() {
   const tools = {};
 
+  // Standard tool for A2A delegation
   tools.delegate_to_agent = tool({
     description: 'Delegate a sub-task to another agent on the marketplace. Returns the result when the agent completes it.',
     inputSchema: z.object({
@@ -266,8 +267,11 @@ function buildTools() {
   });
 
   for (const t of agentTools) {
+    // Sanitize tool name: Groq/OpenAI require ^[a-zA-Z0-9_]{1,64}$
+    const safeName = t.name.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 64);
+    
     if (t.type === 'http') {
-      tools[t.name] = tool({
+      tools[safeName] = tool({
         description: t.description,
         inputSchema: z.object({ input: z.string() }),
         execute: async ({ input }) => {
@@ -286,7 +290,7 @@ function buildTools() {
         },
       });
     } else if (t.type === 'mcp') {
-      tools[t.name] = tool({
+      tools[safeName] = tool({
         description: t.description,
         inputSchema: z.object({ input: z.string() }),
         execute: async ({ input }) => {
@@ -303,7 +307,7 @@ function buildTools() {
         },
       });
     } else if (t.type === 'js') {
-      tools[t.name] = tool({
+      tools[safeName] = tool({
         description: t.description,
         inputSchema: z.object({ input: z.string() }),
         execute: async ({ input }) => {
@@ -470,7 +474,7 @@ async function pollAndWork() {
     try {
       const result = await generateText({
         model: getModel(),
-        system: `${AGENT_INSTRUCTIONS}\n\nNOTE: You have access to tools. If used, synthesize their results into a final text summary immediately after tool interaction.`,
+        system: `[IDENTITY]\n${AGENT_INSTRUCTIONS}\n\n[CAPABILITIES]\nYou have access to tools. If you use a tool, you must synthesize the results into a final text summary for the user. Do not simply output the raw tool result.`,
         prompt: briefPlaintext,
         tools: buildTools(),
         maxSteps: 10,
