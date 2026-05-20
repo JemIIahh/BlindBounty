@@ -32,6 +32,19 @@ const POLL_INTERVAL_MS = 5_000;
 // fails and the next attempt asks for an even bigger range.
 const MAX_BLOCKS_PER_TICK = 1000;
 
+// Floor for the on-demand backfill scan. If Redis is flushed or the indexer
+// was offline when a task was created, the forward-only tick loop can't
+// recover those events. `getTaskIdByHash` calls `backfillFromDeployment()`
+// as a last resort, which scans from this block forward. Read from env so
+// production can pin to the actual mainnet deployment block.
+const DEPLOYMENT_BLOCK = Number(process.env.ESCROW_DEPLOYMENT_BLOCK ?? 33_459_885);
+
+// One-shot guard — once the full backfill has run successfully in this
+// process, subsequent cache misses are treated as genuine (task doesn't
+// exist) instead of triggering another 850k-block sweep.
+let backfillDone = false;
+let backfillInFlight: Promise<void> | null = null;
+
 let timer: NodeJS.Timeout | null = null;
 let inFlightPromise: Promise<void> | null = null;
 
@@ -170,7 +183,77 @@ export async function getTaskIdByHash(taskHash: string): Promise<string | null> 
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
+  // Last resort: full backfill from contract deployment. Handles the case
+  // where the forward-only tick loop missed this event (Redis flush, indexer
+  // downtime during task creation, checkpoint pinned past the create block).
+  // Guarded so a single process only does the 850k-block sweep once.
+  if (!backfillDone) {
+    await backfillFromDeployment();
+    id = await redis.get(KEY.hash2id(taskHash));
+    if (id) return id;
+  }
+
   return null;
+}
+
+/**
+ * One-shot scan of all TaskCreated events from contract deployment to head.
+ * Writes every (taskHash → taskId, taskId → taskHash) mapping to Redis as a
+ * side effect. Called from `getTaskIdByHash` when the forward-only indexer
+ * has missed an event. Concurrent callers share the same promise so the
+ * scan only runs once even under request bursts.
+ */
+async function backfillFromDeployment(): Promise<void> {
+  if (backfillInFlight) return backfillInFlight;
+  backfillInFlight = (async () => {
+    try {
+      const latest = await provider.getBlockNumber();
+      console.log(
+        `[escrowEvents] on-demand backfill: scanning blocks ${DEPLOYMENT_BLOCK}..${latest} (${latest - DEPLOYMENT_BLOCK} blocks)`,
+      );
+      const filter = escrow.filters.TaskCreated();
+      let from = DEPLOYMENT_BLOCK;
+      let chunks = 0;
+      let totalEvents = 0;
+      while (from <= latest) {
+        const to = Math.min(latest, from + MAX_BLOCKS_PER_TICK - 1);
+        try {
+          const events = await escrow.queryFilter(filter, from, to);
+          if (events.length > 0) {
+            const pipe = redis.pipeline();
+            for (const ev of events) {
+              const args = (ev as EventLog).args;
+              if (!args) continue;
+              const taskId = args.taskId as bigint | undefined;
+              const taskHash = args.taskHash as string | undefined;
+              if (taskId === undefined || !taskHash) continue;
+              pipe.set(KEY.hash2id(taskHash), String(taskId));
+              pipe.set(KEY.id2hash(taskId), taskHash.toLowerCase());
+            }
+            await pipe.exec();
+            totalEvents += events.length;
+          }
+          from = to + 1;
+          chunks += 1;
+        } catch (e) {
+          // Same RPC-blip handling as the regular tick — sleep briefly and
+          // retry the same chunk. Backfill must be complete or it doesn't
+          // serve its purpose, so we don't abandon on transient errors.
+          console.error(
+            `[escrowEvents] backfill chunk ${from}..${to} failed: ${(e as Error).message}; retrying in 2s`,
+          );
+          await new Promise((r) => setTimeout(r, 2_000));
+        }
+      }
+      console.log(
+        `[escrowEvents] backfill complete: ${totalEvents} events across ${chunks} chunks`,
+      );
+      backfillDone = true;
+    } finally {
+      backfillInFlight = null;
+    }
+  })();
+  return backfillInFlight;
 }
 
 /** Resolve an on-chain taskId back to its taskHash, or null if not seen. */

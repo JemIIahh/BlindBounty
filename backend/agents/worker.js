@@ -223,14 +223,35 @@ async function fetchWithTimeout(url, options = {}, timeout = 30000) {
 function buildTools() {
   const tools = {};
 
-  // Standard tool for A2A delegation
+  // Standard tool for A2A delegation. Description deliberately discourages
+  // spurious use — weaker LLMs reach for "delegate" as a way to defer work
+  // they should just do themselves, burning escrow and polluting the task
+  // graph with no-op sub-tasks.
   tools.delegate_to_agent = tool({
-    description: 'Delegate a sub-task to another agent on the marketplace. Returns the result when the agent completes it.',
+    description: [
+      'Post a real, paid sub-task to another agent on the marketplace.',
+      'ONLY use when the current task requires a specialized capability you do not have.',
+      'DO NOT use to rephrase, split, or defer work you can do yourself.',
+      'Both arguments are REQUIRED — calling with empty or missing arguments is an error.',
+      'Costs escrow funds. Prefer doing the task yourself unless delegation is necessary.',
+    ].join(' '),
     inputSchema: z.object({
-      taskDescription: z.string().describe('What the agent should do'),
-      requiredCapabilities: z.array(z.string()).describe('Required agent capabilities (e.g., ["web_research", "summarization"])'),
+      taskDescription: z.string().min(20).describe('Concrete description of what the sub-agent should do. Must be at least 20 chars and specific enough that another agent could execute it without further context.'),
+      requiredCapabilities: z.array(z.string()).min(1).describe('Non-empty list of capability tags the sub-agent must have (e.g., ["web_research"], ["image_analysis"]).'),
     }),
-    execute: async ({ taskDescription, requiredCapabilities }) => {
+    execute: async (args) => {
+      // Defensive validation — the Vercel AI SDK has been observed forwarding
+      // tool calls with missing/empty args when the model (Groq, Gemini Flash)
+      // skips required-field enforcement. Without this guard, destructuring
+      // crashes or posts a malformed sub-task.
+      const taskDescription = args?.taskDescription;
+      const requiredCapabilities = args?.requiredCapabilities;
+      if (typeof taskDescription !== 'string' || taskDescription.trim().length < 20) {
+        return 'ERROR: delegate_to_agent requires `taskDescription` (string, ≥20 chars). You called it with missing or empty arguments. Either supply both required arguments or complete the task yourself without delegating.';
+      }
+      if (!Array.isArray(requiredCapabilities) || requiredCapabilities.length === 0) {
+        return 'ERROR: delegate_to_agent requires `requiredCapabilities` (non-empty string array). Either supply at least one capability tag or complete the task yourself.';
+      }
       try {
         const createRes = await fetchWithTimeout(`${BACKEND_URL}/api/v1/a2a/tasks`, {
           method: 'POST',
@@ -530,19 +551,35 @@ async function pollAndWork() {
     const resultData = { output: finalOutput, agent: AGENT_ID };
 
     log(`submitting task ${acceptedTaskHash.slice(0, 10)}…`);
-    const submitRes = await fetchWithTimeout(`${BACKEND_URL}/api/v1/a2a/tasks/${acceptedTaskHash}/submit`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}`,
-      },
-      body: JSON.stringify({ resultData }),
-    });
-    if (!submitRes.ok) {
+    // Retry the /submit call on transient indexer-lag failures (503 NOT_INDEXED).
+    // Backend's on-demand backfill in escrowEvents.ts heals the hash→id gap on
+    // the first miss; we just need to give it a window to land. Bailing immediately
+    // (as the original code did) discarded the LLM result and stuck the task
+    // in an accepted-but-unsubmittable state.
+    const SUBMIT_API_MAX_ATTEMPTS = 4;
+    const SUBMIT_API_RETRY_DELAY_MS = 8_000;
+    let submitRes;
+    for (let attempt = 1; attempt <= SUBMIT_API_MAX_ATTEMPTS; attempt++) {
+      submitRes = await fetchWithTimeout(`${BACKEND_URL}/api/v1/a2a/tasks/${acceptedTaskHash}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}`,
+        },
+        body: JSON.stringify({ resultData }),
+      });
+      if (submitRes.ok) break;
       const errText = await submitRes.text();
-      log(`submit failed for ${acceptedTaskHash.slice(0, 10)}…: ${submitRes.status} ${errText.slice(0, 160)}`);
+      const isIndexerLag = submitRes.status === 503 && /NOT_INDEXED/.test(errText);
+      if (isIndexerLag && attempt < SUBMIT_API_MAX_ATTEMPTS) {
+        log(`submit attempt ${attempt}/${SUBMIT_API_MAX_ATTEMPTS} for ${acceptedTaskHash.slice(0, 10)}…: 503 NOT_INDEXED — retrying in ${SUBMIT_API_RETRY_DELAY_MS / 1000}s`);
+        await sleep(SUBMIT_API_RETRY_DELAY_MS);
+        continue;
+      }
+      log(`submit failed for ${acceptedTaskHash.slice(0, 10)}… after ${attempt} attempt(s): ${submitRes.status} ${errText.slice(0, 160)}`);
       return;
     }
+    if (!submitRes || !submitRes.ok) return;
     const submitJson = await submitRes.json();
     const unsignedSubmitEvidence = submitJson.data?.unsignedSubmitEvidence;
     if (!unsignedSubmitEvidence) {
