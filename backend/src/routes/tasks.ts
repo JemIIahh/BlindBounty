@@ -151,10 +151,11 @@ tasksRouter.get('/', async (req: AuthRequest, res, next) => {
  */
 tasksRouter.get('/:id', async (req, res, next) => {
   try {
-    const taskId = parseInt(req.params.id);
-    if (isNaN(taskId) || taskId < 1) {
+    const rawId = req.params.id;
+    if (!/^\d+$/.test(rawId)) {
       throw new AppError(400, 'INVALID_TASK_ID', 'Task ID must be a positive integer');
     }
+    const taskId = parseInt(rawId, 10);
 
     const [task, meta] = await Promise.all([
       escrowService.getTask(taskId),
@@ -316,10 +317,11 @@ tasksRouter.get('/:id/applications', requireAuth, async (req: AuthRequest, res, 
  */
 tasksRouter.post('/:id/assign', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const taskId = parseInt(req.params.id as string);
-    if (isNaN(taskId) || taskId < 1) {
+    const rawId = req.params.id as string;
+    if (!/^\d+$/.test(rawId)) {
       throw new AppError(400, 'INVALID_TASK_ID', 'Task ID must be a positive integer');
     }
+    const taskId = parseInt(rawId, 10);
 
     const { worker } = assignSchema.parse(req.body);
     const from = req.user!.address;
@@ -351,10 +353,11 @@ tasksRouter.post('/:id/assign', requireAuth, async (req: AuthRequest, res, next)
  */
 tasksRouter.post('/:id/cancel', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const taskId = parseInt(req.params.id as string);
-    if (isNaN(taskId) || taskId < 1) {
+    const rawId = req.params.id as string;
+    if (!/^\d+$/.test(rawId)) {
       throw new AppError(400, 'INVALID_TASK_ID', 'Task ID must be a positive integer');
     }
+    const taskId = parseInt(rawId, 10);
 
     const from = req.user!.address;
 
@@ -398,10 +401,11 @@ tasksRouter.post('/:id/cancel', requireAuth, async (req: AuthRequest, res, next)
  */
 tasksRouter.post('/:id/timeout', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const taskId = parseInt(req.params.id as string);
-    if (isNaN(taskId) || taskId < 1) {
+    const rawId = req.params.id as string;
+    if (!/^\d+$/.test(rawId)) {
       throw new AppError(400, 'INVALID_TASK_ID', 'Task ID must be a positive integer');
     }
+    const taskId = parseInt(rawId, 10);
 
     const from = req.user!.address;
 

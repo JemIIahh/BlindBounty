@@ -109,10 +109,11 @@ submissionsRouter.post('/verify', requireAuth, async (req: AuthRequest, res, nex
  */
 submissionsRouter.get('/:taskId', requireAuth, async (req: AuthRequest, res, next) => {
   try {
-    const taskId = parseInt(req.params.taskId as string);
-    if (isNaN(taskId) || taskId < 1) {
+    const rawId = req.params.taskId as string;
+    if (!/^\d+$/.test(rawId)) {
       throw new AppError(400, 'INVALID_TASK_ID', 'Task ID must be a positive integer');
     }
+    const taskId = parseInt(rawId, 10);
 
     const task = await escrowService.getTask(taskId);
 
