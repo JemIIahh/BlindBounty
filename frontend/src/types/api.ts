@@ -125,6 +125,8 @@ export interface UnsignedTx {
   to: string;
   data: string;
   from: string;
+  value?: string;
+  gasLimit?: number;
 }
 
 /** Nonce response */

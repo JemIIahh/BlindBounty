@@ -9,7 +9,8 @@ export async function signAndSendTx(
   const txResponse = await signer.sendTransaction({
     to: unsignedTx.to,
     data: unsignedTx.data,
-    value: value,
+    value: value ?? unsignedTx.value,
+    gasLimit: unsignedTx.gasLimit ?? 300_000,
   });
 
   // Retry receipt fetch — 0G testnet RPC can be slow to index
