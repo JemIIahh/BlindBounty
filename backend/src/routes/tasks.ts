@@ -8,7 +8,7 @@ import { getTokenDecimals } from '../services/chain.js';
 import type { AuthRequest, ApiResponse, AgentCapability } from '../types.js';
 import { AGENT_CAPABILITIES } from '../types.js';
 import * as a2aStore from '../services/a2aStore.js';
-import { getTaskIdByHash } from '../services/escrowEvents.js';
+import { redis } from '../services/redis.js';
 import { randomUUID } from 'crypto';
 import * as accountingService from '../services/accountingService.js';
 import { getDb } from '../services/database.js';
@@ -157,12 +157,15 @@ tasksRouter.get('/:id', async (req, res, next) => {
     const isHexHash = /^0x[0-9a-fA-F]{64}$/.test(rawId);
     let taskId: number;
     if (isHexHash) {
-      // Quick single Redis lookup — no retries or backfill. If the create tx
-      // just confirmed the event indexer may not have caught up yet; caller
-      // should retry after a few seconds.
-      const resolved = await getTaskIdByHash(rawId);
+      const hashKey = `a2a:hash2id:${rawId.toLowerCase()}`;
+      const resolved = await redis.get(hashKey);
       if (!resolved) {
         throw new AppError(404, 'NOT_INDEXED_YET', 'Task hash not found — create transaction may not be confirmed or indexed yet. Retry in a few seconds.');
+      }
+      if (resolved === 'pending') {
+        const body: ApiResponse = { success: true, data: { status: 'pending_confirmation' } };
+        res.json(body);
+        return;
       }
       taskId = Number(resolved);
     } else {
@@ -261,6 +264,10 @@ tasksRouter.post('/', requireAuth, async (req: AuthRequest, res, next) => {
         rootHash: data.rootHash,
         wrappedKeys: wrappedKeysNormalized,
       });
+      // Pre-seed a pending marker so GET /tasks/:hash can find the task
+      // immediately instead of returning NOT_INDEXED_YET while the indexer
+      // waits for the create tx to confirm.
+      await redis.set(`a2a:hash2id:${data.taskHash.toLowerCase()}`, 'pending');
     }
 
     // Record escrow_lock accounting event
