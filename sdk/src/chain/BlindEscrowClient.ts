@@ -45,6 +45,10 @@ export class BlindEscrowClient {
   /** Create a task and return its id + receipt. Reads the TaskCreated event for the id. */
   async createTask(args: CreateTaskArgs): Promise<{ taskId: TaskId; receipt: TxReceiptLike }> {
     try {
+      const overrides: ethers.Overrides = {};
+      if (args.token === '0x0000000000000000000000000000000000000000') {
+        overrides.value = args.amount;
+      }
       const tx = await this.contract.createTask!(
         args.taskHash,
         args.token,
@@ -52,6 +56,7 @@ export class BlindEscrowClient {
         args.category,
         args.locationZone,
         args.deadline,
+        overrides,
       );
       const rec = await tx.wait(1);
       const taskId = this.extractTaskIdFromReceipt(rec);
