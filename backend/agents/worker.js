@@ -453,7 +453,17 @@ async function pollAndWork() {
         break;
       }
       const err = await acceptRes.json().catch(() => ({}));
-      log(`accept failed for ${taskHash.slice(0, 10)}…: ${acceptRes.status} ${err.error?.code || ''}`);
+      // Include the backend's message so the user can self-diagnose without
+      // grepping source. For CAPABILITY_MISMATCH specifically, also surface
+      // this agent's own caps so the gap is obvious — the most common
+      // misread of these logs is "the matcher is broken" when the agent
+      // simply doesn't have any of the task's required capabilities.
+      const errMsg = err.error?.message ? ` — ${err.error.message}` : '';
+      let extra = '';
+      if (acceptRes.status === 403 && err.error?.code === 'CAPABILITY_MISMATCH') {
+        extra = ` (this agent has: ${agentCapabilities.join(',')})`;
+      }
+      log(`accept failed for ${taskHash.slice(0, 10)}…: ${acceptRes.status} ${err.error?.code || ''}${errMsg}${extra}`);
 
       if (acceptRes.status === 403 && err.error?.code === 'NEEDS_WRAP') {
         if (!bidPlacedTasks.has(taskHash)) {
