@@ -7,6 +7,7 @@ import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../component
 import { truncateAddress } from '../lib/utils';
 import { get, post, patch, authedPost } from '../lib/api';
 import { API_BASE_URL, MARKETPLACE_TOKEN_ADDRESS } from '../config/constants';
+import { AGENT_CAPABILITIES } from '../config/capabilities';
 
 // Top-up amount when the agent runs low on gas. Same default as the deploy
 // funding step — round trip + LLM call + submitEvidence costs ~0.0004 0G, so
@@ -23,6 +24,7 @@ interface AgentDetails {
   ownerAddress: string; deployedAt: string; instructions: string;
   walletAddress?: string; publicKey?: string; inftTokenId?: number;
   tasksCompleted?: number; totalEarned?: string; tools?: AgentTool[];
+  capabilities?: string[];
 }
 
 const STATUS_TONE: Record<string, 'ok' | 'warn' | 'err' | 'neutral'> = {
@@ -43,6 +45,7 @@ export default function AgentDetail() {
   // Edit state
   const [editInstructions, setEditInstructions] = useState('');
   const [editModel, setEditModel] = useState('');
+  const [editCapabilities, setEditCapabilities] = useState<string[]>([]);
 
   // Gas-management UI state — separate from the agent's start/pause/stop
   // actions so the buttons can show their own progress without interfering.
@@ -71,6 +74,7 @@ export default function AgentDetail() {
         setAgent(data);
         setEditInstructions(data.instructions ?? '');
         setEditModel(data.model ?? '');
+        setEditCapabilities(data.capabilities ?? []);
       })
       .catch(() => { /* not found / server error */ })
       .finally(() => setLoading(false));
@@ -97,6 +101,7 @@ export default function AgentDetail() {
         ownerAddress: address,
         instructions: editInstructions,
         model: editModel,
+        capabilities: editCapabilities,
       }),
     onSuccess: (data) => { setAgent(data); setTab('logs'); },
   });
@@ -380,7 +385,32 @@ export default function AgentDetail() {
                   <input value={editModel} onChange={e => setEditModel(e.target.value)}
                     className="w-full bg-surface-2 border border-line px-4 py-3 text-xs font-mono text-ink focus:outline-none focus:border-cream" />
                 </div>
-                <button onClick={() => save.mutate()} disabled={save.isPending}
+                <div>
+                  <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-2">
+                    capabilities <span className="text-ink-3 normal-case tracking-normal">— what tasks this agent can accept</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {AGENT_CAPABILITIES.map(cap => (
+                      <button key={cap} type="button"
+                        onClick={() => setEditCapabilities(cs => cs.includes(cap) ? cs.filter(c => c !== cap) : [...cs, cap])}
+                        className={`px-3 py-1 text-[11px] font-mono border transition-colors ${editCapabilities.includes(cap)
+                          ? 'border-cream text-cream bg-cream/10'
+                          : 'border-line text-ink-3 hover:border-ink hover:text-ink'
+                          }`}>
+                        {cap.replace(/_/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                  {editCapabilities.length === 0 && (
+                    <div className="mt-2 text-[11px] font-mono text-red-400">
+                      ⚠ pick at least one — without capabilities the agent can't accept any task
+                    </div>
+                  )}
+                  <div className="mt-2 text-[11px] font-mono text-ink-3">
+                    note: changes take effect on the next agent restart (stop → start)
+                  </div>
+                </div>
+                <button onClick={() => save.mutate()} disabled={save.isPending || editCapabilities.length === 0}
                   className="px-6 py-3 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg disabled:opacity-40 transition-colors">
                   {save.isPending ? 'saving…' : 'save changes →'}
                 </button>

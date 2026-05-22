@@ -106,7 +106,15 @@ try {
   const parsed = JSON.parse(AGENT_CAPABILITIES_RAW);
   if (Array.isArray(parsed) && parsed.length > 0) agentCapabilities = parsed;
 } catch {}
-if (agentCapabilities.length === 0) agentCapabilities = ['data_processing'];
+if (agentCapabilities.length === 0) {
+  // Loud warning: an agent reaching this branch means upstream lost its
+  // capabilities (a deploy/patch path serialized an empty array). The agent
+  // will register as data_processing-only and silently fail to match any
+  // task with a different requirement. If you're seeing this in logs, the
+  // fix is at the source (agentRunner.updateAgent / deploy form), not here.
+  console.warn(`${nowStamp()} [agent:${AGENT_ID.slice(0, 8)}] ⚠ AGENT_CAPABILITIES empty — falling back to ['data_processing']. This usually means the agent was edited via PATCH without resending capabilities. Pick caps on the EDIT tab and save.`);
+  agentCapabilities = ['data_processing'];
+}
 
 let signerWallet = null;
 if (AGENT_PRIVATE_KEY) {

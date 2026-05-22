@@ -215,7 +215,19 @@ export async function listAgents(ownerAddress?: string): Promise<DeployedAgent[]
 export async function updateAgent(id: string, patch: Partial<Pick<DeployedAgent, 'instructions' | 'model' | 'tools' | 'capabilities'>>): Promise<DeployedAgent | undefined> {
   const agent = await loadAgent(id);
   if (!agent) return undefined;
-  const updated = { ...agent, ...patch };
+  // Strip undefined values before merging. Callers can send a subset of the
+  // patch keys (e.g. the EDIT tab on AgentDetail only sends instructions +
+  // model), and {...agent, ...patch} with `patch.capabilities === undefined`
+  // would overwrite the existing array with undefined → JSON.stringify drops
+  // the field → next worker spawn reads `agent.capabilities ?? []` as [] →
+  // worker defaults to ['data_processing']. Same hazard for tools. Surfaced
+  // as "agent registered with caps=data_processing even though I picked
+  // code_review" after the user edited the prompt on a deployed agent.
+  const cleanPatch: typeof patch = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (v !== undefined) (cleanPatch as Record<string, unknown>)[k] = v;
+  }
+  const updated = { ...agent, ...cleanPatch };
   await saveAgent(updated);
   return updated;
 }
