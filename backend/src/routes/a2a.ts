@@ -685,6 +685,22 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
       );
     }
 
+    // Short-circuit: if settleAssignment already failed (signer revert, RPC
+    // outage, lookup timeout), no amount of polling here will make
+    // task.worker move. Return a terminal BRIDGE_FAILED so the worker stops
+    // retrying and releases the task back to open — letting another /accept
+    // re-fire settleAssignment fresh.
+    if (state.assignError) {
+      console.warn(
+        `[a2a] submit: bridge previously failed for ${taskHash} — assignError=${state.assignError}`,
+      );
+      throw new AppError(
+        503,
+        'BRIDGE_FAILED',
+        `Assignment bridge failed — ${state.assignError}. Release and retry.`,
+      );
+    }
+
     // Wait briefly for the on-chain assignment to confirm before issuing the
     // unsigned submitEvidence. /accept fires settleAssignment fire-and-forget,
     // so task.worker can still be 0x0 here even though our A2A state moved to
@@ -699,6 +715,17 @@ a2aRouter.post('/tasks/:id/submit', requireAuth, async (req: AuthRequest, res, n
       const onChainTask = await escrowService.getTask(Number(onChainId));
       onChainWorker = onChainTask.worker;
       if (onChainWorker.toLowerCase() === address.toLowerCase()) break;
+      // Re-check for a freshly-surfaced bridge error inside the poll loop —
+      // settleAssignment may have started concurrently with the worker's
+      // /submit-result and only just failed.
+      const freshState = await a2aStore.getState(taskHash);
+      if (freshState?.assignError) {
+        throw new AppError(
+          503,
+          'BRIDGE_FAILED',
+          `Assignment bridge failed mid-poll — ${freshState.assignError}. Release and retry.`,
+        );
+      }
       if (Date.now() >= assignDeadline) {
         console.warn(
           `[a2a] submit: on-chain assignment not confirmed for ${taskHash} after ${ASSIGNMENT_WAIT_DEADLINE_MS}ms (task.worker=${onChainWorker}, caller=${address})`,

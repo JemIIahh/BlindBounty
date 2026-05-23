@@ -159,6 +159,12 @@ export interface A2ATaskState {
   // the bridge hasn't run yet (or the broadcast failed and was logged).
   assignTxHash?: string;
   verifyTxHash?: string;
+  // Persisted error from the most recent fire-and-forget bridge call. If
+  // set, the bridge attempt blew up before the on-chain state could move —
+  // /submit-result and /finalize use these to short-circuit with a clear
+  // BRIDGE_FAILED code instead of looping on NOT_ASSIGNED_YET forever.
+  assignError?: string;
+  verifyError?: string;
 }
 
 export interface VerificationCriteria {

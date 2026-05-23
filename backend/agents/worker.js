@@ -632,6 +632,16 @@ async function pollAndWork() {
       }, 60_000); // backend may poll up to ~20s waiting for assignment confirmation
       if (submitRes.ok) break;
       const errText = await submitRes.text();
+      // BRIDGE_FAILED is terminal — settleAssignment died on the backend
+      // (signer revert, bridge disabled, indexer lost the event). Retrying
+      // /submit won't help; the on-chain task.worker will never move.
+      // Release immediately so another /accept can re-fire the bridge from
+      // scratch.
+      if (submitRes.status === 503 && /BRIDGE_FAILED/.test(errText)) {
+        log(`submit aborted for ${acceptedTaskHash.slice(0, 10)}…: backend reports BRIDGE_FAILED — ${errText.slice(0, 200)}`);
+        await releaseTask(acceptedTaskHash);
+        return;
+      }
       const isTransient = submitRes.status === 503 && /NOT_INDEXED|NOT_ASSIGNED_YET/.test(errText);
       if (isTransient && attempt < SUBMIT_API_MAX_ATTEMPTS) {
         const code = /NOT_ASSIGNED_YET/.test(errText) ? 'NOT_ASSIGNED_YET' : 'NOT_INDEXED';

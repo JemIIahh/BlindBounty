@@ -96,15 +96,20 @@ function isAlreadySettled(err: unknown): boolean {
  * verifier. Persists the tx hash to the A2A state on success.
  */
 export async function settleAssignment(taskHash: string, executor: string): Promise<void> {
-  if (!bridgeReady()) return;
+  if (!bridgeReady()) {
+    // Persist this too — without surfacing, the agent would loop on
+    // NOT_ASSIGNED_YET indefinitely while the bridge has been silently
+    // off the entire time.
+    await safePersistAssignError(taskHash, 'Bridge disabled: MARKETPLACE_SIGNER_PRIVATE_KEY not set');
+    return;
+  }
 
   try {
     const taskId = await waitForTaskId(taskHash);
     if (taskId === null) {
-      console.error(
-        `[a2aSettlement] hash2id lookup timed out for ${taskHash.slice(0, 10)}… — abandoning assignment. ` +
-          `Either the create-task tx never confirmed, or the escrow event listener is stalled.`,
-      );
+      const msg = `hash2id lookup timed out — createTask event never seen by indexer (taskHash=${taskHash.slice(0, 10)}…)`;
+      console.error(`[a2aSettlement] ${msg}`);
+      await safePersistAssignError(taskHash, msg);
       return;
     }
 
@@ -126,19 +131,59 @@ export async function settleAssignment(taskHash: string, executor: string): Prom
     }
 
     // Record the broadcast immediately so a crash here doesn't lose the trace.
-    await a2aStore.updateState(taskHash, { assignTxHash: tx.hash });
+    // Also clear any stale assignError from a previous failed attempt (e.g.
+    // the agent released-and-retried and now the bridge is succeeding).
+    await a2aStore.updateState(taskHash, { assignTxHash: tx.hash, assignError: undefined });
     console.log(`[a2aSettlement] marketplaceAssign broadcast taskId=${taskId} tx=${tx.hash}`);
 
     const receipt = await tx.wait();
     console.log(
       `[a2aSettlement] marketplaceAssign confirmed taskId=${taskId} block=${receipt?.blockNumber} status=${receipt?.status}`,
     );
+    if (receipt?.status !== 1) {
+      await safePersistAssignError(taskHash, `marketplaceAssign tx ${tx.hash} reverted on chain`);
+    }
   } catch (err) {
+    const msg = (err as Error).message;
     console.error(
       `[a2aSettlement] assignment failed for hash=${taskHash.slice(0, 10)}…:`,
-      (err as Error).message,
+      msg,
+    );
+    await safePersistAssignError(taskHash, msg);
+  }
+}
+
+// Writing to Redis can itself fail (network blip, key missing if releaseToOpen
+// raced us). Don't let the bookkeeping write blow up the bridge — the bridge
+// is already in an error path, surfacing a second error here just buries the
+// real one. Log and continue.
+async function safePersistAssignError(taskHash: string, msg: string): Promise<void> {
+  try {
+    await a2aStore.updateState(taskHash, { assignError: truncate(msg) });
+  } catch (e) {
+    console.error(
+      `[a2aSettlement] could not persist assignError for ${taskHash.slice(0, 10)}…:`,
+      (e as Error).message,
     );
   }
+}
+
+async function safePersistVerifyError(taskHash: string, msg: string): Promise<void> {
+  try {
+    await a2aStore.updateState(taskHash, { verifyError: truncate(msg) });
+  } catch (e) {
+    console.error(
+      `[a2aSettlement] could not persist verifyError for ${taskHash.slice(0, 10)}…:`,
+      (e as Error).message,
+    );
+  }
+}
+
+// Bridge errors include stack traces and full RPC payloads. Cap at 240 chars
+// so the Redis value stays small and the worker log line doesn't wrap into
+// the next century. The first ~240 chars contain the actual revert reason.
+function truncate(s: string): string {
+  return s.length > 240 ? s.slice(0, 240) + '…' : s;
 }
 
 /**
@@ -148,14 +193,17 @@ export async function settleAssignment(taskHash: string, executor: string): Prom
  * MAX_SUBMISSION_ATTEMPTS retries the contract auto-cancels).
  */
 export async function settleVerification(taskHash: string, passed: boolean): Promise<void> {
-  if (!bridgeReady()) return;
+  if (!bridgeReady()) {
+    await safePersistVerifyError(taskHash, 'Bridge disabled: MARKETPLACE_SIGNER_PRIVATE_KEY not set');
+    return;
+  }
 
   try {
     const taskId = await waitForTaskId(taskHash);
     if (taskId === null) {
-      console.error(
-        `[a2aSettlement] hash2id lookup timed out for ${taskHash.slice(0, 10)}… — abandoning verification.`,
-      );
+      const msg = `hash2id lookup timed out — createTask event never seen by indexer (taskHash=${taskHash.slice(0, 10)}…)`;
+      console.error(`[a2aSettlement] ${msg}`);
+      await safePersistVerifyError(taskHash, msg);
       return;
     }
 
@@ -175,7 +223,7 @@ export async function settleVerification(taskHash: string, passed: boolean): Pro
       throw err;
     }
 
-    await a2aStore.updateState(taskHash, { verifyTxHash: tx.hash });
+    await a2aStore.updateState(taskHash, { verifyTxHash: tx.hash, verifyError: undefined });
     console.log(
       `[a2aSettlement] completeVerification broadcast taskId=${taskId} passed=${passed} tx=${tx.hash}`,
     );
@@ -184,16 +232,22 @@ export async function settleVerification(taskHash: string, passed: boolean): Pro
     console.log(
       `[a2aSettlement] completeVerification confirmed taskId=${taskId} passed=${passed} block=${receipt?.blockNumber} status=${receipt?.status}`,
     );
+    if (receipt?.status !== 1) {
+      await safePersistVerifyError(taskHash, `completeVerification tx ${tx.hash} reverted on chain`);
+      return;
+    }
 
     if (passed) {
       rooms.tasks('task:completed', { taskId });
       rooms.task(taskId, 'task:completed', { taskId });
     }
   } catch (err) {
+    const msg = (err as Error).message;
     console.error(
       `[a2aSettlement] verification failed for hash=${taskHash.slice(0, 10)}…:`,
-      (err as Error).message,
+      msg,
     );
+    await safePersistVerifyError(taskHash, msg);
   }
 }
 
