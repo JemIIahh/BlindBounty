@@ -10,6 +10,7 @@ import { settleAssignment, settleVerification } from '../services/a2aSettlement.
 import { getTaskIdByHash } from '../services/escrowEvents.js';
 import * as escrowService from '../services/escrow.js';
 import * as accountingService from '../services/accountingService.js';
+import * as reputationService from '../services/reputation.js';
 import * as reputationDecay from '../services/reputationDecay.js';
 import { provider, escrow } from '../services/chain.js';
 import { redis } from '../services/redis.js';
@@ -142,18 +143,40 @@ async function recordWorkerPayout(taskHash: string, executorAddr: string): Promi
     }
     await agentStore.registerAgent(agent);
 
-    // Update the off-chain decay-based reputation (SQLite) — mirrors the
-    // reputationDecay.recordTaskCompletion call in the traditional
-    // submissions.ts /verify route. Without this, the A2A path never
-    // populates the /reputation/ leaderboard or the decayed score that
-    // /agents and /agents/:id return.
+    // Off-chain decay-based reputation (Neon PostgreSQL)
     try {
-      reputationDecay.recordTaskCompletion(executorAddr, taskHash, 10);
+      await reputationDecay.recordTaskCompletion(executorAddr, taskHash, 10);
     } catch (decayErr) {
       console.warn(`[a2a] recordWorkerPayout: reputationDecay.recordTaskCompletion failed for ${taskHash.slice(0, 10)}…:`, (decayErr as Error).message);
     }
+
+    // On-chain reputation is updated by BlindEscrow internally when
+    // settleVerification fires completeVerification → BlindReputation.rate().
   } catch (err) {
     console.error(`[a2a] recordWorkerPayout failed for ${taskHash.slice(0, 10)}… executor=${executorAddr}:`, (err as Error).message);
+  }
+}
+
+/**
+ * Record a dispute against an executor. Decrements the Redis reputation counter
+ * and records the dispute in the Neon PostgreSQL reputation system. On-chain
+ * dispute is also recorded by BlindEscrow when settleVerification fires
+ * completeVerification → BlindReputation.recordDispute().
+ * Non-blocking — logged on failure, caller continues.
+ */
+async function recordWorkerDispute(taskHash: string, executorAddr: string): Promise<void> {
+  try {
+    const agent = await agentStore.getAgent(executorAddr);
+    if (agent) {
+      agent.reputation = Math.max(0, agent.reputation - 10);
+      await agentStore.registerAgent(agent);
+    }
+    await reputationDecay.recordDispute(executorAddr, taskHash);
+  } catch (err) {
+    console.warn(
+      `[a2a] recordWorkerDispute failed for ${taskHash.slice(0, 10)}… executor=${executorAddr}:`,
+      (err as Error).message,
+    );
   }
 }
 
@@ -933,6 +956,8 @@ a2aRouter.post('/tasks/:id/finalize', requireAuth, async (req: AuthRequest, res,
 
     if (verificationResult.passed) {
       await recordWorkerPayout(taskHash, address);
+    } else {
+      await recordWorkerDispute(taskHash, address);
     }
 
     // Fire-and-forget bridge call: marketplace signer calls completeVerification
@@ -995,6 +1020,8 @@ a2aRouter.post('/tasks/:id/verify', requireAuth, async (req: AuthRequest, res, n
 
     if (passed && state.executorAddress) {
       await recordWorkerPayout(taskHash, state.executorAddress);
+    } else if (!passed && state.executorAddress) {
+      await recordWorkerDispute(taskHash, state.executorAddress);
     }
 
     // Bridge: marketplace signer calls completeVerification on chain. Assumes
@@ -1113,7 +1140,7 @@ a2aRouter.get('/executions', requireAuth, async (req: AuthRequest, res, next) =>
 
 /**
  * GET /api/v1/a2a/profile
- * Get my agent profile with decayed reputation.
+ * Get my agent profile with on-chain + decayed reputation.
  */
 a2aRouter.get('/profile', requireAuth, async (req: AuthRequest, res, next) => {
   try {
@@ -1124,9 +1151,18 @@ a2aRouter.get('/profile', requireAuth, async (req: AuthRequest, res, next) => {
       throw new AppError(404, 'NOT_REGISTERED', 'Agent not registered');
     }
 
+    const [onChain, decayed] = await Promise.all([
+      reputationService.getReputationWithScore(address).catch(() => ({
+        address, tasksCompleted: 0, avgScore: 0, disputes: 0, disputeRatio: 0, score: 0,
+      })),
+      reputationDecay.getDecayedReputation(address).catch(() => ({
+        address, rawScore: 0, decayedScore: 0, decayFactor: 1, daysSinceLastTask: null, tasksCompleted: 0, disputes: 0,
+      })),
+    ]);
+
     const body: ApiResponse = {
       success: true,
-      data: { agent, reputation: reputationDecay.getDecayedReputation(address) },
+      data: { agent, reputation: onChain, decayedReputation: decayed },
     };
     res.json(body);
   } catch (err) {

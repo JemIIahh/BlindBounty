@@ -78,7 +78,7 @@ submissionsRouter.post('/verify', requireAuth, async (req: AuthRequest, res, nex
           type: 'fee',
           amount: fee,
         });
-        reputationDecay.recordTaskCompletion(workerAddr, String(taskId), 10);
+        await reputationDecay.recordTaskCompletion(workerAddr, String(taskId), 10).catch(() => {});
       } else {
         accountingService.recordTransaction({
           address: workerAddr,
@@ -87,8 +87,10 @@ submissionsRouter.post('/verify', requireAuth, async (req: AuthRequest, res, nex
           type: 'slash',
           amount: 0,
         });
-        reputationDecay.recordDispute(workerAddr, String(taskId));
+        await reputationDecay.recordDispute(workerAddr, String(taskId)).catch(() => {});
       }
+      // On-chain reputation is updated by BlindEscrow internally when
+      // completeVerification is called via the unsigned tx returned above.
     } catch (hookErr) {
       console.warn('[submissions] Accounting/reputation hook failed (non-blocking):', hookErr);
     }

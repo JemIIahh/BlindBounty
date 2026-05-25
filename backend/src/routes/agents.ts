@@ -7,7 +7,8 @@ import {
   deployAgent, startAgent, pauseAgent, stopAgent,
   getAgent, listAgents, getAgentLogs, subscribeAgentLogs, updateAgent,
 } from '../services/agentRunner.js';
-import { getDecayedReputation } from '../services/reputationDecay.js';
+import * as reputationService from '../services/reputation.js';
+import * as reputationDecay from '../services/reputationDecay.js';
 import * as agentStore from '../services/agentStore.js';
 import { ethers } from 'ethers';
 import { provider } from '../services/chain.js';
@@ -164,9 +165,16 @@ agentsRouter.get('/', async (req, res) => {
   const enriched = await Promise.all(rawAgents.map(async a => {
     const s = strip(a);
     if (!s) return null;
+    const [onChain, decayed] = await Promise.all([
+      reputationService.getReputationWithScore(a.walletAddress).catch(() => null),
+      reputationDecay.getDecayedReputation(a.walletAddress).catch(() => ({
+        address: a.walletAddress, rawScore: 0, decayedScore: 0, decayFactor: 1, daysSinceLastTask: null, tasksCompleted: 0, disputes: 0,
+      })),
+    ]);
     return {
       ...(await withExecutorStats(s)),
-      reputation: getDecayedReputation(a.walletAddress),
+      reputation: onChain ?? { address: a.walletAddress, tasksCompleted: 0, avgScore: 0, disputes: 0, disputeRatio: 0, score: 0 },
+      decayedReputation: decayed,
     };
   }));
   res.json({ success: true, data: enriched.filter(Boolean) });
@@ -378,11 +386,18 @@ agentsRouter.get('/:id', async (req, res) => {
   const agent = await getAgent(req.params.id);
   if (!agent) { res.status(404).json({ success: false, error: 'Not found' }); return; }
   const stripped = strip(agent)!;
+  const [onChain, decayed] = await Promise.all([
+    reputationService.getReputationWithScore(agent.walletAddress).catch(() => null),
+    reputationDecay.getDecayedReputation(agent.walletAddress).catch(() => ({
+      address: agent.walletAddress, rawScore: 0, decayedScore: 0, decayFactor: 1, daysSinceLastTask: null, tasksCompleted: 0, disputes: 0,
+    })),
+  ]);
   res.json({
     success: true,
     data: {
       ...(await withExecutorStats(stripped)),
-      reputation: getDecayedReputation(agent.walletAddress),
+      reputation: onChain ?? { address: agent.walletAddress, tasksCompleted: 0, avgScore: 0, disputes: 0, disputeRatio: 0, score: 0 },
+      decayedReputation: decayed,
     }
   });
 });
