@@ -35,6 +35,9 @@ export const config = {
   // No longer accepted by requireAuth — that path is Privy-only.
   jwtSecret: process.env.JWT_SECRET || '',
 
+  // Database (Neon PostgreSQL)
+  databaseUrl: process.env.DATABASE_URL || '',
+
   // CORS
   corsOrigin: optional('CORS_ORIGIN', 'http://localhost:5173').split(',').map(s => s.trim()),
 
