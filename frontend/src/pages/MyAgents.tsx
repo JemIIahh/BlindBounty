@@ -71,7 +71,7 @@ export default function MyAgents() {
   // Use `post` from lib/api so non-2xx responses throw with the server's
   // error message instead of being silently swallowed by `res.json()`.
   const action = useMutation({
-    mutationFn: ({ id, act }: { id: string; act: 'start' | 'pause' | 'stop' }) =>
+    mutationFn: ({ id, act }: { id: string; act: 'start' | 'pause' | 'stop' | 'restart' }) =>
       post<Agent>(`/api/v1/agents/${id}/${act}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['my-agents', address] }),
   });
@@ -167,7 +167,8 @@ export default function MyAgents() {
                       {agent.status === 'running' && (
                         <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'pause' })} className="text-yellow-500 hover:underline disabled:opacity-40">pause</button>
                       )}
-                      <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'stop' })} className="text-ink-3 hover:text-red-500 hover:underline disabled:opacity-40">stop</button>
+                        <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'stop' })} className="text-ink-3 hover:text-red-500 hover:underline disabled:opacity-40">stop</button>
+                        {agent.status !== 'stopped' && <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'restart' })} className="text-ink-3 hover:text-blue-500 hover:underline disabled:opacity-40">restart</button>}
                       <Link to={`/agents/${agent.id}`} className="text-cream hover:underline ml-auto">logs →</Link>
                     </div>
                     {failed && (
@@ -217,7 +218,8 @@ export default function MyAgents() {
                         {agent.status === 'running' && (
                           <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'pause' })} className="text-yellow-400 hover:underline disabled:opacity-40">pause</button>
                         )}
-                        <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'stop' })} className="text-ink-3 hover:text-red-400 hover:underline disabled:opacity-40">stop</button>
+                          <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'stop' })} className="text-ink-3 hover:text-red-400 hover:underline disabled:opacity-40">stop</button>
+                          {agent.status !== 'stopped' && <button disabled={isActing} onClick={() => action.mutate({ id: agent.id, act: 'restart' })} className="text-ink-3 hover:text-blue-400 hover:underline disabled:opacity-40">restart</button>}
                         <Link to={`/agents/${agent.id}`} className="text-cream hover:underline">logs</Link>
                       </div>
                     </div>
