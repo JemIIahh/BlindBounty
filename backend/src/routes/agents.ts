@@ -57,11 +57,6 @@ async function authorizeOwner(req: AuthRequest, res: import('express').Response,
   return agent;
 }
 
-// MockERC20 / USDC marketplace token — same address the frontend uses for
-// task bounties. Read once at module load; if missing, the sweep-token
-// endpoint returns 503 telling the caller to configure it.
-const MARKETPLACE_TOKEN = process.env.MOCK_ERC20_ADDRESS ?? process.env.VITE_MOCK_ERC20_ADDRESS ?? '';
-
 const ERC20_TRANSFER_ABI = [
   'function balanceOf(address) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',
@@ -214,155 +209,127 @@ agentsRouter.post('/:id/export-key', requireAuth, async (req: AuthRequest, res) 
   res.json({ success: true, data: { agentId: agent.id, walletAddress: agent.walletAddress, encryptedPrivateKey: agent.encryptedPrivateKey } });
 });
 
-// POST /api/v1/agents/:id/recover-funds
+// POST /api/v1/agents/:id/withdraw
 //
-// Sweeps the agent wallet's native 0G balance back to the owner. Used when the
-// owner stops/decommissions an agent and wants their gas budget back. Backend
-// holds rawPrivateKey for the agent so it can sign the sweep directly.
+// Withdraws funds from the agent wallet to the owner. Handles both native 0G
+// and ERC20 tokens in one endpoint.
 //
-// Authorization: requireAuth attaches req.user.address from the JWT; we then
-// match against the stored agent.ownerAddress. The body's `ownerAddress` is
-// no longer trusted — only the cryptographically-verified token identity is.
+//   Body: { tokenAddress?: string }
+//     - omitted / "0x0000...0000"  → sweeps native 0G (gas reserve kept)
+//     - any ERC20 address          → sweeps that token balance
 //
-// Leaves a small reserve (`GAS_RESERVE`) untouched to cover the sweep tx
-// itself plus a margin — sending the *exact* balance would revert with
-// "insufficient funds for gas".
-agentsRouter.post('/:id/recover-funds', requireAuth, async (req: AuthRequest, res) => {
+// Authorization: requireAuth + authorizeOwner (must match agent.ownerAddress).
+// Refuses while the agent is running to avoid racing with in-flight txs.
+agentsRouter.post('/:id/withdraw', requireAuth, async (req: AuthRequest, res) => {
   try {
     const agent = await authorizeOwner(req, res, req.params.id);
     if (!agent) return;
 
-    // Refuse to sweep a running agent — race with in-flight submitEvidence
-    // could brick the task by draining gas mid-tx. Owner must stop first.
     if (agent.status === 'running') {
-      res.status(409).json({ success: false, error: { code: 'AGENT_RUNNING', message: 'Stop the agent before recovering funds — sweeping a running agent can race with in-flight settlement transactions' } });
+      res.status(409).json({ success: false, error: { code: 'AGENT_RUNNING', message: 'Stop the agent before withdrawing — sweeping a running agent can race with in-flight settlement transactions' } });
       return;
     }
     if (!agent.rawPrivateKey) {
-      res.status(409).json({ success: false, error: { code: 'NO_KEY', message: 'Agent has no raw private key on record; cannot sign sweep' } });
+      res.status(409).json({ success: false, error: { code: 'NO_KEY', message: 'Agent has no raw private key on record; cannot sign withdrawal' } });
       return;
     }
+
+    const rawToken = (req.body as { tokenAddress?: string })?.tokenAddress?.trim() || '';
+    // Treat missing or zero address as native 0G sweep.
+    const isNative = !rawToken || rawToken === '0x0000000000000000000000000000000000000000';
 
     const wallet = new ethers.Wallet(
       agent.rawPrivateKey.startsWith('0x') ? agent.rawPrivateKey : `0x${agent.rawPrivateKey}`,
       provider,
     );
-    const balance = await provider.getBalance(wallet.address);
-    // Reserve covers the sweep tx itself (21k gas) plus a fat margin to absorb
-    // any gas-price spike between balance read and tx mine. 0.001 0G ≈ 5x what
-    // a basic transfer costs at 4 gwei.
-    const GAS_RESERVE = ethers.parseEther('0.001');
-    if (balance <= GAS_RESERVE) {
-      res.status(409).json({
-        success: false,
-        error: {
-          code: 'BALANCE_TOO_LOW',
-          message: `Agent wallet balance (${ethers.formatEther(balance)} 0G) is below the gas reserve required to sweep`,
+
+    if (isNative) {
+      // ── Native 0G sweep ──────────────────────────────────────────────
+      const balance = await provider.getBalance(wallet.address);
+      const GAS_RESERVE = ethers.parseEther('0.001');
+      if (balance <= GAS_RESERVE) {
+        res.status(409).json({
+          success: false,
+          error: {
+            code: 'BALANCE_TOO_LOW',
+            message: `Agent wallet balance (${ethers.formatEther(balance)} 0G) is below the gas reserve required to sweep`,
+          },
+        });
+        return;
+      }
+      const sendAmount = balance - GAS_RESERVE;
+      const tx = await wallet.sendTransaction({ to: agent.ownerAddress, value: sendAmount });
+      const receipt = await tx.wait();
+      res.json({
+        success: true,
+        data: {
+          txHash: tx.hash,
+          asset: '0G',
+          amountSent: ethers.formatEther(sendAmount),
+          recipient: agent.ownerAddress,
+          blockNumber: receipt?.blockNumber,
         },
       });
-      return;
+    } else {
+      // ── ERC20 token sweep ────────────────────────────────────────────
+      const tokenAddress = rawToken;
+      if (!/^0x[0-9a-fA-F]{40}$/.test(tokenAddress)) {
+        res.status(400).json({ success: false, error: { code: 'BAD_TOKEN', message: 'tokenAddress must be a 0x-prefixed 20-byte hex string' } });
+        return;
+      }
+
+      const token = new ethers.Contract(tokenAddress, ERC20_TRANSFER_ABI, wallet);
+
+      const nativeBalance = await provider.getBalance(wallet.address);
+      const NATIVE_GAS_MIN = ethers.parseEther('0.0002');
+      if (nativeBalance < NATIVE_GAS_MIN) {
+        res.status(409).json({ success: false, error: { code: 'NO_GAS', message: `Agent wallet has insufficient native 0G to pay for the transfer tx (have ${ethers.formatEther(nativeBalance)}, need ≥0.0002). Top up gas first.` } });
+        return;
+      }
+
+      let balance: bigint;
+      try {
+        balance = await token.balanceOf(wallet.address);
+      } catch {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'NOT_ERC20',
+            message: `The address ${tokenAddress} does not appear to be an ERC20 token — balanceOf returned empty data.`,
+          },
+        });
+        return;
+      }
+      if (balance === 0n) {
+        res.status(409).json({ success: false, error: { code: 'ZERO_BALANCE', message: 'Agent wallet has no balance of that token to withdraw' } });
+        return;
+      }
+
+      const tx = await token.transfer(agent.ownerAddress, balance);
+      const receipt = await tx.wait();
+
+      let decimals = 6;
+      try { decimals = Number(await token.decimals()); } catch {}
+      const whole = balance / 10n ** BigInt(decimals);
+      const frac = (balance % 10n ** BigInt(decimals)).toString().padStart(decimals, '0');
+
+      res.json({
+        success: true,
+        data: {
+          txHash: tx.hash,
+          asset: tokenAddress,
+          amountRaw: balance.toString(),
+          amountFormatted: `${whole}.${frac}`,
+          decimals,
+          recipient: agent.ownerAddress,
+          blockNumber: receipt?.blockNumber,
+        },
+      });
     }
-    const sendAmount = balance - GAS_RESERVE;
-    const tx = await wallet.sendTransaction({ to: agent.ownerAddress, value: sendAmount });
-    const receipt = await tx.wait();
-    res.json({
-      success: true,
-      data: {
-        txHash: tx.hash,
-        amountSent: ethers.formatEther(sendAmount),
-        recipient: agent.ownerAddress,
-        blockNumber: receipt?.blockNumber,
-      },
-    });
   } catch (err) {
     res.status(500).json({
       success: false,
-      error: { code: 'RECOVER_FAILED', message: (err as Error).message },
-    });
-  }
-});
-
-// POST /api/v1/agents/:id/sweep-token
-//
-// Withdraws ERC20 earnings from the agent's wallet to the owner. Used after
-// the agent completes tasks and accumulates USDC (or whatever marketplace
-// token is configured). Defaults to MARKETPLACE_TOKEN (the env-configured
-// MockERC20); accepts an explicit tokenAddress override for future multi-token
-// support.
-//
-// Same authorization model as /recover-funds: requireAuth + owner check.
-// Refuses while the agent is running to avoid racing with payout txs.
-agentsRouter.post('/:id/sweep-token', requireAuth, async (req: AuthRequest, res) => {
-  try {
-    const agent = await authorizeOwner(req, res, req.params.id);
-    if (!agent) return;
-
-    if (agent.status === 'running') {
-      res.status(409).json({ success: false, error: { code: 'AGENT_RUNNING', message: 'Stop the agent before withdrawing — a running agent may be mid-payout from the escrow' } });
-      return;
-    }
-    if (!agent.rawPrivateKey) {
-      res.status(409).json({ success: false, error: { code: 'NO_KEY', message: 'Agent has no raw private key on record; cannot sign transfer' } });
-      return;
-    }
-
-    const tokenAddress = ((req.body as { tokenAddress?: string })?.tokenAddress ?? MARKETPLACE_TOKEN).trim();
-    if (!tokenAddress) {
-      res.status(503).json({ success: false, error: { code: 'TOKEN_UNSET', message: 'No marketplace token configured. Set MOCK_ERC20_ADDRESS in the backend env or pass tokenAddress in the request.' } });
-      return;
-    }
-    if (!/^0x[0-9a-fA-F]{40}$/.test(tokenAddress)) {
-      res.status(400).json({ success: false, error: { code: 'BAD_TOKEN', message: 'tokenAddress must be a 0x-prefixed 20-byte address' } });
-      return;
-    }
-
-    const wallet = new ethers.Wallet(
-      agent.rawPrivateKey.startsWith('0x') ? agent.rawPrivateKey : `0x${agent.rawPrivateKey}`,
-      provider,
-    );
-    const token = new ethers.Contract(tokenAddress, ERC20_TRANSFER_ABI, wallet);
-
-    // Need native gas to pay for the transfer tx itself. We don't sweep all
-    // of it — leave enough for the next ~5 txs the agent might need later.
-    const nativeBalance = await provider.getBalance(wallet.address);
-    const NATIVE_GAS_MIN = ethers.parseEther('0.0002'); // 1 ERC20 transfer ≈ 50k gas
-    if (nativeBalance < NATIVE_GAS_MIN) {
-      res.status(409).json({ success: false, error: { code: 'NO_GAS', message: `Agent wallet has insufficient native 0G to pay for the transfer tx (have ${ethers.formatEther(nativeBalance)}, need ≥0.0002). Top up gas first.` } });
-      return;
-    }
-
-    const balance: bigint = await token.balanceOf(wallet.address);
-    if (balance === 0n) {
-      res.status(409).json({ success: false, error: { code: 'ZERO_BALANCE', message: 'Agent wallet has no balance of that token to sweep' } });
-      return;
-    }
-
-    const tx = await token.transfer(agent.ownerAddress, balance);
-    const receipt = await tx.wait();
-
-    // Format the amount with the token's decimals (default 6 for USDC; if the
-    // call fails we just return raw — the UI can handle either).
-    let decimals = 6;
-    try { decimals = Number(await token.decimals()); } catch {}
-    const whole = balance / 10n ** BigInt(decimals);
-    const frac = (balance % 10n ** BigInt(decimals)).toString().padStart(decimals, '0');
-
-    res.json({
-      success: true,
-      data: {
-        txHash: tx.hash,
-        tokenAddress,
-        amountRaw: balance.toString(),
-        amountFormatted: `${whole}.${frac}`,
-        decimals,
-        recipient: agent.ownerAddress,
-        blockNumber: receipt?.blockNumber,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: { code: 'SWEEP_FAILED', message: (err as Error).message },
+      error: { code: 'WITHDRAW_FAILED', message: (err as Error).message },
     });
   }
 });
