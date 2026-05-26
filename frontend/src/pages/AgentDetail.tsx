@@ -6,7 +6,7 @@ import { BrowserProvider, parseEther } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
 import { get, post, patch, authedPost } from '../lib/api';
-import { API_BASE_URL, MARKETPLACE_TOKEN_ADDRESS } from '../config/constants';
+import { API_BASE_URL } from '../config/constants';
 import { AGENT_CAPABILITIES } from '../config/capabilities';
 
 // Top-up amount when the agent runs low on gas. Same default as the deploy
