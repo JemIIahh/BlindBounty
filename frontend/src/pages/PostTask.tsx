@@ -184,6 +184,36 @@ export default function PostTask() {
         `stashed locally for post-hoc bidders`,
       );
 
+      // 4b. ALSO seal the AES key to the platform key-custody key, if enabled.
+      //     This lets an agent that registers AFTER this post be served a
+      //     re-wrapped slice on /accept with no poster present — fixing the
+      //     "human posts a seed task, an agent shows up two days later" gap
+      //     (docs/TEE-REWRAP-SPEC.md). Best-effort: a custody failure must NOT
+      //     block the post; the browser/agent wrap loops remain the fallback.
+      //     When custody is off the endpoint returns { enabled:false } and we
+      //     skip sealing entirely.
+      let keyCustodyBlob: { keyId: string; blob: string } | undefined;
+      try {
+        const custodyKey = await authedGet<{
+          enabled: boolean;
+          keyId: string | null;
+          publicKey: string | null;
+          attestation: string | null;
+        }>('/api/v1/a2a/key-custody/pubkey', token);
+        if (custodyKey.enabled && custodyKey.keyId && custodyKey.publicKey) {
+          // The local (operator-trusted) backend returns attestation:null. When
+          // an attested backend (TDX / 0G oracle) ships, VERIFY
+          // custodyKey.attestation here before sealing — sealing to an
+          // unattested key in that mode would silently trust the operator.
+          const sealedBytes = await eciesEncrypt(key, custodyKey.publicKey);
+          const sealedHex = Array.from(sealedBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+          keyCustodyBlob = { keyId: custodyKey.keyId, blob: sealedHex };
+          console.log('[PostTask] AES key sealed to key-custody — late joiners can pick up unattended');
+        }
+      } catch (e) {
+        console.warn('[PostTask] key-custody seal skipped:', (e as Error).message);
+      }
+
       // 5. Compute duration (seconds from now) from the chosen deadline.
       //    Re-evaluate at submit time so the value is accurate even if the
       //    form sat open for a while between picking the deadline and clicking
@@ -240,6 +270,9 @@ export default function PostTask() {
         requiredCapabilities: requiredCaps,
         rootHash,
         wrappedKeys,
+        // Only sent when key-custody is enabled (else undefined → omitted by
+        // JSON.stringify). Lets the backend self-heal late joiners on /accept.
+        keyCustodyBlob,
       }, token);
 
       setTaskId(taskJson.taskId ?? null);

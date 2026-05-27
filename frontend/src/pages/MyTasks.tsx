@@ -36,6 +36,10 @@ interface PostedTask {
   // server-side. 0 on an open encrypted task = the key exists only in a
   // browser's localStorage (the "key at risk" state). Added by GET /tasks/posted.
   wrapCount?: number;
+  // Whether the brief AES key is also sealed to platform key-custody. If true,
+  // the key is recoverable server-side via re-wrap even at wrapCount 0, so the
+  // task is NOT "key at risk" (docs/TEE-REWRAP-SPEC.md). Added by /tasks/posted.
+  hasCustody?: boolean;
   onChain: null | {
     taskId: string;           // numeric on-chain id, as string
     status: number;           // 0=Funded 1=Assigned 2=Submitted 3=Verified 4=Completed 5=Cancelled 6=Disputed
@@ -224,12 +228,15 @@ export default function MyTasks() {
               const isDone = status === 3 || status === 4 || status === 6;
               const hasResult = !!t.state.resultData;
               // "Key at risk": an open, encrypted task whose AES key has not
-              // been wrapped to any executor server-side. The only copy is in a
-              // browser's localStorage — if that's cleared before an agent is
-              // wrapped, the brief becomes permanently undecryptable. keyHere
-              // tells us whether THIS browser still holds it (recoverable but
-              // fragile) or not (likely already lost / on another device).
-              const keyAtRisk = status === 0 && !!t.meta.rootHash && (t.wrapCount ?? 0) === 0;
+              // been wrapped to any executor server-side AND isn't sealed to
+              // key-custody. The only copy is then in a browser's localStorage —
+              // if that's cleared before an agent is wrapped, the brief becomes
+              // permanently undecryptable. A custody-sealed task (hasCustody) is
+              // recoverable server-side via re-wrap, so it's NOT at risk even at
+              // wrapCount 0. keyHere tells us whether THIS browser still holds
+              // the key (recoverable but fragile) or not.
+              const keyAtRisk =
+                status === 0 && !!t.meta.rootHash && (t.wrapCount ?? 0) === 0 && !t.hasCustody;
               const keyHere = keyAtRisk && !!getAesKey(t.meta.taskId);
               const taskId = t.onChain?.taskId || t.meta.taskId;
               const taskUrl = `/tasks/${taskId}`;

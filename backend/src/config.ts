@@ -62,4 +62,17 @@ export const config = {
   ogComputeProviderAddress: process.env.OG_COMPUTE_PROVIDER_ADDRESS || '',
   // RPC for compute network (defaults to testnet)
   ogComputeRpcUrl: optional('OG_COMPUTE_RPC_URL', 'https://evmrpc-testnet.0g.ai'),
+
+  // Key custody / late-joiner re-wrap (docs/TEE-REWRAP-SPEC.md). DEFAULT OFF.
+  // When enabled, posters seal the brief AES key to a platform-held custody key
+  // so an agent that registers AFTER a task was posted can be served a
+  // re-wrapped slice on /accept, with no poster present. With backend=local the
+  // operator CAN read every sealed brief key — keyCustodyService.ts logs a loud
+  // warning at boot, and this posture must be disclosed (spec §9). tdx/zg-oracle
+  // are not implemented yet. KEY_CUSTODY_PRIVATE_KEY is a crown-jewel secret.
+  keyCustody: {
+    enabled: optional('KEY_CUSTODY_ENABLED', 'false') === 'true',
+    backend: optional('KEY_CUSTODY_BACKEND', 'local') as 'local' | 'tdx' | 'zg-oracle',
+    privateKey: process.env.KEY_CUSTODY_PRIVATE_KEY || '',
+  },
 } as const;

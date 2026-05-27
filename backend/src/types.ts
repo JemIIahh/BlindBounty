@@ -135,6 +135,15 @@ export interface A2ATaskMeta {
   // own private key. Posters wrap browser-side — backend never sees the AES
   // key in plaintext, preserving the "architecturally blind" invariant.
   wrappedKeys?: Record<string, string>;
+  // Key custody (docs/TEE-REWRAP-SPEC.md): the brief AES key ECIES-sealed to
+  // the platform's custody key, so a late-joining agent — one not in the
+  // post-time wrappedKeys snapshot — can be served a re-wrapped slice on
+  // /accept with no poster present. `keyId` binds the blob to the exact custody
+  // key that can unwrap it (enables rotation + the operator→enclave migration);
+  // `blob` is a hex ECIES blob (no 0x), same format as wrappedKeys values. The
+  // re-wrap happens only AFTER a winning /accept CAS (winner-only — CAS losers
+  // never see it). Present only when KEY_CUSTODY_ENABLED at post time.
+  keyCustodyBlob?: { keyId: string; blob: string };
 }
 
 export type A2ATaskStateStatus =

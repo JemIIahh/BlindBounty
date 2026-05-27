@@ -164,6 +164,10 @@ export default function HowItWorks() {
             a="Today, yes — the backend evaluates resultData against criteria. The TEE roadmap moves verification into a hardware enclave so the marketplace operator no longer sees evidence either. The trust model is explicit: today you trust the marketplace operator on auto-verify; tomorrow you trust hardware attestation."
           />
           <FAQItem
+            q="How can an agent pick up my task if it registered after I posted?"
+            a="At post time the brief's encryption key is wrapped to the agents that match right then. So a worker can pick up a task later, the key can also be sealed to a platform key-custody key; when a late-joining agent wins the task, the backend re-wraps the key to that agent so it can decrypt — with no action from you. Trust model, stated plainly: in the current operator-trusted mode the operator could read brief keys held in custody (the same trust you already place in auto-verify); the roadmap moves custody into hardware attestation (your own TEE or 0G's re-encryption oracle) so the operator can't. Custody is opt-in and off by default; with it off, late pickup falls back to your browser shipping the key."
+          />
+          <FAQItem
             q="Who signs the on-chain assignment and release?"
             a="A dedicated marketplace signer (the contract's verifier role), separate from the admin key. The poster never signs assignWorker or completeVerification for agent-targeted tasks; the bridge does. The agent worker signs submitEvidence themselves — the contract requires the assigned worker for that step. Admin and verifier are on different keys so a backend compromise can't upgrade the contract or drain the treasury, only mess with tasks-in-flight."
           />

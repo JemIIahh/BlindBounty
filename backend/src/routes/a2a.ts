@@ -5,6 +5,7 @@ import { AppError } from '../middleware/errorHandler.js';
 import * as agentStore from '../services/agentStore.js';
 import * as a2aStore from '../services/a2aStore.js';
 import * as bidsStore from '../services/bidsStore.js';
+import * as keyCustody from '../services/keyCustodyService.js';
 import { autoVerify } from '../services/autoVerify.js';
 import { settleAssignment, settleVerification } from '../services/a2aSettlement.js';
 import { getTaskIdByHash } from '../services/escrowEvents.js';
@@ -72,6 +73,20 @@ const indexTaskSchema = z.object({
       z.string().regex(/^[0-9a-fA-F]+$/, 'wrappedKeys value must be hex (no 0x prefix)').min(2).max(8192),
     )
     .refine((m) => Object.keys(m).length <= 200, { message: 'wrappedKeys cannot exceed 200 entries' })
+    .optional(),
+  // Brief AES key sealed to the platform key-custody key (docs/TEE-REWRAP-SPEC.md).
+  // Optional — present only when the poster fetched a key from
+  // GET /a2a/key-custody/pubkey (i.e. KEY_CUSTODY_ENABLED). Enables late agents
+  // to be re-wrapped on /accept with no poster present.
+  keyCustodyBlob: z
+    .object({
+      keyId: z.string().min(1).max(64),
+      blob: z
+        .string()
+        .regex(/^[0-9a-fA-F]+$/, 'keyCustodyBlob.blob must be hex (no 0x prefix)')
+        .min(2)
+        .max(8192),
+    })
     .optional(),
 });
 
@@ -335,18 +350,38 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
       }
     }
 
+    const addrLc = address.toLowerCase();
+    const hasOwnSlice = !!meta.wrappedKeys?.[addrLc];
+    // Self-heal is possible when the task is encrypted, this caller has no slice
+    // yet, the poster sealed the key to custody, and a custody backend is live.
+    // This is what lets a late joiner pick up the task with no poster present.
+    const custodySvc = keyCustody.getKeyCustodyService();
+    const canSelfHeal = !!meta.rootHash && !hasOwnSlice && !!meta.keyCustodyBlob && !!custodySvc;
+
     // NEEDS_WRAP gate — refuse BEFORE the CAS so the open→accepted transition
-    // isn't burned on a caller who can't actually decrypt the brief. The
-    // poster's frontend will see this agent's bid (if it bid first) and wrap
-    // the AES key to it; once meta.wrappedKeys[addr] is populated, the next
-    // accept attempt sails through. Skipping this check for tasks without a
-    // rootHash (legacy / unencrypted) keeps the back-compat path open.
-    if (meta.rootHash && !meta.wrappedKeys?.[address.toLowerCase()]) {
+    // isn't burned on a caller who can't decrypt the brief. An encrypted task
+    // with no slice for this caller is only acceptable if we can self-heal from
+    // the key-custody blob (below). Otherwise the caller must /bid and wait for
+    // the poster's browser (or the posting agent's wrap loop) to ship a slice.
+    // Tasks with no rootHash (legacy / unencrypted) skip this entirely.
+    if (meta.rootHash && !hasOwnSlice && !canSelfHeal) {
       console.log(`[a2a] accept: needs wrap for ${taskId}, agent=${address}`);
       throw new AppError(
         403,
         'NEEDS_WRAP',
         'Task brief is not yet wrapped to your pubkey — POST /a2a/tasks/:id/bid to register intent; the poster will wrap on their next polling cycle.',
+      );
+    }
+
+    // A keyless agent can never be re-wrapped to — refuse before the CAS. New
+    // registrations always carry a pubkey (enforced at /register), so this only
+    // guards pre-guardrail Redis rows.
+    if (canSelfHeal && !agent.publicKey) {
+      console.warn(`[a2a] accept: self-heal blocked — agent ${address} has no public key`);
+      throw new AppError(
+        403,
+        'NEEDS_WRAP',
+        'Your executor record has no public key to re-wrap the brief to — re-register with a pubkey.',
       );
     }
 
@@ -365,21 +400,52 @@ a2aRouter.post('/tasks/:id/accept', requireAuth, async (req: AuthRequest, res, n
       );
     }
 
+    // Key-custody self-heal (docs/TEE-REWRAP-SPEC.md §5.2). Deliberately runs
+    // AFTER winning the CAS — so only the assigned worker ever receives a
+    // decryptable slice (CAS losers got 409 above and see nothing, which kills
+    // the "harvest the key via repeated /accept" oracle) — and BEFORE
+    // settleAssignment, so a re-wrap failure releases the task instead of
+    // stranding an undecryptable worker on chain.
+    let selfHealedSlice: string | undefined;
+    if (canSelfHeal) {
+      try {
+        selfHealedSlice = await custodySvc!.rewrap(
+          meta.keyCustodyBlob!.keyId,
+          meta.keyCustodyBlob!.blob,
+          agent.publicKey!,
+        );
+      } catch (err) {
+        console.error(`[a2a] accept: key-custody rewrap failed for ${taskId}:`, (err as Error).message);
+        // Un-assign so another (or the same) agent can retry; do NOT settle on chain.
+        try {
+          await a2aStore.releaseToOpen(taskId);
+        } catch (relErr) {
+          console.error(`[a2a] accept: releaseToOpen after rewrap failure also failed for ${taskId}:`, (relErr as Error).message);
+        }
+        throw new AppError(503, 'REWRAP_FAILED', 'Key-custody re-wrap failed; task released — retry shortly.');
+      }
+      // Persist for the record / idempotency: a later /accept by the same agent
+      // takes the wrappedKeys[addr] fast-path instead of re-wrapping again.
+      await a2aStore.mergeWrappedKeys(taskId, { [addrLc]: selfHealedSlice });
+      console.log(`[a2a] accept: key-custody self-heal OK for ${taskId}, agent=${address}`);
+    }
+
     // Fire-and-forget on-chain settlement: backend marketplace signer calls
     // marketplaceAssign(taskId, executor) so the contract knows who to pay.
     // We deliberately don't await — the HTTP response returns immediately
     // and the bridge logs its own progress. State update inside the bridge
     // persists the tx hash to a2aStore so clients can poll for confirmation.
+    // Only reached after a successful self-heal (or when none was needed).
     console.log(`[a2a] accept: transition OK for ${taskId}, triggering bridge assignment`);
     void settleAssignment(taskId, address);
 
     // Encrypted-brief slice: return the caller's wrappedKey + rootHash so the
-    // worker can download from 0G Storage and AES-decrypt. The wrappedKey
-    // lookup is by lowercased address; posters wrapped to lowercased keys at
-    // task creation time. Both fields may be absent on legacy tasks created
-    // before the encrypted-flow shipped — the worker treats that as "no brief
-    // available, log and skip" rather than crashing.
-    const wrappedKey = meta.wrappedKeys?.[address.toLowerCase()];
+    // worker can download from 0G Storage and AES-decrypt. Use the freshly
+    // re-wrapped slice if we self-healed, else the slice posters wrapped at
+    // task creation (lookup by lowercased address). Both fields may be absent
+    // on legacy tasks created before the encrypted-flow shipped — the worker
+    // treats that as "no brief available, log and skip" rather than crashing.
+    const wrappedKey = selfHealedSlice ?? meta.wrappedKeys?.[addrLc];
     const body: ApiResponse = {
       success: true,
       data: {
@@ -560,6 +626,39 @@ a2aRouter.post('/tasks/:id/wrap-to', requireAuth, async (req: AuthRequest, res, 
  * catch up. Idempotent — re-calling with the same txHash is a no-op-ish
  * merge so a network blip mid-deploy can't strand a task.
  */
+/**
+ * GET /api/v1/a2a/key-custody/pubkey  (public)
+ *
+ * The active key-custody public key a poster seals the brief AES key to, so a
+ * late-joining agent can be served a re-wrapped slice on /accept with no poster
+ * present (docs/TEE-REWRAP-SPEC.md). Public: it only returns a public key.
+ *   - `enabled:false` → custody is off; posters skip sealing and rely on the
+ *     browser/agent wrap loops (status quo).
+ *   - `attestation` is null for the local (operator-trusted) backend; the
+ *     attested backends return a quote the client MUST verify before sealing.
+ */
+a2aRouter.get('/key-custody/pubkey', async (_req, res, next) => {
+  try {
+    const svc = keyCustody.getKeyCustodyService();
+    if (!svc) {
+      res.json({
+        success: true,
+        data: { enabled: false, keyId: null, publicKey: null, attestation: null },
+      });
+      return;
+    }
+    const { keyId, publicKey } = await svc.getActiveKey();
+    const attestation = await svc.getAttestation();
+    const body: ApiResponse = {
+      success: true,
+      data: { enabled: true, keyId, publicKey, attestation },
+    };
+    res.json(body);
+  } catch (err) {
+    next(err);
+  }
+});
+
 a2aRouter.post('/tasks/index', requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const data = indexTaskSchema.parse(req.body);
@@ -656,6 +755,7 @@ a2aRouter.post('/tasks/index', requireAuth, async (req: AuthRequest, res, next) 
       posterAddress: address,
       rootHash: data.rootHash,
       wrappedKeys: wrappedKeysNormalized,
+      keyCustodyBlob: data.keyCustodyBlob,
     });
 
     console.log(
@@ -1113,13 +1213,18 @@ a2aRouter.get('/tasks/posted', requireAuth, async (req: AuthRequest, res, next) 
         // undecryptable (the platform never sees the key). The frontend
         // surfaces this as a "key at risk" warning on /tasks/mine.
         const wrapCount = Object.keys(t.meta.wrappedKeys ?? {}).length;
+        // Whether the brief AES key is sealed to key-custody. A custody-sealed
+        // task is recoverable server-side via re-wrap even at wrapCount 0, so
+        // the frontend treats it as NOT "key at risk" (docs/TEE-REWRAP-SPEC.md §8).
+        const hasCustody = !!t.meta.keyCustodyBlob;
         try {
           const onChainId = await getTaskIdByHash(t.meta.taskId);
-          if (!onChainId) return { ...t, wrapCount, onChain: null };
+          if (!onChainId) return { ...t, wrapCount, hasCustody, onChain: null };
           const onChainTask = await escrowService.getTask(Number(onChainId));
           return {
             ...t,
             wrapCount,
+            hasCustody,
             onChain: {
               taskId: onChainId.toString(),
               status: onChainTask.status,
@@ -1133,7 +1238,7 @@ a2aRouter.get('/tasks/posted', requireAuth, async (req: AuthRequest, res, next) 
         } catch {
           // Indexer hasn't caught up, or createTask reverted — return the
           // Redis-only view so the user at least sees the task exists.
-          return { ...t, wrapCount, onChain: null };
+          return { ...t, wrapCount, hasCustody, onChain: null };
         }
       }),
     );
