@@ -46,14 +46,17 @@ export function recordTransaction(tx: {
 }
 
 export function getTransactions(
-  address: string,
+  addresses: string[],
   from?: string,
   to?: string,
   type?: string,
 ): { transactions: Transaction[]; total: number } {
+  if (addresses.length === 0) return { transactions: [], total: 0 };
   const db = getDb();
-  let query = 'SELECT * FROM transactions WHERE address = ?';
-  const params: (string | number)[] = [address.toLowerCase()];
+  const placeholders = addresses.map(() => '?').join(',');
+  const lowerAddrs = addresses.map(a => a.toLowerCase());
+  let query = `SELECT * FROM transactions WHERE address IN (${placeholders})`;
+  const params: (string | number)[] = [...lowerAddrs];
 
   if (from) {
     query += ' AND created_at >= ?';
@@ -77,10 +80,13 @@ export function getTransactions(
   return { transactions, total };
 }
 
-export function getSummary(address: string, from?: string, to?: string): TransactionSummary {
+export function getSummary(addresses: string[], from?: string, to?: string): TransactionSummary {
+  if (addresses.length === 0) return { totalEarned: 0, totalFees: 0, netRevenue: 0, taskCount: 0 };
   const db = getDb();
-  let query = 'SELECT type, SUM(amount) as total_amount, SUM(fee) as total_fee, SUM(net) as total_net, COUNT(*) as cnt FROM transactions WHERE address = ?';
-  const params: string[] = [address.toLowerCase()];
+  const placeholders = addresses.map(() => '?').join(',');
+  const lowerAddrs = addresses.map(a => a.toLowerCase());
+  let query = `SELECT type, SUM(amount) as total_amount, SUM(fee) as total_fee, SUM(net) as total_net, COUNT(*) as cnt FROM transactions WHERE address IN (${placeholders})`;
+  const params: string[] = [...lowerAddrs];
 
   if (from) {
     query += ' AND created_at >= ?';
@@ -123,8 +129,8 @@ export function getSummary(address: string, from?: string, to?: string): Transac
   };
 }
 
-export function exportCsv(address: string, from?: string, to?: string): string {
-  const { transactions } = getTransactions(address, from, to);
+export function exportCsv(addresses: string[], from?: string, to?: string): string {
+  const { transactions } = getTransactions(addresses, from, to);
 
   const header = 'Date,Task ID,Type,Role,Amount,Fee,Net,Status,Tx Hash';
   const rows = transactions.map((tx) =>
