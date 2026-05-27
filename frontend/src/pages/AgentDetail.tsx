@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BrowserProvider, parseEther } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
-import { get, post, patch, authedPost } from '../lib/api';
+import { get, patch, authedPost } from '../lib/api';
 import { API_BASE_URL } from '../config/constants';
 import { AGENT_CAPABILITIES } from '../config/capabilities';
 
@@ -88,7 +88,7 @@ export default function AgentDetail() {
 
   const action = useMutation({
     mutationFn: (act: 'start' | 'pause' | 'stop' | 'restart') =>
-      post<AgentDetails>(`/api/v1/agents/${id}/${act}`),
+      authedPost<AgentDetails>(`/api/v1/agents/${id}/${act}`, {}),
     onSuccess: (data) => { setAgent(data); qc.invalidateQueries({ queryKey: ['my-agents'] }); },
   });
 

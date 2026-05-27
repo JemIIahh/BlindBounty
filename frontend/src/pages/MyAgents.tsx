@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Breadcrumb, PageHeader, SectionRule, Tag, StatCard } from '../components/bb';
 import { truncateAddress } from '../lib/utils';
 import { API_BASE_URL } from '../config/constants';
-import { post } from '../lib/api';
+import { authedPost } from '../lib/api';
 
 // Mirrors AgentDetail's threshold so a low-gas chip here is consistent with
 // the warning the user sees once they click into the agent. If you change one,
@@ -72,7 +72,7 @@ export default function MyAgents() {
   // error message instead of being silently swallowed by `res.json()`.
   const action = useMutation({
     mutationFn: ({ id, act }: { id: string; act: 'start' | 'pause' | 'stop' | 'restart' }) =>
-      post<Agent>(`/api/v1/agents/${id}/${act}`),
+      authedPost<Agent>(`/api/v1/agents/${id}/${act}`, {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['my-agents', address] }),
   });
 
