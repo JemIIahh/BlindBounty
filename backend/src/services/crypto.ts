@@ -34,6 +34,25 @@ const AES_MIN_BLOB = IV_LENGTH + TAG_LENGTH + 1; // 29 bytes minimum
 // Domain separation string for ECIES key derivation (prevents cross-protocol reuse)
 const ECIES_HKDF_INFO = 'BlindMarket-ECIES-v1';
 
+// ── Helpers for Tool Header Encryption ──
+
+/** 
+ * Encrypt a sensitive header value using the agent's private key.
+ * Derives a deterministic symmetric key from the private key.
+ */
+export function encryptSensitive(value: string, agentPrivateKey: string): string {
+  const key = createHash('sha256').update(agentPrivateKey).digest();
+  return aesEncrypt(Buffer.from(value), key).toString('hex');
+}
+
+/** 
+ * Decrypt a sensitive header value using the agent's private key.
+ */
+export function decryptSensitive(encryptedHex: string, agentPrivateKey: string): string {
+  const key = createHash('sha256').update(agentPrivateKey).digest();
+  return aesDecrypt(Buffer.from(encryptedHex, 'hex'), key).toString();
+}
+
 // ── AES-256-GCM (symmetric) ──
 
 /** Encrypt plaintext with AES-256-GCM. Returns iv + tag + ciphertext concatenated. */

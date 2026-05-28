@@ -37,14 +37,18 @@
   --em-900: #171717;
   --em-950: #0a0a0a;
 
-  /* ── Brand accent — cream (Paper & Ink) ────────────────────── */
-  --cream-50:  #faf6ec;
-  --cream-100: #f5efe0;    /* primary accent · CTA · focus · live */
-  --cream-200: #e8dfc7;    /* hover / pressed */
-  --cream-300: #d4c8a8;
-  --cream-400: #a89d85;    /* muted · secondary mark */
-  --cream-500: #8a7f68;
-  --cream-600: #5c5442;    /* pressed on light */
+  /* ── Selection style ────────────────────────────────────────── */
+::selection {
+  background: var(--cream-100);
+  color: var(--em-900);
+}
+  --cream-50:  #a89d80;
+  --cream-100: #8c8166;    /* primary accent — deeper, more visible gold */
+  --cream-200: #6e644c;    /* hover / pressed */
+  --cream-300: #574e3b;
+  --cream-400: #423b2c;    /* muted · secondary mark */
+  --cream-500: #2e281d;
+  --cream-600: #1a160f;    /* pressed on light */
 
   /* Legacy aliases — keep until callsites migrate */
   --accent:        var(--cream-100);

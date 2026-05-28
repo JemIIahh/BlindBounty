@@ -99,8 +99,19 @@ const ToolSchema = z.discriminatedUnion('type', [
     description: z.string().default(''),
     url: z.string().url(),
     method: z.enum(['GET', 'POST', 'PUT', 'DELETE']),
-    headers: z.record(z.string()).optional(),
-    bodyTemplate: z.string().optional(),
+    headers: z.array(z.object({
+      name: z.string().min(1),
+      value: z.string().min(1),
+      isSensitive: z.boolean().default(false),
+    })).optional(),
+    queryParams: z.array(z.object({
+      name: z.string().min(1),
+      value: z.string().min(1),
+    })).optional(),
+    body: z.object({
+      contentType: z.enum(['application/json', 'application/x-www-form-urlencoded']).default('application/json'),
+      payload: z.string().optional(),
+    }).optional(),
   }),
   z.object({
     type: z.literal('mcp'),

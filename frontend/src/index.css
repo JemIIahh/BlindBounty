@@ -60,8 +60,8 @@ html[data-theme="dark"] {
   }
 
   ::selection {
-    background-color: rgba(245, 239, 224, 0.3);
-    color: var(--bb-ink);
+    background-color: var(--bb-cream);
+    color: var(--bb-surface);
   }
 
   /* Custom scrollbar */

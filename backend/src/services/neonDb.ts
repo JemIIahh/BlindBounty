@@ -12,7 +12,16 @@ export function getPool(): pg.Pool {
     throw new Error('DATABASE_URL is not set — Neon PostgreSQL connection unavailable');
   }
 
-  pool = new Pool({ connectionString: config.databaseUrl });
+  let connectionString = config.databaseUrl;
+  if (connectionString) {
+    if (connectionString.includes('sslmode=')) {
+      connectionString = connectionString.replace(/sslmode=(require|prefer|verify-ca)/, 'sslmode=verify-full');
+    } else {
+      connectionString += (connectionString.includes('?') ? '&' : '?') + 'sslmode=verify-full';
+    }
+  }
+
+  pool = new Pool({ connectionString });
   runMigrations(pool);
   return pool;
 }

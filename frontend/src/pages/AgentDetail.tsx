@@ -18,7 +18,10 @@ const TOP_UP_AMOUNT = '0.005';
 // tx. UI surfaces a "Top Up Gas" call to action when balance is under this.
 const LOW_GAS_THRESHOLD = 0.005;
 
-interface AgentTool { type: string; name: string; description: string; url?: string; endpointUrl?: string; method?: string; toolName?: string; }
+interface AgentTool { 
+  type: string; name: string; description: string; url?: string; endpointUrl?: string; method?: string; toolName?: string;
+  headers?: { name: string; value: string; isSensitive: boolean }[];
+}
 interface AgentDetails {
   id: string; name: string; provider: string; model: string; status: string;
   ownerAddress: string; deployedAt: string; instructions: string;
@@ -246,6 +249,15 @@ export default function AgentDetail() {
             <div><div className="text-ink-3 mb-1">deployed</div><div className="text-ink">{new Date(agent.deployedAt).toLocaleString()}</div></div>
             {agent.walletAddress && <div><div className="text-ink-3 mb-1">agent wallet</div><div className="text-ink break-all text-[11px]">{agent.walletAddress}</div></div>}
             {agent.inftTokenId !== undefined && <div><div className="text-ink-3 mb-1">INFT token</div><div className="text-cream">#{agent.inftTokenId}</div></div>}
+            <div>
+              <div className="text-ink-3 mb-1">reputation</div>
+              <div className="text-ink flex items-center gap-2">
+                {String(agent.decayedReputation?.decayedScore ?? agent.reputation?.score ?? 0)}
+                <span className="text-[10px] text-ink-3">
+                  ({agent.reputation?.tasksCompleted ?? 0} tasks · {agent.reputation?.disputes ?? 0} disputes)
+                </span>
+              </div>
+            </div>
             {agent.publicKey && <div><div className="text-ink-3 mb-1">public key</div><div className="text-ink">{agent.publicKey.slice(0, 18)}…{agent.publicKey.slice(-6)}</div></div>}
           </div>
         </div>
@@ -314,6 +326,13 @@ export default function AgentDetail() {
                     </div>
                     <div className="text-ink-3">{t.description}</div>
                     {(t.url || t.endpointUrl) && <div className="text-ink-3 mt-1 text-[11px]">{t.url ?? t.endpointUrl}</div>}
+                    {t.headers && t.headers.length > 0 && (
+                      <div className="mt-2 text-ink-3">
+                        {t.headers.map((h, j) => (
+                          <div key={j} className="text-[10px]">{h.name}: {h.isSensitive ? '********' : h.value}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

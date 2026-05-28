@@ -30,50 +30,11 @@ import { fileURLToPath } from 'url';
 import { dirname as pathDirname, join as pathJoin } from 'path';
 import { runInNewContext } from 'vm';
 import { ethers } from 'ethers';
+import { decryptSensitive } from '../src/services/crypto.js';
 
-// ── ECIES + AES decrypt helpers — byte-compatible with backend/src/services/crypto.ts
-// and frontend/src/lib/crypto.ts. Used to unwrap the AES key the poster wrapped
-// to our pubkey at task-creation time, then decrypt the brief blob from 0G Storage.
-const ECIES_PUBKEY_LENGTH = 65;
-const IV_LENGTH = 12;
-const TAG_LENGTH = 16;
-const KEY_LENGTH = 32;
-const ECIES_HKDF_INFO = 'BlindMarket-ECIES-v1';
+const AGENT_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY ?? '';
 
-function aesGcmDecrypt(blob, key) {
-  if (blob.length < IV_LENGTH + TAG_LENGTH) throw new Error('AES blob too short');
-  const iv = blob.subarray(0, IV_LENGTH);
-  const tag = blob.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
-  const ct = blob.subarray(IV_LENGTH + TAG_LENGTH);
-  const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: TAG_LENGTH });
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ct), decipher.final()]);
-}
-
-// ── Encrypt counterparts — byte-compatible with backend/src/services/crypto.ts
-// and frontend/src/lib/crypto.ts. Used by delegate_to_agent to post an
-// encrypted sub-task brief the chosen executor can decrypt with the helpers
-// above. ──
-function genAesKey() {
-  return randomBytes(KEY_LENGTH);
-}
-
-function aesGcmEncrypt(plaintext, key) {
-  const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: TAG_LENGTH });
-  const ct = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return Buffer.concat([iv, tag, ct]); // [12 iv][16 tag][ciphertext]
-}
-
-function eciesEncryptK1(data, recipientPubKeyHex) {
-  const ephemeral = createECDH('secp256k1');
-  ephemeral.generateKeys();
-  const shared = ephemeral.computeSecret(Buffer.from(recipientPubKeyHex, 'hex'));
-  const derived = Buffer.from(hkdfSync('sha256', shared, '', ECIES_HKDF_INFO, KEY_LENGTH));
-  const blob = aesGcmEncrypt(data, derived);
-  return Buffer.concat([ephemeral.getPublicKey(), blob]); // [65 ephemeral pub][aes blob]
-}
+// ── ECIES + AES decrypt helpers ──
 
 function sha256Hex(buf) {
   return createHash('sha256').update(buf).digest('hex');
@@ -471,12 +432,31 @@ function buildTools() {
         inputSchema: z.object({ input: z.string() }),
         execute: async ({ input }) => {
           try {
-            const url = t.url.replace(/\{(\w+)\}/g, () => encodeURIComponent(input));
-            const body = t.bodyTemplate ? t.bodyTemplate.replace(/\{\{(\w+)\}\}/g, () => input) : undefined;
+            let url = t.url.replace(/\{(\w+)\}/g, () => encodeURIComponent(input));
+            
+            // Append query params
+            if (t.queryParams && t.queryParams.length > 0) {
+              const qs = new URLSearchParams(t.queryParams.map(q => [q.name, q.value.replace(/\{input\}/g, input)]));
+              url += (url.includes('?') ? '&' : '?') + qs.toString();
+            }
+
+            const headers = { 'Content-Type': t.body?.contentType ?? 'application/json' };
+            for (const h of (t.headers ?? [])) {
+              headers[h.name] = h.isSensitive 
+                ? decryptSensitive(h.value, AGENT_PRIVATE_KEY) 
+                : h.value.replace(/\{input\}/g, input);
+            }
+
+            let body;
+            if (t.body?.payload) {
+              const rawPayload = t.body.payload.replace(/\{input\}/g, input);
+              body = t.body.contentType === 'application/json' ? JSON.stringify(JSON.parse(rawPayload)) : rawPayload;
+            }
+
             const res = await fetchWithTimeout(url, {
               method: t.method,
-              headers: { 'Content-Type': 'application/json', ...t.headers },
-              body: body ? JSON.stringify(JSON.parse(body)) : undefined,
+              headers,
+              body,
             });
             return { status: res.status, data: await res.text() };
           } catch (e) {

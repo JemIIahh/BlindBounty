@@ -4,23 +4,10 @@ import { useAccount, useWalletClient, useBalance } from 'wagmi';
 import { recoverPublicKey, hashMessage } from 'viem';
 import { BrowserProvider, parseEther, formatEther } from 'ethers';
 import { Breadcrumb, PageHeader, SectionRule } from '../components/bb';
+import { HeaderManager } from '../components/bb/HeaderManager';
+import { QueryParamManager } from '../components/bb/QueryParamManager';
 import { get, post } from '../lib/api';
 import { AGENT_CAPABILITIES } from '../config/capabilities';
-
-// How much native 0G to send to a freshly-deployed agent wallet so it can pay
-// gas for its on-chain actions (submitEvidence, USDC sweep, etc). 0.005 0G
-// covers ~125 submitEvidence txs at current gas prices — enough for a
-// reasonable demo session without burning a full faucet drip.
-const DEPLOY_FUND_AMOUNT = '0.005';
-
-// Minimum owner balance to even attempt deploy: fund amount + buffer for the
-// transfer's own gas cost. If the owner's wallet is below this we disable the
-// Deploy button and direct them to the faucet first — better than letting
-// them deploy an agent that immediately fails for lack of gas.
-const MIN_OWNER_BALANCE = '0.06';
-
-type Provider = 'openai' | 'anthropic' | 'groq' | 'gemini';
-type ProviderModels = Record<Provider, string[]>;
 
 interface Tool {
   type: 'http' | 'mcp';
@@ -28,11 +15,17 @@ interface Tool {
   description: string;
   url: string;
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  toolName?: string; // for mcp
-  authType?: 'none' | 'bearer' | 'api-key' | 'basic';
-  authValue?: string;
-  authHeader?: string; // custom header name for api-key auth
+  toolName?: string;
+  headers: { name: string; value: string; isSensitive: boolean }[];
+  queryParams: { name: string; value: string }[];
+  body: { contentType: 'application/json' | 'application/x-www-form-urlencoded'; payload: string };
 }
+
+const DEPLOY_FUND_AMOUNT = '0.005';
+const MIN_OWNER_BALANCE = '0.06';
+
+type Provider = 'openai' | 'anthropic' | 'groq' | 'gemini';
+type ProviderModels = Record<Provider, string[]>;
 
 export default function DeployAgentForm() {
   const { address } = useAccount();
@@ -56,7 +49,10 @@ export default function DeployAgentForm() {
 
   const [tools, setTools] = useState<Tool[]>([]);
   const [capabilities, setCapabilities] = useState<string[]>([]);
-  const [newTool, setNewTool] = useState<Tool>({ type: 'http', name: '', description: '', url: '', method: 'POST', authType: 'none', authValue: '', authHeader: 'X-API-Key' });
+  const [newTool, setNewTool] = useState<Tool>({ 
+    type: 'http', name: '', description: '', url: '', method: 'POST', 
+    headers: [], queryParams: [], body: { contentType: 'application/json', payload: '' } 
+  });
   const [showToolForm, setShowToolForm] = useState(false);
 
   const [status, setStatus] = useState<'idle' | 'deploying' | 'funding' | 'done' | 'error'>('idle');
@@ -64,9 +60,6 @@ export default function DeployAgentForm() {
   const [agentId, setAgentId] = useState('');
   const [fundingSkipped, setFundingSkipped] = useState(false);
 
-  // Owner balance gates the deploy button. Without enough 0G to fund the new
-  // agent the whole flow stalls at step 2, so we check up front instead of
-  // letting the user discover the problem after they've signed step 1.
   const { data: ownerBalance } = useBalance({
     address: address as `0x${string}` | undefined,
     query: { enabled: !!address },
@@ -90,8 +83,11 @@ export default function DeployAgentForm() {
 
   function addTool() {
     if (!newTool.name || !newTool.url) return;
+    if (newTool.body.contentType === 'application/json') {
+      try { JSON.parse(newTool.body.payload || '{}'); } catch { alert('Invalid JSON payload'); return; }
+    }
     setTools(t => [...t, newTool]);
-    setNewTool({ type: 'http', name: '', description: '', url: '', method: 'POST' });
+    setNewTool({ type: 'http', name: '', description: '', url: '', method: 'POST', headers: [], queryParams: [], body: { contentType: 'application/json', payload: '{}' } });
     setShowToolForm(false);
   }
 
@@ -102,42 +98,33 @@ export default function DeployAgentForm() {
     setError('');
     setFundingSkipped(false);
     try {
-      // Step 1 — derive owner's secp256k1 pubkey via message signature. Used by
-      // the backend to ECIES-encrypt the agent's private key for at-rest
-      // storage. Free (no gas), just one wallet popup.
       const msg = `BlindMarket agent deployment\nOwner: ${address}`;
       const sig = await walletClient.signMessage({ message: msg });
       const recovered = await recoverPublicKey({ hash: hashMessage(msg), signature: sig });
-      // viem returns 0x04... — strip 0x for backend
       const ownerPublicKey = recovered.replace(/^0x/, '');
 
-      // Step 2 — register the agent server-side. Backend mints the agent's
-      // wallet + INFT and returns walletAddress so we can fund it.
       const data = await post<{ id: string; walletAddress?: string }>('/api/v1/agents/deploy', {
         ...form,
         ownerAddress: address,
         ownerPublicKey,
         capabilities,
-        tools: tools.map(t => {
-          const headers: Record<string, string> = {};
-          if (t.authType === 'bearer') headers['Authorization'] = `Bearer ${t.authValue}`;
-          else if (t.authType === 'api-key') headers[t.authHeader ?? 'X-API-Key'] = t.authValue ?? '';
-          else if (t.authType === 'basic') headers['Authorization'] = `Basic ${btoa(t.authValue ?? '')}`;
-          return t.type === 'mcp'
-            ? { type: 'mcp', name: t.name, description: t.description, endpointUrl: t.url, toolName: t.toolName ?? t.name }
-            : { type: 'http', name: t.name, description: t.description, url: t.url, method: t.method ?? 'POST', headers };
-        }),
+        tools: tools.map(t => t.type === 'mcp'
+          ? { type: 'mcp', name: t.name, description: t.description, endpointUrl: t.url, toolName: t.toolName ?? t.name }
+          : { 
+              type: 'http', 
+              name: t.name, 
+              description: t.description, 
+              url: t.url, 
+              method: t.method ?? 'POST', 
+              headers: t.headers,
+              queryParams: t.queryParams,
+              body: t.body
+            }
+        ),
       });
       setAgentId(data.id);
 
-      // Step 3 — fund the new agent wallet with native 0G so it can pay gas
-      // for its own on-chain actions. The owner signs and broadcasts this
-      // directly — no platform treasury involved. If they reject we still
-      // consider the deploy successful and just flag the agent as unfunded;
-      // they can Top Up later from the agent detail page.
       if (!data.walletAddress) {
-        // Backend didn't return walletAddress — older API or response shape
-        // changed. Treat as success-but-unfunded.
         console.warn('[deploy] no walletAddress in deploy response, skipping funding step');
         setFundingSkipped(true);
         setStatus('done');
@@ -154,9 +141,6 @@ export default function DeployAgentForm() {
         });
         await tx.wait();
       } catch (fundErr) {
-        // Funding rejection is non-fatal — agent record already persists. Let
-        // the user finish the flow and surface the unfunded state on the
-        // success screen so they can Top Up manually.
         console.warn('[deploy] funding step failed:', (fundErr as Error).message);
         setFundingSkipped(true);
       }
@@ -211,7 +195,6 @@ export default function DeployAgentForm() {
       <PageHeader title="Deploy agent" description="Configure your agent — it will autonomously pick up and complete tasks." />
 
       <form onSubmit={handleSubmit} className="border border-line">
-        {/* Identity */}
         <div className="p-6 border-b border-line">
           <SectionRule num="01" title="identity" />
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -234,7 +217,6 @@ export default function DeployAgentForm() {
           </div>
         </div>
 
-        {/* Model */}
         <div className="p-6 border-b border-line">
           <SectionRule num="02" title="model" />
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -261,7 +243,6 @@ export default function DeployAgentForm() {
           </div>
         </div>
 
-        {/* Capabilities */}
         <div className="p-6 border-b border-line">
           <SectionRule num="03" title="capabilities" side="required — what tasks can this agent do?" />
           <div className="mt-4 flex flex-wrap gap-2">
@@ -276,19 +257,8 @@ export default function DeployAgentForm() {
               </button>
             ))}
           </div>
-          {capabilities.length === 0 ? (
-            <div className="mt-3 border border-err/40 bg-err/5 px-3 py-2 text-[11px] font-mono text-err">
-              ⚠ pick at least one. agents with no declared capabilities can't accept any task that
-              requires one — they'll register and idle forever.
-            </div>
-          ) : (
-            <div className="mt-2 text-[11px] font-mono text-ink-3">
-              {capabilities.length} selected
-            </div>
-          )}
         </div>
 
-        {/* Tools */}
         <div className="p-6 border-b border-line">
           <SectionRule num="04" title="tools & mcp servers" side="optional" />
           <div className="mt-4 space-y-2">
@@ -335,34 +305,47 @@ export default function DeployAgentForm() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3 mb-1">description</label>
-                  <input value={newTool.description} onChange={e => setNewTool(t => ({ ...t, description: e.target.value }))}
-                    placeholder="What this tool does" className="w-full bg-surface-2 border border-line px-3 py-2 text-xs font-mono text-ink placeholder-ink-3 focus:outline-none focus:border-cream" />
+                  <textarea rows={3} value={newTool.description} onChange={e => setNewTool(t => ({ ...t, description: e.target.value }))}
+                    placeholder="What this tool does" className="w-full bg-surface-2 border border-line px-3 py-2 text-xs font-mono text-ink placeholder-ink-3 focus:outline-none focus:border-cream resize-none" />
                 </div>
                 {newTool.type === 'http' && (
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3">auth</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <select value={newTool.authType ?? 'none'} onChange={e => setNewTool(t => ({ ...t, authType: e.target.value as Tool['authType'] }))}
-                        className="w-full bg-surface-2 border border-line px-3 py-2 text-xs font-mono text-ink focus:outline-none focus:border-cream">
-                        <option value="none">none</option>
-                        <option value="bearer">bearer token</option>
-                        <option value="api-key">api key header</option>
-                        <option value="basic">basic auth</option>
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3">query parameters</label>
+                      <QueryParamManager params={newTool.queryParams} onChange={(p) => setNewTool(t => ({ ...t, queryParams: p }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3">headers</label>
+                      <HeaderManager headers={newTool.headers} onChange={(h) => setNewTool(t => ({ ...t, headers: h }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-mono uppercase tracking-widest text-ink-3">body payload</label>
+                      <select value={newTool.body.contentType} onChange={e => {
+                        const contentType = e.target.value as 'application/json' | 'application/x-www-form-urlencoded';
+                        setNewTool(t => ({ 
+                          ...t, 
+                          body: { 
+                            contentType, 
+                            payload: contentType === 'application/json' ? '{}' : '' 
+                          } 
+                        }));
+                      }}
+                        className="w-full bg-surface-2 border border-line px-3 py-2 text-xs font-mono text-ink">
+                        <option value="application/json">JSON</option>
+                        <option value="application/x-www-form-urlencoded">Form URL Encoded</option>
                       </select>
-                      {newTool.authType !== 'none' && (
-                        <input type="password" value={newTool.authValue ?? ''} onChange={e => setNewTool(t => ({ ...t, authValue: e.target.value }))}
-                          placeholder={newTool.authType === 'basic' ? 'user:password' : 'token / key'}
-                          className="w-full bg-surface-2 border border-line px-3 py-2 text-xs font-mono text-ink placeholder-ink-3 focus:outline-none focus:border-cream" />
+                      
+                      {newTool.body.contentType === 'application/json' ? (
+                        <textarea rows={3} value={newTool.body.payload} onChange={e => setNewTool(t => ({ ...t, body: { ...t.body, payload: e.target.value } }))}
+                          placeholder='{"key": "value"}' className="w-full bg-surface-2 border border-line px-3 py-2 text-xs font-mono text-ink placeholder-ink-3 focus:outline-none focus:border-cream resize-none" />
+                      ) : (
+                        <QueryParamManager params={newTool.body.payload ? JSON.parse(newTool.body.payload) : []} 
+                          onChange={(p) => setNewTool(t => ({ ...t, body: { ...t.body, payload: JSON.stringify(p) } }))} />
                       )}
                     </div>
-                    {newTool.authType === 'api-key' && (
-                      <input value={newTool.authHeader ?? 'X-API-Key'} onChange={e => setNewTool(t => ({ ...t, authHeader: e.target.value }))}
-                        placeholder="header name e.g. X-API-Key"
-                        className="w-full bg-surface-2 border border-line px-3 py-2 text-xs font-mono text-ink placeholder-ink-3 focus:outline-none focus:border-cream" />
-                    )}
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-4">
                   <button type="button" onClick={addTool} className="px-4 py-2 border border-cream text-xs font-mono text-cream hover:bg-cream hover:text-bg transition-colors">add tool</button>
                   <button type="button" onClick={() => setShowToolForm(false)} className="px-4 py-2 border border-line text-xs font-mono text-ink-3 hover:bg-surface-2">cancel</button>
                 </div>
@@ -376,15 +359,11 @@ export default function DeployAgentForm() {
           </div>
         </div>
 
-        {/* Submit */}
         <div className="p-6">
           {!address ? (
             <div className="text-xs font-mono text-ink-3">connect wallet to deploy an agent</div>
           ) : (
             <>
-              {/* Two-signature heads-up: deploying signs a message (free), then
-                  funds the agent wallet via a real tx. Spelling this out up
-                  front sets popup expectations so people don't bail at step 2. */}
               <div className="mb-4 border border-line bg-surface-2 px-4 py-3 text-[11px] font-mono text-ink-3 space-y-1">
                 <div className="text-ink uppercase tracking-widest">deployment uses 2 signatures</div>
                 <div>1. sign a message — no gas, derives owner pubkey for encryption</div>
