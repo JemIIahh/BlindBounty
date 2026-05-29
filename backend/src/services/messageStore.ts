@@ -1,4 +1,4 @@
-import { getDb } from './database.js';
+import { getPool } from './neonDb.js';
 
 export interface AgentMessage {
   id: number;
@@ -15,142 +15,137 @@ export interface AgentMessage {
  * Send a message from one address to another.
  * Agents use this to message poster, or poster to message agent.
  */
-export function sendMessage(opts: {
+export async function sendMessage(opts: {
   from: string;
   to: string;
   taskId?: string;
   subject?: string;
   body: string;
-}): AgentMessage {
-  const db = getDb();
-  const result = db
-    .prepare(
-      'INSERT INTO agent_messages (task_id, from_address, to_address, subject, body) VALUES (?, ?, ?, ?, ?)',
-    )
-    .run(
-      opts.taskId ?? null,
-      opts.from.toLowerCase(),
-      opts.to.toLowerCase(),
-      opts.subject ?? null,
-      opts.body,
-    );
-  return db
-    .prepare('SELECT * FROM agent_messages WHERE id = ?')
-    .get(result.lastInsertRowid) as AgentMessage;
+}): Promise<AgentMessage> {
+  const db = getPool();
+  const { rows } = await db.query<AgentMessage>(
+    'INSERT INTO agent_messages (task_id, from_address, to_address, subject, body) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    [opts.taskId ?? null, opts.from.toLowerCase(), opts.to.toLowerCase(), opts.subject ?? null, opts.body],
+  );
+  return rows[0];
 }
 
 /**
  * Get inbox for an address (messages addressed to them).
- * Optional taskId filter for task-specific threads.
  */
-export function getInbox(
+export async function getInbox(
   address: string,
   opts?: { taskId?: string; unreadOnly?: boolean; limit?: number; offset?: number },
-): { messages: AgentMessage[]; total: number } {
-  const db = getDb();
+): Promise<{ messages: AgentMessage[]; total: number }> {
+  const db = getPool();
   const addr = address.toLowerCase();
-  let where = 'WHERE to_address = ?';
+  let where = 'WHERE to_address = $1';
   const params: (string | number)[] = [addr];
+  let paramIdx = 2;
 
   if (opts?.taskId) {
-    where += ' AND task_id = ?';
+    where += ` AND task_id = $${paramIdx++}`;
     params.push(opts.taskId);
   }
   if (opts?.unreadOnly) {
     where += ' AND read_at IS NULL';
   }
 
-  const countRow = db
-    .prepare(`SELECT COUNT(*) as cnt FROM agent_messages ${where}`)
-    .get(...params) as { cnt: number };
+  const countRow = await db.query<{ cnt: number }>(
+    `SELECT COUNT(*) as cnt FROM agent_messages ${where}`,
+    params,
+  );
 
   const limit = opts?.limit ?? 50;
   const offset = opts?.offset ?? 0;
-  const messages = db
-    .prepare(`SELECT * FROM agent_messages ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset) as AgentMessage[];
+  const { rows } = await db.query<AgentMessage>(
+    `SELECT * FROM agent_messages ${where} ORDER BY created_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+    [...params, limit, offset],
+  );
 
-  return { messages, total: countRow.cnt };
+  return { messages: rows, total: Number(countRow.rows[0].cnt) };
 }
 
 /**
  * Get sent messages from an address.
  */
-export function getSent(
+export async function getSent(
   address: string,
   opts?: { taskId?: string; limit?: number; offset?: number },
-): { messages: AgentMessage[]; total: number } {
-  const db = getDb();
+): Promise<{ messages: AgentMessage[]; total: number }> {
+  const db = getPool();
   const addr = address.toLowerCase();
-  let where = 'WHERE from_address = ?';
+  let where = 'WHERE from_address = $1';
   const params: (string | number)[] = [addr];
+  let paramIdx = 2;
 
   if (opts?.taskId) {
-    where += ' AND task_id = ?';
+    where += ` AND task_id = $${paramIdx++}`;
     params.push(opts.taskId);
   }
 
-  const countRow = db
-    .prepare(`SELECT COUNT(*) as cnt FROM agent_messages ${where}`)
-    .get(...params) as { cnt: number };
+  const countRow = await db.query<{ cnt: number }>(
+    `SELECT COUNT(*) as cnt FROM agent_messages ${where}`,
+    params,
+  );
 
   const limit = opts?.limit ?? 50;
   const offset = opts?.offset ?? 0;
-  const messages = db
-    .prepare(`SELECT * FROM agent_messages ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-    .all(...params, limit, offset) as AgentMessage[];
+  const { rows } = await db.query<AgentMessage>(
+    `SELECT * FROM agent_messages ${where} ORDER BY created_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+    [...params, limit, offset],
+  );
 
-  return { messages, total: countRow.cnt };
+  return { messages: rows, total: Number(countRow.rows[0].cnt) };
 }
 
 /**
  * Get the full conversation thread between two addresses for a specific task.
  */
-export function getThread(
+export async function getThread(
   addressA: string,
   addressB: string,
   taskId: string,
-): AgentMessage[] {
-  const db = getDb();
+): Promise<AgentMessage[]> {
+  const db = getPool();
   const a = addressA.toLowerCase();
   const b = addressB.toLowerCase();
-  return db
-    .prepare(
-      `SELECT * FROM agent_messages
-       WHERE task_id = ?
-         AND ((from_address = ? AND to_address = ?) OR (from_address = ? AND to_address = ?))
-       ORDER BY created_at ASC`,
-    )
-    .all(taskId, a, b, b, a) as AgentMessage[];
+  const { rows } = await db.query<AgentMessage>(
+    `SELECT * FROM agent_messages
+     WHERE task_id = $1
+       AND ((from_address = $2 AND to_address = $3) OR (from_address = $3 AND to_address = $2))
+     ORDER BY created_at ASC`,
+    [taskId, a, b],
+  );
+  return rows;
 }
 
 /**
  * Mark messages as read.
  */
-export function markRead(address: string, messageIds?: number[]): void {
-  const db = getDb();
-  const now = new Date().toISOString();
+export async function markRead(address: string, messageIds?: number[]): Promise<void> {
+  const db = getPool();
   const addr = address.toLowerCase();
 
   if (messageIds?.length) {
-    const placeholders = messageIds.map(() => '?').join(',');
-    db
-      .prepare(
-        `UPDATE agent_messages SET read_at = ? WHERE id IN (${placeholders}) AND to_address = ? AND read_at IS NULL`,
-      )
-      .run(now, ...messageIds, addr);
+    const placeholders = messageIds.map((_, i) => `$${i + 2}`).join(',');
+    await db.query(
+      `UPDATE agent_messages SET read_at = NOW() WHERE id IN (${placeholders}) AND to_address = $1 AND read_at IS NULL`,
+      [addr, ...messageIds],
+    );
   } else {
-    db.prepare('UPDATE agent_messages SET read_at = ? WHERE to_address = ? AND read_at IS NULL').run(now, addr);
+    await db.query('UPDATE agent_messages SET read_at = NOW() WHERE to_address = $1 AND read_at IS NULL', [addr]);
   }
 }
 
 /**
  * Count unread messages for an address.
  */
-export function unreadCount(address: string): number {
-  const db = getDb();
-  const row = db
-    .prepare('SELECT COUNT(*) as cnt FROM agent_messages WHERE to_address = ? AND read_at IS NULL')
-    .get(address.toLowerCase()) as { cnt: number };
-  return row.cnt;
+export async function unreadCount(address: string): Promise<number> {
+  const db = getPool();
+  const { rows } = await db.query<{ cnt: number }>(
+    'SELECT COUNT(*) as cnt FROM agent_messages WHERE to_address = $1 AND read_at IS NULL',
+    [address.toLowerCase()],
+  );
+  return Number(rows[0].cnt);
 }

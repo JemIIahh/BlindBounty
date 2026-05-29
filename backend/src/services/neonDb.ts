@@ -60,6 +60,27 @@ const migrations: Array<{ id: number; name: string; sql: string }> = [
       CREATE INDEX IF NOT EXISTS idx_rep_events_addr ON reputation_events(address);
     `,
   },
+  {
+    id: 2,
+    name: 'agent_messages',
+    sql: `
+      CREATE TABLE IF NOT EXISTS agent_messages (
+        id SERIAL PRIMARY KEY,
+        task_id TEXT,
+        from_address TEXT NOT NULL,
+        to_address TEXT NOT NULL,
+        subject TEXT,
+        body TEXT NOT NULL,
+        read_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_msg_to ON agent_messages(to_address);
+      CREATE INDEX IF NOT EXISTS idx_msg_from ON agent_messages(from_address);
+      CREATE INDEX IF NOT EXISTS idx_msg_task ON agent_messages(task_id);
+      CREATE INDEX IF NOT EXISTS idx_msg_created ON agent_messages(created_at);
+    `,
+  },
 ];
 
 async function runMigrations(p: pg.Pool): Promise<void> {
