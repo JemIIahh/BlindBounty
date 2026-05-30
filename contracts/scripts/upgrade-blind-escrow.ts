@@ -1,27 +1,29 @@
 /**
  * Upgrade the BlindEscrow UUPS proxy to a new implementation.
  *
- * Reads the current proxy address from deployments/0g-testnet.json, deploys
- * the new BlindEscrow implementation, and calls upgradeToAndCall on the proxy
- * (via OpenZeppelin's upgrades plugin). The proxy address, all task state,
- * escrow balances, admin, verifier, treasury, fee config, token allowlist,
- * and reputation/registry wiring are all preserved — only the executable
- * code changes.
+ * Reads the proxy address from deployments/<network>.json (network-aware:
+ * 0g-testnet or 0g-mainnet), deploys the new BlindEscrow implementation, and
+ * calls upgradeToAndCall on the proxy (via OpenZeppelin's upgrades plugin). The
+ * proxy address, all task state, escrow balances, admin, verifier, treasury,
+ * fee config, token allowlist, and reputation/registry wiring are all preserved
+ * — only the executable code changes.
  *
  * Prerequisites:
  *   - PRIVATE_KEY env var set to the admin's private key (the address that
  *     deployed the proxy is admin by default; see BlindEscrow.initialize).
  *   - Admin wallet has 0G for gas.
+ *   - Run scripts/validate-escrow-upgrade.ts first (read-only storage check).
  *
  * Usage:
  *   PRIVATE_KEY=<admin_pk> npx hardhat run scripts/upgrade-blind-escrow.ts --network 0g-testnet
+ *   PRIVATE_KEY=<admin_pk> npx hardhat run scripts/upgrade-blind-escrow.ts --network 0g-mainnet
  *
  * Verifies success by reading the new implementation address and calling
  * the new marketplaceAssign function via staticCall (no state change) to
  * confirm it exists on the proxy.
  */
 
-import { ethers, upgrades } from "hardhat";
+import { ethers, upgrades, network } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 import { assertSafeNetwork } from "./_guard";
@@ -44,7 +46,9 @@ async function readImplFromChain(proxy: string): Promise<string> {
 
 async function main() {
   await assertSafeNetwork();
-  const deploymentsPath = path.resolve(__dirname, "../deployments/0g-testnet.json");
+  // Network-aware: 0g-testnet → deployments/0g-testnet.json, 0g-mainnet →
+  // deployments/0g-mainnet.json. Lets the same script run the mainnet upgrade.
+  const deploymentsPath = path.resolve(__dirname, `../deployments/${network.name}.json`);
   if (!fs.existsSync(deploymentsPath)) {
     throw new Error(`deployments file not found: ${deploymentsPath}`);
   }

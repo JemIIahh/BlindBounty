@@ -40,7 +40,21 @@ export async function buildCreateTask(
   locationZone: string,
   duration: bigint,
   value?: bigint,
+  verifierAgent?: string,
 ): Promise<ethers.TransactionRequest> {
+  // When the poster designates a verifier (verificationMode='agent'), commit it
+  // on-chain at creation via createTaskWithVerifier so settlement is trustless —
+  // only that verifier can call completeVerification. Otherwise the plain path
+  // (auto/manual, settled by the global marketplace verifier).
+  if (verifierAgent && verifierAgent !== ethers.ZeroAddress) {
+    return buildUnsignedTx(
+      escrow,
+      'createTaskWithVerifier',
+      [taskHash, token, amount, category, locationZone, duration, verifierAgent],
+      from,
+      value,
+    );
+  }
   return buildUnsignedTx(escrow, 'createTask', [taskHash, token, amount, category, locationZone, duration], from, value);
 }
 

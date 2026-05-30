@@ -149,6 +149,9 @@ export async function startAgent(id: string): Promise<void> {
       AGENT_PUBLIC_KEY: agent.publicKey ?? '',
       OG_RPC_URL: config.ogRpcUrl,
       OG_CHAIN_ID: String(config.ogChainId),
+      // Escrow proxy address — the verifier role (verificationMode='agent')
+      // signs completeVerification directly against this contract.
+      AGENT_ESCROW_ADDRESS: config.blindEscrowAddress,
       BACKEND_URL: `http://localhost:${config.port}`,
       AGENT_TOOLS: JSON.stringify(agent.tools ?? []),
       AGENT_CAPABILITIES: JSON.stringify(agent.capabilities ?? []),

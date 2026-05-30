@@ -97,6 +97,9 @@ const AGENT_PRIVATE_KEY = process.env.AGENT_PRIVATE_KEY ?? '';
 const AGENT_PUBLIC_KEY = process.env.AGENT_PUBLIC_KEY || derivePublicKeyHex(AGENT_PRIVATE_KEY);
 const OG_RPC_URL = process.env.OG_RPC_URL ?? 'https://evmrpc-testnet.0g.ai';
 const OG_CHAIN_ID = Number(process.env.OG_CHAIN_ID ?? 16602);
+// BlindEscrow proxy address — the verifier role (verificationMode='agent')
+// signs completeVerification directly against this contract (trustless).
+const AGENT_ESCROW_ADDRESS = process.env.AGENT_ESCROW_ADDRESS ?? '';
 const AGENT_TOOLS_RAW = process.env.AGENT_TOOLS ?? '[]';
 const AGENT_CAPABILITIES_RAW = process.env.AGENT_CAPABILITIES ?? '[]';
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://localhost:3001';
@@ -227,11 +230,6 @@ const MAX_RESUME_ATTEMPTS = 3;
 const verifyingTasks = new Set();
 const verifyFailures = new Map();
 const MAX_VERIFY_ATTEMPTS = 5;
-// In-call retry for the verdict POST on transient on-chain gates (the executor's
-// submitEvidence may lag the /finalize that parked the task). Resolving these
-// within the call avoids burning the per-task attempt cap on a normal race.
-const VERDICT_POST_MAX_ATTEMPTS = 4;
-const VERDICT_POST_RETRY_DELAY_MS = 6_000;
 
 process.on('disconnect', () => {
   log('parent disconnected, exiting');
@@ -1129,6 +1127,17 @@ async function resumeAssignedTasks() {
   }
 }
 
+// Read a task's on-chain status enum via a read-only getTask call:
+// 0=Funded, 1=Assigned, 2=Submitted, 3=Verified(failed), 4=Completed, 5=Cancelled.
+// Used by the verifier to decide whether to settle (Submitted) or just record
+// (already settled) — keeps completeVerification idempotent across polls.
+async function readOnChainStatus(onChainId) {
+  const data = escrowIface.encodeFunctionData('getTask', [BigInt(onChainId)]);
+  const raw = await signerWallet.provider.call({ to: AGENT_ESCROW_ADDRESS, data });
+  const [task] = escrowIface.decodeFunctionResult('getTask', raw);
+  return Number(task.status);
+}
+
 // LLM-as-judge: decide whether the worker's output fulfils the task brief.
 // The brief and output are UNTRUSTED data — the system prompt tells the model
 // to treat them as content to evaluate, never as instructions, to blunt prompt
@@ -1176,9 +1185,10 @@ async function judgeTask(brief, output, acceptance) {
 // Verifier role: judge tasks this agent was designated to verify
 // (verificationMode='agent'). For each task awaiting a verdict, decrypt the real
 // brief (we hold a wrapped slice), read the executor's output, LLM-judge
-// correctness, then POST the verdict — which the backend relays to the on-chain
-// completeVerification. Any deployed agent can be a verifier; the poster picks
-// one by pubkey at post time.
+// correctness, then sign completeVerification on-chain OURSELVES (trustless —
+// the contract gates on the per-task verifier) and record the verdict for the
+// UI. Any deployed agent can be a verifier; the poster picks one by pubkey at
+// post time.
 async function pollAndVerify() {
   if (!AGENT_PRIVATE_KEY) return;
   const myAddr = (signerWallet?.address ?? '').toLowerCase();
@@ -1241,32 +1251,82 @@ async function pollAndVerify() {
       }
       log(`verify verdict for ${taskHash.slice(0, 10)}…: ${verdict.passed ? 'PASS' : 'FAIL'} — ${verdict.reasons.slice(0, 2).join('; ')}`);
 
-      // Post the verdict, retrying briefly on transient on-chain gates (the
-      // executor's submitEvidence may not be confirmed at the moment we judge).
-      let posted = false;
-      for (let attempt = 1; attempt <= VERDICT_POST_MAX_ATTEMPTS; attempt++) {
+      // Trustless settlement: WE are this task's on-chain verifier, so we sign
+      // completeVerification ourselves (the contract gates on the per-task
+      // verifier — the backend can't do it for us). Read the on-chain status
+      // first so we stay idempotent if a prior cycle already settled but the
+      // record POST lagged.
+      const onChainId = item.onChainId;
+      if (!onChainId) {
+        log(`verify: ${taskHash.slice(0, 10)}… on-chain id not indexed yet; will retry`);
+        continue; // transient — don't burn the cap
+      }
+      if (!signerWallet || !escrowIface || !AGENT_ESCROW_ADDRESS) {
+        log(`verify: cannot settle ${taskHash.slice(0, 10)}… — signer/escrow not configured`);
+        bumpVerifyFailure(taskHash);
+        continue;
+      }
+
+      let status;
+      try {
+        status = await readOnChainStatus(onChainId);
+      } catch (e) {
+        log(`verify: on-chain status read failed for ${taskHash.slice(0, 10)}…: ${e.message}`);
+        continue; // transient RPC blip — retry next poll
+      }
+
+      let recordPass;
+      if (status === 4) {
+        recordPass = true; // already settled (passed) — record only
+      } else if (status === 3) {
+        recordPass = false; // already settled (failed) — record only
+      } else if (status === 2) {
+        // Submitted on-chain → settle now with our verdict.
+        try {
+          const data = escrowIface.encodeFunctionData('completeVerification', [BigInt(onChainId), verdict.passed]);
+          const sent = await signerWallet.sendTransaction({ to: AGENT_ESCROW_ADDRESS, data });
+          log(`verify: completeVerification broadcast for ${taskHash.slice(0, 10)}… (passed=${verdict.passed}): ${sent.hash}`);
+          const receipt = await sent.wait();
+          if (receipt?.status !== 1) { bumpVerifyFailure(taskHash); continue; }
+          log(`verify: settled ${taskHash.slice(0, 10)}… on-chain (block ${receipt?.blockNumber})`);
+          recordPass = verdict.passed;
+        } catch (e) {
+          const label = formatRevert(e);
+          // A race (status changed between read and tx) reverts InvalidStatus —
+          // transient, retry next poll; anything else counts toward the cap.
+          if (/InvalidStatus/.test(label)) {
+            log(`verify: ${taskHash.slice(0, 10)}… settle race (${label}); will retry`);
+            continue;
+          }
+          log(`verify: completeVerification failed for ${taskHash.slice(0, 10)}…: ${label}`);
+          bumpVerifyFailure(taskHash);
+          continue;
+        }
+      } else {
+        // Funded/Assigned: the executor hasn't submitted evidence on-chain yet.
+        log(`verify: ${taskHash.slice(0, 10)}… not Submitted on-chain yet (status=${status}); will retry`);
+        continue; // transient — don't burn the cap
+      }
+
+      // Record the (now on-chain) verdict for the UI + reputation mirror.
+      // Best-effort: settlement already happened on-chain, so a lagging record
+      // just retries on the next poll.
+      try {
         const vRes = await fetchWithTimeout(`${BACKEND_URL}/api/v1/a2a/tasks/${taskHash}/verdict`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AGENT_PLATFORM_TOKEN}` },
-          body: JSON.stringify({ passed: verdict.passed, reasons: verdict.reasons.slice(0, 20) }),
+          body: JSON.stringify({ passed: recordPass, reasons: verdict.reasons.slice(0, 20) }),
         });
         if (vRes.ok) {
-          log(`verify: verdict submitted for ${taskHash.slice(0, 10)}… (passed=${verdict.passed})`);
+          log(`verify: recorded verdict for ${taskHash.slice(0, 10)}… (passed=${recordPass})`);
           verifyFailures.delete(taskHash);
-          posted = true;
-          break;
+        } else {
+          const t = await vRes.text().catch(() => '');
+          log(`verify: /verdict record ${vRes.status} for ${taskHash.slice(0, 10)}…: ${t.slice(0, 140)} — will retry`);
         }
-        const t = await vRes.text().catch(() => '');
-        const transient = vRes.status === 503 && /NOT_SUBMITTED_ON_CHAIN|NOT_INDEXED/.test(t);
-        if (transient && attempt < VERDICT_POST_MAX_ATTEMPTS) {
-          log(`verify: /verdict 503 for ${taskHash.slice(0, 10)}… (on-chain submit not confirmed) — retrying in ${VERDICT_POST_RETRY_DELAY_MS / 1000}s`);
-          await sleep(VERDICT_POST_RETRY_DELAY_MS);
-          continue;
-        }
-        log(`verify: /verdict ${vRes.status} for ${taskHash.slice(0, 10)}…: ${t.slice(0, 160)}`);
-        break;
+      } catch (e) {
+        log(`verify: /verdict record error for ${taskHash.slice(0, 10)}…: ${e.message}`);
       }
-      if (!posted) bumpVerifyFailure(taskHash);
     } finally {
       verifyingTasks.delete(taskHash);
     }

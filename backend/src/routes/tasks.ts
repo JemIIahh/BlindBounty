@@ -26,7 +26,11 @@ const createTaskSchema = z.object({
   duration: z.string().min(1, 'Duration required'), // seconds as string
   // A2A optional fields
   targetExecutorType: z.enum(['human', 'agent']).optional(),
-  verificationMode: z.enum(['manual', 'auto', 'oracle']).optional(),
+  verificationMode: z.enum(['manual', 'auto', 'oracle', 'agent']).optional(),
+  // Poster-designated verifier (verificationMode='agent'). When present the
+  // unsigned tx targets createTaskWithVerifier so the verifier is committed
+  // on-chain at task creation (the poster signs it, not the platform).
+  verifierAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/, 'Invalid verifier address').optional(),
   verificationCriteria: z.object({
     required_fields: z.array(z.string()).optional(),
     min_length: z.number().int().positive().optional(),
@@ -252,6 +256,7 @@ tasksRouter.post('/', requireAuth, async (req: AuthRequest, res, next) => {
       data.locationZone,
       BigInt(data.duration),
       isNative ? amountBigInt : undefined,
+      data.verificationMode === 'agent' ? data.verifierAddress : undefined,
     );
 
     // Note: A2A meta is NOT written here. Doing so unconditionally produced

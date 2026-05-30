@@ -8,6 +8,10 @@ const config: HardhatUserConfig = {
     version: "0.8.24",
     settings: {
       optimizer: { enabled: true, runs: 200 },
+      // viaIR: required since the agent-verify upgrade added a 7th createTask
+      // param path (stack-too-deep without it). Storage-layout-neutral, so the
+      // BlindEscrow UUPS upgrade stays compatible — viaIR only changes codegen.
+      viaIR: true,
       evmVersion: "cancun",
     },
   },

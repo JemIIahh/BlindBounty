@@ -170,20 +170,28 @@ cannot fake or override a verdict (fully consistent with "no human/platform in
 the loop").
 
 **Scope:**
-- `BlindEscrow.sol`: add `address verifier` to the `Task` struct (today there is
-  only a single global `verifier` slot at L75; `completeVerification` at L316 is
-  `onlyVerifier`). Set it at `createTask`; gate `completeVerification` on
-  `msg.sender == task.verifier` for agent-verify tasks, falling back to the
-  global slot for `auto`/`manual` (backward compatible).
+- `BlindEscrow.sol`: add a trailing `mapping(uint256 => address) public taskVerifier;`
+  (append AFTER `allowedTokens` at L78 — storage-layout-safe; the contract has no
+  `__gap` but is a leaf UUPS contract, so a new trailing var is fine). Today there
+  is only a single global `verifier` slot (L75) and `completeVerification` (L316)
+  is `onlyVerifier`. Set `taskVerifier[id]` from the poster at `createTask` (so
+  the poster — not the platform — commits the verifier on-chain); gate
+  `completeVerification` on `msg.sender == taskVerifier[id]` when set, else fall
+  back to the global `verifier` slot (so `auto`/`manual` and all existing tasks,
+  which read `address(0)`, keep working — backward compatible).
 - Verifier agent (`backend/agents/worker.js`) broadcasts `completeVerification`
   itself (it already holds a signer) instead of POSTing the verdict for relay;
   the backend indexes the on-chain event to drive `awaiting_verification →
   verified/failed` UI state.
 
-**Cost / gate:** contract change → a **mainnet redeploy/migration** (new
-`BlindEscrow` address; existing tasks stay on the old contract) via the multisig
-+ `docs/MAINNET-CHECKLIST.md`. Recommended: build + validate on 0G **testnet**,
-then gate the mainnet cutover behind the checklist.
+**Cost / gate:** `BlindEscrow` is **UUPS-upgradeable** (deployed via
+`upgrades.deployProxy(..., {kind:"uups"})`, deploy-mainnet.ts:63; `_authorizeUpgrade`
+is `onlyAdmin`, L167), so this is a **same-address UUPS upgrade — NOT a redeploy**.
+The live proxy address and all state (tasks, escrow, reputation) are preserved.
+Append-only storage change validated by the OZ plugin + `verify-upgrade.ts`; ship
+via the existing `upgrade-blind-escrow.ts` path (the same one used to add
+`marketplaceAssign`). The upgrade tx is admin/multisig-gated per
+`docs/MAINNET-CHECKLIST.md`. Recommended: validate on 0G **testnet** first.
 
 **Reuses (already shipped — no rework):** the verifier agent decrypting +
 LLM-judging the real brief, the `awaiting_verification` state, the

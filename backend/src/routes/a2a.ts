@@ -1328,19 +1328,33 @@ a2aRouter.post('/tasks/:id/verdict', requireAuth, async (req: AuthRequest, res, 
       );
     }
 
-    // Gate on the submitEvidence tx being confirmed on-chain (status=Submitted)
-    // BEFORE moving state, so a 503 retry doesn't strand the task in a moved
-    // state. completeVerification reverts unless the contract is at Submitted.
+    // Trustless settlement: the verifier broadcasts completeVerification
+    // on-chain ITSELF (the contract gates on the per-task verifier). This
+    // endpoint only RECORDS the verdict for the UI + the off-chain reputation
+    // mirror — it does NOT relay settleVerification (the marketplace signer
+    // isn't this task's verifier and would revert). We confirm the on-chain
+    // settlement actually happened and matches `passed`, so the backend can't be
+    // handed a verdict the verifier never committed on-chain.
     const ocId = await getTaskIdByHash(taskHash);
     if (!ocId) {
       throw new AppError(503, 'NOT_INDEXED', 'On-chain taskId not yet indexed — retry shortly');
     }
     const onChainTask = await escrowService.getTask(Number(ocId));
-    if (onChainTask.status !== 2) { // 2 = Submitted
+    // 2=Submitted, 3=Verified(failed), 4=Completed(passed).
+    const settledPass = onChainTask.status === 4;
+    const settledFail = onChainTask.status === 3;
+    if (!settledPass && !settledFail) {
       throw new AppError(
-        503,
-        'NOT_SUBMITTED_ON_CHAIN',
-        `SubmitEvidence not yet confirmed on-chain (status=${onChainTask.status}). Retry shortly.`,
+        409,
+        'NOT_SETTLED_ON_CHAIN',
+        `completeVerification not yet confirmed on-chain (status=${onChainTask.status}). Broadcast it before recording the verdict.`,
+      );
+    }
+    if (passed !== settledPass) {
+      throw new AppError(
+        409,
+        'VERDICT_MISMATCH',
+        `Reported verdict (passed=${passed}) does not match on-chain settlement (status=${onChainTask.status}).`,
       );
     }
 
@@ -1353,9 +1367,6 @@ a2aRouter.post('/tasks/:id/verdict', requireAuth, async (req: AuthRequest, res, 
     } else if (!passed && state.executorAddress) {
       await recordWorkerDispute(taskHash, state.executorAddress);
     }
-
-    // Bridge: marketplace signer calls completeVerification on chain.
-    void settleVerification(taskHash, passed);
 
     const body: ApiResponse = {
       success: true,
@@ -1382,9 +1393,18 @@ a2aRouter.get('/verifications', requireAuth, async (req: AuthRequest, res, next)
     const address = req.user!.address;
     const tasks = await a2aStore.getVerifierTasks(address);
     const pending = tasks.filter((t) => t.state.status === 'awaiting_verification');
+    // Resolve each task's on-chain numeric id so the verifier can call
+    // completeVerification(id, passed) itself. Null when not yet indexed — the
+    // verifier skips it and retries on its next poll.
+    const verifications = await Promise.all(
+      pending.map(async (t) => ({
+        ...t,
+        onChainId: await getTaskIdByHash(t.meta.taskId).catch(() => null),
+      })),
+    );
     const body: ApiResponse = {
       success: true,
-      data: { verifications: pending, total: pending.length },
+      data: { verifications, total: verifications.length },
     };
     res.json(body);
   } catch (err) {

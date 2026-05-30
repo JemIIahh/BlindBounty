@@ -81,9 +81,16 @@ contract BlindEscrow is Initializable, ReentrancyGuardTransient, PausableUpgrade
     IBlindReputation public reputationContract;
     ITaskRegistry public taskRegistry;
 
+    // Per-task verifier (verificationMode='agent'). Set by the poster at task
+    // creation; address(0) means "use the global verifier" (the auto/manual
+    // relay path, and every task created before this upgrade). Appended as a
+    // trailing state variable for UUPS storage-layout safety.
+    mapping(uint256 => address) public taskVerifier;
+
     // ── Events ──
 
     event TaskCreated(uint256 indexed taskId, address indexed agent, address token, uint256 amount, bytes32 taskHash, string category, string locationZone, uint256 deadline);
+    event TaskVerifierSet(uint256 indexed taskId, address indexed verifier);
     event WorkerAssigned(uint256 indexed taskId, address indexed worker);
     event EvidenceSubmitted(uint256 indexed taskId, address indexed worker, bytes32 evidenceHash, uint8 attempt);
     event VerificationCompleted(uint256 indexed taskId, bool passed);
@@ -184,7 +191,39 @@ contract BlindEscrow is Initializable, ReentrancyGuardTransient, PausableUpgrade
         string calldata category,
         string calldata locationZone,
         uint256 duration
-    ) external payable nonReentrant whenNotPaused returns (uint256 taskId) {
+    ) external payable nonReentrant whenNotPaused returns (uint256) {
+        return _createTask(taskHash, token, amount, category, locationZone, duration, address(0));
+    }
+
+    /**
+     * @notice Like createTask, but designates a per-task verifier
+     *         (verificationMode='agent'). Only `verifierAgent` can call
+     *         completeVerification for this task — settlement is trustless: the
+     *         platform cannot fake or override the verdict. The verifier cannot
+     *         be the poster (self-dealing) and (enforced at completeVerification)
+     *         cannot be the assigned worker.
+     */
+    function createTaskWithVerifier(
+        bytes32 taskHash,
+        address token,
+        uint256 amount,
+        string calldata category,
+        string calldata locationZone,
+        uint256 duration,
+        address verifierAgent
+    ) external payable nonReentrant whenNotPaused returns (uint256) {
+        return _createTask(taskHash, token, amount, category, locationZone, duration, verifierAgent);
+    }
+
+    function _createTask(
+        bytes32 taskHash,
+        address token,
+        uint256 amount,
+        string calldata category,
+        string calldata locationZone,
+        uint256 duration,
+        address verifierAgent
+    ) internal returns (uint256 taskId) {
         if (amount == 0) revert ZeroAmount();
         if (taskHash == bytes32(0)) revert EmptyHash();
         if (!allowedTokens[token]) revert TokenNotAllowed();
@@ -207,6 +246,13 @@ contract BlindEscrow is Initializable, ReentrancyGuardTransient, PausableUpgrade
             deadline: deadline,
             submissionAttempts: 0
         });
+
+        if (verifierAgent != address(0)) {
+            // The poster cannot verify their own task.
+            if (verifierAgent == msg.sender) revert SelfAssignment();
+            taskVerifier[taskId] = verifierAgent;
+            emit TaskVerifierSet(taskId, verifierAgent);
+        }
 
         // Interactions last (CEI)
         if (token == address(0)) {
@@ -313,8 +359,20 @@ contract BlindEscrow is Initializable, ReentrancyGuardTransient, PausableUpgrade
      *         If passed → releases payment. If failed → moves to Verified for retry or timeout.
      * @dev Strict CEI: all state changes before external calls.
      */
-    function completeVerification(uint256 taskId, bool passed) external onlyVerifier nonReentrant whenNotPaused {
+    function completeVerification(uint256 taskId, bool passed) external nonReentrant whenNotPaused {
         Task storage t = _tasks[taskId];
+        // A per-task verifier (verificationMode='agent') settles its own task
+        // trustlessly; tasks with no per-task verifier (auto/manual, and every
+        // task created before this upgrade) fall back to the global verifier
+        // (the marketplace relay). Either way the verifier can never be the
+        // worker who did the job.
+        address taskV = taskVerifier[taskId];
+        if (taskV != address(0)) {
+            if (msg.sender != taskV) revert NotVerifier();
+        } else {
+            if (msg.sender != verifier) revert NotVerifier();
+        }
+        if (msg.sender == t.worker) revert NotVerifier();
         if (t.status != TaskStatus.Submitted) revert InvalidStatus(t.status, TaskStatus.Submitted);
 
         emit VerificationCompleted(taskId, passed);

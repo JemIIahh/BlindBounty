@@ -206,6 +206,64 @@ describe("BlindEscrow", function () {
     });
   });
 
+  // ── per-task verifier (verificationMode='agent') ──
+
+  describe("per-task verifier (agent-verify)", function () {
+    it("createTaskWithVerifier records the verifier and emits TaskVerifierSet", async function () {
+      const t = await token.getAddress();
+      await expect(
+        escrow.connect(agent).createTaskWithVerifier(TASK_HASH, t, AMOUNT, "cat", "zone", ONE_WEEK, stranger.address)
+      ).to.emit(escrow, "TaskVerifierSet").withArgs(1, stranger.address);
+      expect(await escrow.taskVerifier(1)).to.equal(stranger.address);
+    });
+
+    it("plain createTask leaves taskVerifier unset (global-verifier path)", async function () {
+      await escrow.connect(agent).createTask(TASK_HASH, await token.getAddress(), AMOUNT, "cat", "zone", ONE_WEEK);
+      expect(await escrow.taskVerifier(1)).to.equal(ethers.ZeroAddress);
+    });
+
+    it("rejects the poster designating themselves as verifier", async function () {
+      await expect(
+        escrow.connect(agent).createTaskWithVerifier(TASK_HASH, await token.getAddress(), AMOUNT, "cat", "zone", ONE_WEEK, agent.address)
+      ).to.be.revertedWithCustomError(escrow, "SelfAssignment");
+    });
+
+    it("only the designated verifier can complete it — the global verifier cannot", async function () {
+      const t = await token.getAddress();
+      await escrow.connect(agent).createTaskWithVerifier(TASK_HASH, t, AMOUNT, "cat", "zone", ONE_WEEK, stranger.address);
+      await escrow.connect(verifier).marketplaceAssign(1, worker.address);
+      await escrow.connect(worker).submitEvidence(1, EVIDENCE_HASH);
+
+      // global marketplace verifier is NOT this task's verifier → blocked
+      await expect(
+        escrow.connect(verifier).completeVerification(1, true)
+      ).to.be.revertedWithCustomError(escrow, "NotVerifier");
+
+      // the poster-designated verifier settles it → escrow releases
+      await expect(escrow.connect(stranger).completeVerification(1, true)).to.emit(escrow, "TaskCompleted");
+      expect((await escrow.getTask(1)).status).to.equal(4); // Completed
+    });
+
+    it("the worker can never be the verifier, even if designated", async function () {
+      const t = await token.getAddress();
+      // Allowed at create (worker not yet known), blocked at completeVerification.
+      await escrow.connect(agent).createTaskWithVerifier(TASK_HASH, t, AMOUNT, "cat", "zone", ONE_WEEK, worker.address);
+      await escrow.connect(verifier).marketplaceAssign(1, worker.address);
+      await escrow.connect(worker).submitEvidence(1, EVIDENCE_HASH);
+      await expect(
+        escrow.connect(worker).completeVerification(1, true)
+      ).to.be.revertedWithCustomError(escrow, "NotVerifier");
+    });
+
+    it("global verifier still completes a normal (non-agent) task", async function () {
+      const t = await token.getAddress();
+      await escrow.connect(agent).createTask(TASK_HASH, t, AMOUNT, "cat", "zone", ONE_WEEK);
+      await escrow.connect(verifier).marketplaceAssign(1, worker.address);
+      await escrow.connect(worker).submitEvidence(1, EVIDENCE_HASH);
+      await expect(escrow.connect(verifier).completeVerification(1, true)).to.emit(escrow, "TaskCompleted");
+    });
+  });
+
   // ── marketplaceAssign ──
   // Verifier-gated assignment used for autonomous A2A settlement: marketplace
   // backend assigns the worker without poster involvement.
