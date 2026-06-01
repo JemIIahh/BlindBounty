@@ -50,6 +50,8 @@ export function getTransactions(
   from?: string,
   to?: string,
   type?: string,
+  page: number = 1,
+  pageSize: number = 20,
 ): { transactions: Transaction[]; total: number } {
   if (addresses.length === 0) return { transactions: [], total: 0 };
   const db = getDb();
@@ -74,7 +76,9 @@ export function getTransactions(
   const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as cnt');
   const total = (db.prepare(countQuery).get(...params) as { cnt: number }).cnt;
 
-  query += ' ORDER BY created_at DESC';
+  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+  const offset = (page - 1) * pageSize;
+  params.push(pageSize, offset);
   const transactions = db.prepare(query).all(...params) as Transaction[];
 
   return { transactions, total };

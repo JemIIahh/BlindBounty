@@ -22,11 +22,13 @@ export interface TransactionSummary {
   taskCount: number;
 }
 
-export async function getEntries(from?: string, to?: string, type?: string) {
+export async function getEntries(from?: string, to?: string, type?: string, page: number = 1, pageSize: number = 20) {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
   if (to) params.set('to', to);
   if (type) params.set('type', type);
+  if (page !== 1) params.set('page', String(page));
+  if (pageSize !== 20) params.set('pageSize', String(pageSize));
   const qs = params.toString();
   return authedGet<{ transactions: Transaction[]; total: number }>(`/api/v1/accounting/entries${qs ? `?${qs}` : ''}`);
 }

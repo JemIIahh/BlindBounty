@@ -75,12 +75,15 @@ function amountClass(n: number): string {
   return n > 0 ? 'text-ok' : n < 0 ? 'text-err' : 'text-ink-3';
 }
 
+const PAGE_SIZE = 20;
+
 export default function Earnings() {
   const [tab, setTab] = useState<Tab>('transactions');
+  const [txPage, setTxPage] = useState(1);
   const { isAuthenticated } = useAuth();
   const { address } = useAccount();
   const { data: summary, isLoading: summaryLoading } = useAccountingSummary();
-  const { data: entriesRes, isLoading: entriesLoading, error: entriesError } = useAccountingEntries();
+  const { data: entriesRes, isLoading: entriesLoading, error: entriesError } = useAccountingEntries(undefined, undefined, undefined, txPage, PAGE_SIZE);
   const { data: agents, isLoading: agentsLoading } = useQuery({
     queryKey: ['agents', address],
     queryFn: async () => {
@@ -92,6 +95,8 @@ export default function Earnings() {
   });
 
   const entries: Transaction[] = entriesRes?.transactions ?? [];
+  const totalEntries = entriesRes?.total ?? 0;
+  const totalTxPages = Math.max(1, Math.ceil(totalEntries / PAGE_SIZE));
   const pending = entries.filter((e) => e.status === 'pending');
 
   const pendingColumns: Column<Transaction>[] = [
@@ -334,7 +339,7 @@ export default function Earnings() {
 
           {/* Transaction log */}
           <Panel>
-            <SectionRule num="02" title="Transaction log" side={`${entries.length} entries`} />
+            <SectionRule num="02" title="Transaction log" side={`${totalEntries} entries`} />
             <div className="mt-4">
               {entriesError ? (
                 <div className="border border-line px-5 py-8 text-center text-xs font-mono text-err break-all">
@@ -355,6 +360,27 @@ export default function Earnings() {
                 />
               )}
             </div>
+            {totalTxPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-line text-xs text-ink-3">
+                <span>Page {txPage} of {totalTxPages}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTxPage(p => Math.max(1, p - 1))}
+                    disabled={txPage <= 1}
+                    className="px-3 py-1 border border-line bg-surface-2 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setTxPage(p => Math.min(totalTxPages, p + 1))}
+                    disabled={txPage >= totalTxPages}
+                    className="px-3 py-1 border border-line bg-surface-2 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </Panel>
         </>
       )}

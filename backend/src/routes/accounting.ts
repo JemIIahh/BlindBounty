@@ -22,9 +22,11 @@ accountingRouter.get('/entries', requireAuth, async (req: AuthRequest, res, next
     const from = req.query.from as string | undefined;
     const to = req.query.to as string | undefined;
     const type = req.query.type as string | undefined;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
 
     const addresses = await resolveAddresses(address);
-    const result = accountingService.getTransactions(addresses, from, to, type);
+    const result = accountingService.getTransactions(addresses, from, to, type, page, pageSize);
     res.json({ success: true, data: result });
   } catch (err) {
     next(err);
