@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAccount, useBalance } from 'wagmi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -60,21 +61,28 @@ interface Agent {
   };
 }
 
+const AGENTS_PAGE_SIZE = 20;
+
 type Act = 'start' | 'pause' | 'stop' | 'restart';
 
 export default function MyAgents() {
   const { address } = useAccount();
   const qc = useQueryClient();
+  const [page, setPage] = useState(1);
 
-  const { data: agents = [], isLoading, isError, refetch } = useQuery<Agent[]>({
-    queryKey: ['my-agents', address],
+  const { data: agentsRes, isLoading, isError, refetch } = useQuery<{ agents: Agent[]; total: number }>({
+    queryKey: ['my-agents', address, page],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/v1/agents?owner=${address}`);
+      const res = await fetch(`${API_BASE_URL}/api/v1/agents?owner=${address}&page=${page}&pageSize=${AGENTS_PAGE_SIZE}`);
       const json = await res.json();
-      return json.success ? json.data : [];
+      return { agents: json.success ? json.data : [], total: json.total ?? 0 };
     },
     enabled: !!address,
   });
+
+  const agents = agentsRes?.agents ?? [];
+  const totalAgents = agentsRes?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalAgents / AGENTS_PAGE_SIZE));
 
   // Use `authedPost` from lib/api so non-2xx responses throw with the server's
   // error message instead of being silently swallowed by `res.json()`.
@@ -177,7 +185,7 @@ export default function MyAgents() {
           single <Link>; nested buttons inside an anchor are invalid and would
           trigger navigation. So we mirror its visual style here instead. */}
       <div className="border border-line">
-        <SectionRule num="01" title="Deployed agents" side={`${agents.length} total`} className="px-5 pt-5" />
+        <SectionRule num="01" title="Deployed agents" side={`${totalAgents} total`} className="px-5 pt-5" />
 
         {!address ? (
           <EmptyState
@@ -311,6 +319,27 @@ export default function MyAgents() {
               })}
             </div>
           </>
+        )}
+        {agents.length > 0 && totalPages > 1 && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-line text-xs text-ink-3">
+            <span>Page {page} of {totalPages}</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-1 border border-line bg-surface-2 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-1 border border-line bg-surface-2 hover:bg-surface-3 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

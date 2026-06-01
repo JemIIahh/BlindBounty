@@ -167,8 +167,13 @@ agentsRouter.post('/deploy', async (req, res) => {
 // GET /api/v1/agents
 agentsRouter.get('/', async (req, res) => {
   const owner = req.query.owner as string | undefined;
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string) || 20));
   const rawAgents = await listAgents(owner);
-  const enriched = await Promise.all(rawAgents.map(async a => {
+  const total = rawAgents.length;
+  const start = (page - 1) * pageSize;
+  const paged = rawAgents.slice(start, start + pageSize);
+  const enriched = await Promise.all(paged.map(async a => {
     const s = strip(a);
     if (!s) return null;
     const [onChain, decayed] = await Promise.all([
@@ -183,7 +188,7 @@ agentsRouter.get('/', async (req, res) => {
       decayedReputation: decayed,
     };
   }));
-  res.json({ success: true, data: enriched.filter(Boolean) });
+  res.json({ success: true, data: enriched.filter(Boolean), total });
 });
 
 // GET /api/v1/agents/:id/logs — SSE stream
